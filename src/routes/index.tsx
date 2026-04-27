@@ -1,14 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Camera, Package, Brain, Hand, Box, Key, MoreHorizontal,
-  MapPin, MessageSquare, Award, CheckCircle2, Search,
-  Shield, Users, Sparkles, ArrowRight, Quote
+  Camera, Package, Brain, Hand, Key, MoreHorizontal, ArrowRight,
 } from "lucide-react";
-import heroImg from "@/assets/hero.jpg";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 
 export const Route = createFileRoute("/")({
