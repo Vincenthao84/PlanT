@@ -13,6 +13,8 @@ import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RequestIdRouteImport } from './routes/request.$id'
+import { Route as NewTypeRouteImport } from './routes/new.$type'
 
 const UseCasesRoute = UseCasesRouteImport.update({
   id: '/use-cases',
@@ -34,18 +36,32 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RequestIdRoute = RequestIdRouteImport.update({
+  id: '/request/$id',
+  path: '/request/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewTypeRoute = NewTypeRouteImport.update({
+  id: '/new/$type',
+  path: '/new/$type',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/how-it-works': typeof HowItWorksRoute
   '/use-cases': typeof UseCasesRoute
+  '/new/$type': typeof NewTypeRoute
+  '/request/$id': typeof RequestIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/how-it-works': typeof HowItWorksRoute
   '/use-cases': typeof UseCasesRoute
+  '/new/$type': typeof NewTypeRoute
+  '/request/$id': typeof RequestIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +69,34 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/how-it-works': typeof HowItWorksRoute
   '/use-cases': typeof UseCasesRoute
+  '/new/$type': typeof NewTypeRoute
+  '/request/$id': typeof RequestIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/how-it-works' | '/use-cases'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/how-it-works'
+    | '/use-cases'
+    | '/new/$type'
+    | '/request/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/how-it-works' | '/use-cases'
-  id: '__root__' | '/' | '/about' | '/how-it-works' | '/use-cases'
+  to:
+    | '/'
+    | '/about'
+    | '/how-it-works'
+    | '/use-cases'
+    | '/new/$type'
+    | '/request/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/how-it-works'
+    | '/use-cases'
+    | '/new/$type'
+    | '/request/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +104,8 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   HowItWorksRoute: typeof HowItWorksRoute
   UseCasesRoute: typeof UseCasesRoute
+  NewTypeRoute: typeof NewTypeRoute
+  RequestIdRoute: typeof RequestIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +138,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/request/$id': {
+      id: '/request/$id'
+      path: '/request/$id'
+      fullPath: '/request/$id'
+      preLoaderRoute: typeof RequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/new/$type': {
+      id: '/new/$type'
+      path: '/new/$type'
+      fullPath: '/new/$type'
+      preLoaderRoute: typeof NewTypeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +160,8 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   HowItWorksRoute: HowItWorksRoute,
   UseCasesRoute: UseCasesRoute,
+  NewTypeRoute: NewTypeRoute,
+  RequestIdRoute: RequestIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

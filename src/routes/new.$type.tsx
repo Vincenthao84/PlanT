@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,11 +21,6 @@ export const Route = createFileRoute("/new/$type")({
       ],
     };
   },
-  loader: ({ params }) => {
-    const type = getRequestType(params.type);
-    if (!type) throw notFound();
-    return { type };
-  },
   notFoundComponent: () => (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
@@ -38,8 +33,21 @@ export const Route = createFileRoute("/new/$type")({
 });
 
 function NewRequestPage() {
-  const { type } = Route.useLoaderData();
+  const params = Route.useParams();
+  const type = getRequestType(params.type);
   const navigate = useNavigate();
+
+  if (!type) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p>Unknown request type.</p>
+          <Link to="/" className="text-primary underline">Back to request types</Link>
+        </div>
+      </div>
+    );
+  }
+
   const Icon = type.icon;
 
   const [title, setTitle] = useState("");
