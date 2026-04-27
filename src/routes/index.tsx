@@ -57,7 +57,6 @@ function Landing() {
             <a href="#what" className="hover:text-foreground transition">What is it</a>
             <a href="#how" className="hover:text-foreground transition">How it works</a>
             <a href="#uses" className="hover:text-foreground transition">Use cases</a>
-            <a href="#partner" className="hover:text-foreground transition">Partner</a>
           </div>
           <Button variant="default" className="rounded-full">Get early access</Button>
         </nav>
@@ -328,32 +327,6 @@ function Landing() {
               </div>
             </div>
           </Card>
-        </div>
-      </section>
-
-      {/* PARTNER CTA */}
-      <section id="partner" className="py-24">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="relative overflow-hidden rounded-3xl p-12 md:p-16 text-center" style={{ background: "var(--gradient-hero)", boxShadow: "var(--shadow-glow)" }}>
-            <div className="relative z-10 text-primary-foreground">
-              <Badge className="bg-white/15 text-white border-0 backdrop-blur rounded-full mb-6">For partners</Badge>
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-                Looking for partners to bring PLAN T to life
-              </h2>
-              <p className="mt-5 text-lg opacity-90 max-w-2xl mx-auto">
-                We're seeking strong execution partners. We share 5% of profit, retain creative direction,
-                and leave the operational driving seat to you.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3 justify-center">
-                <Button size="lg" variant="secondary" className="rounded-full h-12 px-7 text-base">
-                  Start the conversation <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-                <Button size="lg" variant="outline" className="rounded-full h-12 px-7 text-base bg-transparent border-white/40 text-white hover:bg-white/10 hover:text-white">
-                  Read the proposal
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
