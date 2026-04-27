@@ -32,11 +32,15 @@ export const Route = createRootRoute({
       { title: "PLAN T — A platform for offering and asking for help" },
       { name: "description", content: "PLAN T connects people who need a hand with helpers nearby. Post a request, get bids, and pay only when the deal is done." },
       { name: "author", content: "PLAN T" },
-      { property: "og:title", content: "PLAN T — Ask for help. Earn by helping." },
-      { property: "og:description", content: "A location-aware marketplace for everyday help: snaps, errands, info, rentals and more." },
+      { property: "og:title", content: "PLAN T — A platform for offering and asking for help" },
+      { property: "og:description", content: "PLAN T connects people who need a hand with helpers nearby. Post a request, get bids, and pay only when the deal is done." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "PLAN T — A platform for offering and asking for help" },
+      { name: "twitter:description", content: "PLAN T connects people who need a hand with helpers nearby. Post a request, get bids, and pay only when the deal is done." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/11f833e6-1f9f-444e-bc5c-86b805ac347b/id-preview-a3e10763--809ffb92-32ba-4454-8a34-80a23865994c.lovable.app-1777280003933.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/11f833e6-1f9f-444e-bc5c-86b805ac347b/id-preview-a3e10763--809ffb92-32ba-4454-8a34-80a23865994c.lovable.app-1777280003933.png" },
     ],
     links: [
       {
