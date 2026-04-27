@@ -2,10 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Camera, Package, Brain, Hand, Key, MoreHorizontal, ArrowRight,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { requestTypes } from "@/lib/request-types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,15 +17,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Landing,
 });
-
-const requestTypes = [
-  { icon: Camera, label: "Snap", desc: "Instant photo or video of a place — check a queue, see a menu, confirm hours." },
-  { icon: Brain, label: "Knowledge", desc: "Local intel before you buy a home, switch jobs, or move abroad." },
-  { icon: Hand, label: "Action", desc: "Save a table, take a queue ticket, drop off a message." },
-  { icon: Package, label: "Object", desc: "Trade, deliver or pick up something nearby." },
-  { icon: Key, label: "Rental", desc: "Rent out an idle storage corner, a parking spot or a tool." },
-  { icon: MoreHorizontal, label: "Anything", desc: "If someone can help with it, you can post it on PLAN T." },
-];
 
 function Landing() {
   return (
@@ -51,9 +41,6 @@ function Landing() {
             goes to someone who actually fits the job. Pick a type to start.
           </p>
           <div className="mt-8 flex flex-wrap gap-3 justify-center">
-            <Button size="lg" className="rounded-full text-base h-12 px-7" style={{ boxShadow: "var(--shadow-soft)" }}>
-              Post a request <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
             <Button size="lg" variant="outline" className="rounded-full text-base h-12 px-7" asChild>
               <Link to="/how-it-works">See how it works</Link>
             </Button>
@@ -66,21 +53,30 @@ function Landing() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {requestTypes.map((r) => (
-              <Card
-                key={r.label}
-                className="p-8 bg-card border-border/60 group hover:border-accent/50 hover:-translate-y-1 transition-all"
-                style={{ boxShadow: "var(--shadow-soft)" }}
+              <Link
+                key={r.slug}
+                to="/new/$type"
+                params={{ type: r.slug }}
+                className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-xl"
               >
-                <div className="flex items-start gap-5">
-                  <div className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground transition">
-                    <r.icon className="h-7 w-7" />
+                <Card
+                  className="p-8 bg-card border-border/60 group hover:border-accent/50 hover:-translate-y-1 transition-all h-full"
+                  style={{ boxShadow: "var(--shadow-soft)" }}
+                >
+                  <div className="flex items-start gap-5">
+                    <div className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground transition">
+                      <r.icon className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold text-2xl tracking-tight">{r.label}</h2>
+                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{r.desc}</p>
+                      <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                        Post a {r.label.toLowerCase()} request <ArrowRight className="h-4 w-4" />
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="font-semibold text-2xl tracking-tight">{r.label}</h2>
-                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{r.desc}</p>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </Link>
             ))}
           </div>
 
