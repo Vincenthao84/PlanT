@@ -8,7 +8,7 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   getRequestType,
-  loadAllRequestsList,
+  fetchAllRequests,
   type StoredRequest,
 } from "@/lib/request-types";
 
@@ -49,7 +49,17 @@ function NoticeBoardPage() {
   const [sortMode, setSortMode] = useState<SortMode>("newest");
 
   useEffect(() => {
-    setRequests(loadAllRequestsList());
+    let cancelled = false;
+    fetchAllRequests()
+      .then((rs) => {
+        if (!cancelled) setRequests(rs);
+      })
+      .catch(() => {
+        if (!cancelled) setRequests([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const sortedRequests = useMemo(() => {

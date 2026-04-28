@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, MapPin, Loader2 } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { getRequestType, saveRequest } from "@/lib/request-types";
+import { getRequestType, createRequest } from "@/lib/request-types";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/new/$type")({
   head: ({ params }) => {
@@ -36,6 +38,11 @@ function NewRequestPage() {
   const params = Route.useParams();
   const type = getRequestType(params.type);
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+
+  if (!authLoading && !user) {
+    navigate({ to: "/login" });
+  }
 
   if (!type) {
     return (
@@ -103,20 +110,22 @@ function NewRequestPage() {
       lng = 2.3522;
     }
 
-    const id = Math.random().toString(36).slice(2, 10);
-    saveRequest({
-      id,
-      type: type.slug,
-      title: title.trim(),
-      description: description.trim(),
-      locationLabel: locationLabel.trim() || "Pinned location",
-      lat,
-      lng,
-      reward: reward.trim(),
-      createdAt: Date.now(),
-    });
-
-    navigate({ to: "/request/$id", params: { id } });
+    try {
+      const created = await createRequest({
+        type: type.slug,
+        title: title.trim(),
+        description: description.trim(),
+        locationLabel: locationLabel.trim() || "Pinned location",
+        lat,
+        lng,
+        reward: reward.trim(),
+      });
+      navigate({ to: "/request/$id", params: { id: created.id } });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not post request";
+      toast.error(msg);
+      setSubmitting(false);
+    }
   };
 
   return (
