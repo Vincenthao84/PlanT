@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as NoticeBoardRouteImport } from './routes/notice-board'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -25,6 +26,11 @@ const UseCasesRoute = UseCasesRouteImport.update({
 const NoticeBoardRoute = NoticeBoardRouteImport.update({
   id: '/notice-board',
   path: '/notice-board',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HowItWorksRoute = HowItWorksRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/how-it-works': typeof HowItWorksRoute
+  '/login': typeof LoginRoute
   '/notice-board': typeof NoticeBoardRoute
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/how-it-works': typeof HowItWorksRoute
+  '/login': typeof LoginRoute
   '/notice-board': typeof NoticeBoardRoute
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/how-it-works': typeof HowItWorksRoute
+  '/login': typeof LoginRoute
   '/notice-board': typeof NoticeBoardRoute
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/how-it-works'
+    | '/login'
     | '/notice-board'
     | '/use-cases'
     | '/new/$type'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/how-it-works'
+    | '/login'
     | '/notice-board'
     | '/use-cases'
     | '/new/$type'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/how-it-works'
+    | '/login'
     | '/notice-board'
     | '/use-cases'
     | '/new/$type'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   HowItWorksRoute: typeof HowItWorksRoute
+  LoginRoute: typeof LoginRoute
   NoticeBoardRoute: typeof NoticeBoardRoute
   UseCasesRoute: typeof UseCasesRoute
   NewTypeRoute: typeof NewTypeRoute
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/notice-board'
       fullPath: '/notice-board'
       preLoaderRoute: typeof NoticeBoardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/how-it-works': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   HowItWorksRoute: HowItWorksRoute,
+  LoginRoute: LoginRoute,
   NoticeBoardRoute: NoticeBoardRoute,
   UseCasesRoute: UseCasesRoute,
   NewTypeRoute: NewTypeRoute,
