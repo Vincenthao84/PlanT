@@ -5,7 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin, Clock, Gift } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { getRequestType, loadRequest, type StoredRequest } from "@/lib/request-types";
+import { getRequestType, fetchRequest, deleteRequest, type StoredRequest } from "@/lib/request-types";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/request/$id")({
   head: () => ({
@@ -27,10 +31,23 @@ export const Route = createFileRoute("/request/$id")({
 
 function RequestPage() {
   const { id } = Route.useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [request, setRequest] = useState<StoredRequest | null | undefined>(undefined);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    setRequest(loadRequest(id) ?? null);
+    let cancelled = false;
+    fetchRequest(id)
+      .then((r) => {
+        if (!cancelled) setRequest(r);
+      })
+      .catch(() => {
+        if (!cancelled) setRequest(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (request === undefined) {
@@ -45,6 +62,22 @@ function RequestPage() {
   if (request === null) {
     throw notFound();
   }
+
+  const isOwner = user?.id === request.userId;
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this request?")) return;
+    setDeleting(true);
+    try {
+      await deleteRequest(request.id);
+      toast.success("Request deleted");
+      navigate({ to: "/notice-board" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not delete";
+      toast.error(msg);
+      setDeleting(false);
+    }
+  };
 
   const type = getRequestType(request.type);
   const Icon = type?.icon ?? MapPin;
@@ -132,6 +165,18 @@ function RequestPage() {
               <Button asChild className="mt-4 w-full rounded-full" variant="outline">
                 <Link to="/">Post another request</Link>
               </Button>
+              {isOwner && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="mt-2 w-full rounded-full text-destructive hover:text-destructive"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete request
+                </Button>
+              )}
             </Card>
           </div>
         </div>

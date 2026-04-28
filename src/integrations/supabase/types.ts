@@ -38,6 +38,48 @@ export type Database = {
         }
         Relationships: []
       }
+      requests: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          lat: number
+          lng: number
+          location_label: string
+          reward: string
+          title: string
+          type: Database["public"]["Enums"]["request_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          lat: number
+          lng: number
+          location_label?: string
+          reward?: string
+          title: string
+          type: Database["public"]["Enums"]["request_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          lat?: number
+          lng?: number
+          location_label?: string
+          reward?: string
+          title?: string
+          type?: Database["public"]["Enums"]["request_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -74,6 +116,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      request_type:
+        | "snap"
+        | "knowledge"
+        | "action"
+        | "object"
+        | "rental"
+        | "anything"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -202,6 +251,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      request_type: [
+        "snap",
+        "knowledge",
+        "action",
+        "object",
+        "rental",
+        "anything",
+      ],
     },
   },
 } as const
