@@ -1,6 +1,7 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
+import { Sparkles, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
   { to: "/", label: "Make Requests" },
@@ -11,6 +12,14 @@ const navItems = [
 ] as const;
 
 export function SiteHeader() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate({ to: "/login" });
+  };
+
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
       <nav className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
@@ -33,7 +42,16 @@ export function SiteHeader() {
             </Link>
           ))}
         </div>
-        <Button variant="default" className="rounded-full">Get early access</Button>
+        {user ? (
+          <Button variant="outline" className="rounded-full" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign out
+          </Button>
+        ) : (
+          <Button variant="default" className="rounded-full" asChild>
+            <Link to="/login">Sign in</Link>
+          </Button>
+        )}
       </nav>
     </header>
   );
