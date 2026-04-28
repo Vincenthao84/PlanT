@@ -3,12 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
-const navItems = [
+const publicNav = [
   { to: "/", label: "Make Requests" },
   { to: "/notice-board", label: "Requests Notice Board" },
   { to: "/how-it-works", label: "How it works" },
   { to: "/use-cases", label: "Use cases" },
   { to: "/about", label: "About" },
+] as const;
+
+const authedExtraNav = [
+  { to: "/my-requests", label: "My Requests" },
 ] as const;
 
 export function SiteHeader() {
@@ -19,6 +23,8 @@ export function SiteHeader() {
     await signOut();
     navigate({ to: "/login" });
   };
+
+  const navItems = user ? [...publicNav, ...authedExtraNav] : publicNav;
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
