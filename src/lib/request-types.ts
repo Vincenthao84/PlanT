@@ -1,4 +1,5 @@
 import { Camera, Package, Brain, Hand, Key, MoreHorizontal, type LucideIcon } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export type RequestTypeSlug = "snap" | "knowledge" | "action" | "object" | "rental" | "anything";
 
@@ -32,32 +33,102 @@ export interface StoredRequest {
   lng: number;
   reward: string;
   createdAt: number;
+  userId: string;
 }
 
-const STORAGE_KEY = "plant.requests";
+type Row = {
+  id: string;
+  user_id: string;
+  type: RequestTypeSlug;
+  title: string;
+  description: string;
+  location_label: string;
+  lat: number;
+  lng: number;
+  reward: string;
+  created_at: string;
+};
 
-export function saveRequest(req: StoredRequest) {
-  if (typeof window === "undefined") return;
-  const all = loadAllRequests();
-  all[req.id] = req;
-  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+function rowToRequest(row: Row): StoredRequest {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    title: row.title,
+    description: row.description,
+    locationLabel: row.location_label,
+    lat: row.lat,
+    lng: row.lng,
+    reward: row.reward,
+    createdAt: new Date(row.created_at).getTime(),
+  };
 }
 
-export function loadRequest(id: string): StoredRequest | undefined {
-  if (typeof window === "undefined") return undefined;
-  return loadAllRequests()[id];
+export type NewRequestInput = {
+  type: RequestTypeSlug;
+  title: string;
+  description: string;
+  locationLabel: string;
+  lat: number;
+  lng: number;
+  reward: string;
+};
+
+export async function createRequest(input: NewRequestInput): Promise<StoredRequest> {
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr) throw userErr;
+  const user = userData.user;
+  if (!user) throw new Error("You must be signed in to post a request.");
+
+  const { data, error } = await supabase
+    .from("requests")
+    .insert({
+      user_id: user.id,
+      type: input.type,
+      title: input.title,
+      description: input.description,
+      location_label: input.locationLabel,
+      lat: input.lat,
+      lng: input.lng,
+      reward: input.reward,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return rowToRequest(data as Row);
 }
 
-function loadAllRequests(): Record<string, StoredRequest> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+export async function fetchRequest(id: string): Promise<StoredRequest | null> {
+  const { data, error } = await supabase
+    .from("requests")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToRequest(data as Row) : null;
 }
 
-export function loadAllRequestsList(): StoredRequest[] {
-  return Object.values(loadAllRequests()).sort((a, b) => b.createdAt - a.createdAt);
+export async function fetchAllRequests(): Promise<StoredRequest[]> {
+  const { data, error } = await supabase
+    .from("requests")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToRequest(r as Row));
+}
+
+export async function fetchMyRequests(userId: string): Promise<StoredRequest[]> {
+  const { data, error } = await supabase
+    .from("requests")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToRequest(r as Row));
+}
+
+export async function deleteRequest(id: string): Promise<void> {
+  const { error } = await supabase.from("requests").delete().eq("id", id);
+  if (error) throw error;
 }
