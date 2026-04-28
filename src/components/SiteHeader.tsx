@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 
 const navItems = [
-  { to: "/", label: "Request types" },
-  { to: "/notice-board", label: "Notice board" },
+  { to: "/", label: "Make Requests" },
+  { to: "/notice-board", label: "Requests Notice Board" },
   { to: "/how-it-works", label: "How it works" },
   { to: "/use-cases", label: "Use cases" },
   { to: "/about", label: "About" },
