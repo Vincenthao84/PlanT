@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 
 const navItems = [
   { to: "/", label: "Request types" },
+  { to: "/notice-board", label: "Notice board" },
   { to: "/how-it-works", label: "How it works" },
   { to: "/use-cases", label: "Use cases" },
   { to: "/about", label: "About" },

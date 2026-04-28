@@ -57,3 +57,7 @@ function loadAllRequests(): Record<string, StoredRequest> {
     return {};
   }
 }
+
+export function loadAllRequestsList(): StoredRequest[] {
+  return Object.values(loadAllRequests()).sort((a, b) => b.createdAt - a.createdAt);
+}
