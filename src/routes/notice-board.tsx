@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Gift, Clock, Inbox } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   getRequestType,
   loadAllRequestsList,
@@ -33,12 +34,33 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function parseRewardValue(reward: string | undefined): number {
+  if (!reward) return 0;
+  // Pull the largest number found in the reward string (handles "$50", "50 USD", "€1,200", "100-200")
+  const matches = reward.replace(/,/g, "").match(/\d+(?:\.\d+)?/g);
+  if (!matches) return 0;
+  return Math.max(...matches.map(Number));
+}
+
+type SortMode = "newest" | "reward";
+
 function NoticeBoardPage() {
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
 
   useEffect(() => {
     setRequests(loadAllRequestsList());
   }, []);
+
+  const sortedRequests = useMemo(() => {
+    if (!requests) return null;
+    if (sortMode === "reward") {
+      return [...requests].sort(
+        (a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward),
+      );
+    }
+    return [...requests].sort((a, b) => b.createdAt - a.createdAt);
+  }, [requests, sortMode]);
 
   const mapSrc = useMemo(() => {
     if (!requests || requests.length === 0) return null;
@@ -78,9 +100,9 @@ function NoticeBoardPage() {
           </Button>
         </div>
 
-        {requests === null ? (
+        {sortedRequests === null ? (
           <p className="text-muted-foreground">Loading…</p>
-        ) : requests.length === 0 ? (
+        ) : sortedRequests.length === 0 ? (
           <Card className="p-12 text-center" style={{ boxShadow: "var(--shadow-soft)" }}>
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
               <Inbox className="h-7 w-7" />
@@ -94,12 +116,36 @@ function NoticeBoardPage() {
             </Button>
           </Card>
         ) : (
-          <div className="grid lg:grid-cols-[1fr_420px] gap-6">
+          <>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <span className="text-sm text-muted-foreground">
+                Showing {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Sort by</span>
+                <ToggleGroup
+                  type="single"
+                  size="sm"
+                  value={sortMode}
+                  onValueChange={(v) => v && setSortMode(v as SortMode)}
+                  variant="outline"
+                >
+                  <ToggleGroupItem value="newest" aria-label="Sort by newest">
+                    <Clock className="h-3 w-3 mr-1" /> Newest
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="reward" aria-label="Rank by reward">
+                    <Gift className="h-3 w-3 mr-1" /> Highest reward
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
+            <div className="grid lg:grid-cols-[1fr_420px] gap-6">
             {/* List */}
             <div className="space-y-3">
-              {requests.map((r) => {
+              {sortedRequests.map((r, idx) => {
                 const t = getRequestType(r.type);
                 const Icon = t?.icon ?? MapPin;
+                const rewardValue = parseRewardValue(r.reward);
                 return (
                   <Link
                     key={r.id}
@@ -112,8 +158,15 @@ function NoticeBoardPage() {
                       style={{ boxShadow: "var(--shadow-soft)" }}
                     >
                       <div className="flex gap-4">
-                        <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                          <Icon className="h-5 w-5" />
+                        <div className="relative shrink-0">
+                          <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          {sortMode === "reward" && rewardValue > 0 && (
+                            <span className="absolute -top-2 -right-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                              #{idx + 1}
+                            </span>
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -136,7 +189,7 @@ function NoticeBoardPage() {
                               {r.locationLabel}
                             </span>
                             {r.reward && (
-                              <span className="inline-flex items-center gap-1 text-foreground">
+                              <span className="inline-flex items-center gap-1 font-medium text-foreground">
                                 <Gift className="h-3 w-3 text-accent" />
                                 {r.reward}
                               </span>
@@ -165,7 +218,7 @@ function NoticeBoardPage() {
                 </div>
                 <div className="px-4 py-3 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    {requests.length} request{requests.length === 1 ? "" : "s"} on the map
+                    {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"} on the map
                   </span>
                   {fullMapHref && (
                     <a
@@ -183,7 +236,8 @@ function NoticeBoardPage() {
                 Tap a request on the left to view its exact pin and details.
               </p>
             </div>
-          </div>
+            </div>
+          </>
         )}
       </section>
       <SiteFooter />
