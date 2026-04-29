@@ -137,6 +137,16 @@ export async function fetchMyRequests(userId: string): Promise<StoredRequest[]> 
   return (data ?? []).map((r) => rowToRequest(r as Row));
 }
 
+export async function fetchMyTasks(userId: string): Promise<StoredRequest[]> {
+  const { data, error } = await supabase
+    .from("requests")
+    .select("*")
+    .eq("taken_by", userId)
+    .order("taken_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToRequest(r as Row));
+}
+
 export async function deleteRequest(id: string): Promise<void> {
   const { error } = await supabase.from("requests").delete().eq("id", id);
   if (error) throw error;
