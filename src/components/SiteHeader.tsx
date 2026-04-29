@@ -93,7 +93,10 @@ export function SiteFooter() {
           </span>
           PLAN T
         </Link>
-        <p>© {new Date().getFullYear()} PLAN T. A platform for offering & asking for help.</p>
+        <div className="text-center md:text-right">
+          <p>© {new Date().getFullYear()} PLAN T. A platform for offering & asking for help.</p>
+          <p className="mt-1 text-xs">Copyright and ideas owned by Zero Point One International Company, Hong Kong.</p>
+        </div>
       </div>
     </footer>
   );
