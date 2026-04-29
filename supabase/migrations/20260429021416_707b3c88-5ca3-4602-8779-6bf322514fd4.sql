@@ -1,0 +1,1 @@
+ALTER TABLE public.requests ADD COLUMN completed_at TIMESTAMP WITH TIME ZONE;

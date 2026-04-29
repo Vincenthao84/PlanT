@@ -40,6 +40,7 @@ export type Database = {
       }
       requests: {
         Row: {
+          completed_at: string | null
           created_at: string
           description: string
           id: string
@@ -53,6 +54,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           description?: string
           id?: string
@@ -66,6 +68,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           description?: string
           id?: string
