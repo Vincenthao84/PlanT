@@ -3,12 +3,14 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, Trash2 } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2 } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import {
   getRequestType,
   fetchMyRequests,
   deleteRequest,
+  markRequestDone,
+  reopenRequest,
   type StoredRequest,
 } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
@@ -77,6 +79,21 @@ function MyRequestsPage() {
     }
   };
 
+  const handleToggleDone = async (r: StoredRequest) => {
+    try {
+      const updated = r.completedAt
+        ? await reopenRequest(r.id)
+        : await markRequestDone(r.id);
+      setRequests((prev) =>
+        prev ? prev.map((x) => (x.id === r.id ? updated : x)) : prev,
+      );
+      toast.success(updated.completedAt ? "Marked as done" : "Reopened");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not update";
+      toast.error(msg);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
@@ -114,6 +131,7 @@ function MyRequestsPage() {
             {requests.map((r) => {
               const t = getRequestType(r.type);
               const Icon = t?.icon ?? MapPin;
+              const isDone = !!r.completedAt;
               return (
                 <Card
                   key={r.id}
@@ -129,6 +147,11 @@ function MyRequestsPage() {
                         <Badge variant="secondary" className="rounded-full text-xs">
                           {t?.label ?? "Request"}
                         </Badge>
+                        {isDone && (
+                          <Badge className="rounded-full text-xs gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Done
+                          </Badge>
+                        )}
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" /> {timeAgo(r.createdAt)}
                         </span>
@@ -136,7 +159,7 @@ function MyRequestsPage() {
                       <Link
                         to="/request/$id"
                         params={{ id: r.id }}
-                        className="font-semibold leading-tight hover:underline block truncate"
+                        className={`font-semibold leading-tight hover:underline block truncate ${isDone ? "line-through text-muted-foreground" : ""}`}
                       >
                         {r.title}
                       </Link>
@@ -161,6 +184,22 @@ function MyRequestsPage() {
                     <div className="shrink-0 flex flex-col gap-2">
                       <Button asChild size="sm" variant="outline" className="rounded-full">
                         <Link to="/request/$id" params={{ id: r.id }}>View</Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={isDone ? "outline" : "default"}
+                        className="rounded-full"
+                        onClick={() => handleToggleDone(r)}
+                      >
+                        {isDone ? (
+                          <>
+                            <RotateCcw className="h-4 w-4" /> Reopen
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-4 w-4" /> Done
+                          </>
+                        )}
                       </Button>
                       <Button
                         size="sm"

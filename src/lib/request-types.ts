@@ -34,6 +34,7 @@ export interface StoredRequest {
   reward: string;
   createdAt: number;
   userId: string;
+  completedAt: number | null;
 }
 
 type Row = {
@@ -47,6 +48,7 @@ type Row = {
   lng: number;
   reward: string;
   created_at: string;
+  completed_at: string | null;
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -61,6 +63,7 @@ function rowToRequest(row: Row): StoredRequest {
     lng: row.lng,
     reward: row.reward,
     createdAt: new Date(row.created_at).getTime(),
+    completedAt: row.completed_at ? new Date(row.completed_at).getTime() : null,
   };
 }
 
@@ -131,4 +134,26 @@ export async function fetchMyRequests(userId: string): Promise<StoredRequest[]> 
 export async function deleteRequest(id: string): Promise<void> {
   const { error } = await supabase.from("requests").delete().eq("id", id);
   if (error) throw error;
+}
+
+export async function markRequestDone(id: string): Promise<StoredRequest> {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToRequest(data as Row);
+}
+
+export async function reopenRequest(id: string): Promise<StoredRequest> {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ completed_at: null })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToRequest(data as Row);
 }
