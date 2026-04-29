@@ -13,6 +13,7 @@ const publicNav = [
 
 const authedExtraNav = [
   { to: "/my-requests", label: "My Requests" },
+  { to: "/my-tasks", label: "My Tasks" },
 ] as const;
 
 export function SiteHeader() {
