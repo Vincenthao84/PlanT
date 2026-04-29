@@ -155,6 +155,11 @@ function MyRequestsPage() {
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" /> {timeAgo(r.createdAt)}
                         </span>
+                        {isDone && r.completedAt && (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <CheckCircle2 className="h-3 w-3" /> Completed {timeAgo(r.completedAt)}
+                          </span>
+                        )}
                       </div>
                       <Link
                         to="/request/$id"
