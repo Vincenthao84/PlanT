@@ -35,6 +35,8 @@ export interface StoredRequest {
   createdAt: number;
   userId: string;
   completedAt: number | null;
+  takenBy: string | null;
+  takenAt: number | null;
 }
 
 type Row = {
@@ -49,6 +51,8 @@ type Row = {
   reward: string;
   created_at: string;
   completed_at: string | null;
+  taken_by: string | null;
+  taken_at: string | null;
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -64,6 +68,8 @@ function rowToRequest(row: Row): StoredRequest {
     reward: row.reward,
     createdAt: new Date(row.created_at).getTime(),
     completedAt: row.completed_at ? new Date(row.completed_at).getTime() : null,
+    takenBy: row.taken_by,
+    takenAt: row.taken_at ? new Date(row.taken_at).getTime() : null,
   };
 }
 
@@ -155,5 +161,23 @@ export async function reopenRequest(id: string): Promise<StoredRequest> {
     .select()
     .single();
   if (error) throw error;
+  return rowToRequest(data as Row);
+}
+
+export async function takeRequest(id: string): Promise<StoredRequest> {
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr) throw userErr;
+  const user = userData.user;
+  if (!user) throw new Error("You must be signed in to take a request.");
+
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ taken_by: user.id, taken_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("taken_by", null)
+    .select()
+    .single();
+  if (error) throw error;
+  if (!data) throw new Error("This request has already been taken.");
   return rowToRequest(data as Row);
 }
