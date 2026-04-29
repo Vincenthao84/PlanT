@@ -36,18 +36,37 @@ export function SiteHeader() {
           </span>
           PLAN&nbsp;T
         </Link>
-        <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
-          {navItems.map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              activeOptions={{ exact: true }}
-              activeProps={{ className: "text-foreground font-semibold" }}
-              className="hover:text-foreground transition"
-            >
-              {n.label}
-            </Link>
-          ))}
+        <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
+          {navItems.map((n) => {
+            const highlighted = n.to === "/my-requests" || n.to === "/my-tasks";
+            if (highlighted) {
+              return (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  activeOptions={{ exact: true }}
+                  activeProps={{
+                    className:
+                      "bg-primary text-primary-foreground border-primary shadow-sm",
+                  }}
+                  className="px-3 py-1.5 rounded-full border border-primary/40 text-primary font-medium bg-primary/10 hover:bg-primary/20 transition"
+                >
+                  {n.label}
+                </Link>
+              );
+            }
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                activeOptions={{ exact: true }}
+                activeProps={{ className: "text-foreground font-semibold" }}
+                className="hover:text-foreground transition"
+              >
+                {n.label}
+              </Link>
+            );
+          })}
         </div>
         {user ? (
           <Button variant="outline" className="rounded-full" onClick={handleSignOut}>
