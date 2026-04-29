@@ -3,10 +3,17 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { getRequestType, fetchMyTasks, type StoredRequest } from "@/lib/request-types";
+import {
+  getRequestType,
+  fetchMyTasks,
+  markRequestDone,
+  reopenRequest,
+  type StoredRequest,
+} from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/my-tasks")({
   head: () => ({
@@ -58,6 +65,21 @@ function MyTasksPage() {
   if (!user) {
     return <Navigate to="/login" />;
   }
+
+  const handleToggleComplete = async (r: StoredRequest) => {
+    try {
+      const updated = r.completedAt
+        ? await reopenRequest(r.id)
+        : await markRequestDone(r.id);
+      setTasks((prev) =>
+        prev ? prev.map((x) => (x.id === r.id ? updated : x)) : prev,
+      );
+      toast.success(updated.completedAt ? "Order completed" : "Order reopened");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not update";
+      toast.error(msg);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -147,9 +169,25 @@ function MyTasksPage() {
                         )}
                       </div>
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex flex-col gap-2">
                       <Button asChild size="sm" variant="outline" className="rounded-full">
                         <Link to="/request/$id" params={{ id: r.id }}>View</Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={isDone ? "outline" : "default"}
+                        className="rounded-full"
+                        onClick={() => handleToggleComplete(r)}
+                      >
+                        {isDone ? (
+                          <>
+                            <RotateCcw className="h-4 w-4" /> Reopen
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-4 w-4" /> Complete Order
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
