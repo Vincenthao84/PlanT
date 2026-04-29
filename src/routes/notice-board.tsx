@@ -3,14 +3,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, Handshake } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   getRequestType,
   fetchAllRequests,
+  takeRequest,
   type StoredRequest,
 } from "@/lib/request-types";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/notice-board")({
   head: () => ({
@@ -45,8 +48,10 @@ function parseRewardValue(reward: string | undefined): number {
 type SortMode = "newest" | "reward";
 
 function NoticeBoardPage() {
+  const { user } = useAuth();
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [takingId, setTakingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +97,26 @@ function NoticeBoardPage() {
     const m = requests[0];
     return `https://www.openstreetmap.org/?mlat=${m.lat}&mlon=${m.lng}#map=13/${m.lat}/${m.lng}`;
   }, [requests]);
+
+  const handleTake = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      toast.error("Please sign in to take a request.");
+      return;
+    }
+    setTakingId(id);
+    try {
+      const updated = await takeRequest(id);
+      setRequests((prev) => (prev ? prev.map((r) => (r.id === id ? updated : r)) : prev));
+      toast.success("You've taken this request");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not take request";
+      toast.error(msg);
+    } finally {
+      setTakingId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -156,6 +181,9 @@ function NoticeBoardPage() {
                 const t = getRequestType(r.type);
                 const Icon = t?.icon ?? MapPin;
                 const rewardValue = parseRewardValue(r.reward);
+                const isTaken = !!r.takenBy;
+                const takenByMe = !!user && r.takenBy === user.id;
+                const isOwner = !!user && r.userId === user.id;
                 return (
                   <Link
                     key={r.id}
@@ -183,6 +211,12 @@ function NoticeBoardPage() {
                             <Badge variant="secondary" className="rounded-full text-xs">
                               {t?.label ?? "Request"}
                             </Badge>
+                            {isTaken && (
+                              <Badge className="rounded-full text-xs gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                {takenByMe ? "Taken by you" : "Request Taken"}
+                              </Badge>
+                            )}
                             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock className="h-3 w-3" /> {timeAgo(r.createdAt)}
                             </span>
@@ -205,6 +239,38 @@ function NoticeBoardPage() {
                               </span>
                             )}
                           </div>
+                        </div>
+                        <div className="shrink-0 self-center">
+                          {isTaken ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-full pointer-events-none"
+                              disabled
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              {takenByMe ? "Taken by you" : "Taken"}
+                            </Button>
+                          ) : isOwner ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-full pointer-events-none"
+                              disabled
+                            >
+                              Your request
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="rounded-full"
+                              onClick={(e) => handleTake(e, r.id)}
+                              disabled={takingId === r.id}
+                            >
+                              <Handshake className="h-4 w-4" />
+                              {takingId === r.id ? "Taking…" : "Take Order"}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </Card>
