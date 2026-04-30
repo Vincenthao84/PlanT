@@ -37,6 +37,7 @@ export interface StoredRequest {
   completedAt: number | null;
   takenBy: string | null;
   takenAt: number | null;
+  takerCompletedAt: number | null;
 }
 
 type Row = {
@@ -53,6 +54,7 @@ type Row = {
   completed_at: string | null;
   taken_by: string | null;
   taken_at: string | null;
+  taker_completed_at: string | null;
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -70,6 +72,7 @@ function rowToRequest(row: Row): StoredRequest {
     completedAt: row.completed_at ? new Date(row.completed_at).getTime() : null,
     takenBy: row.taken_by,
     takenAt: row.taken_at ? new Date(row.taken_at).getTime() : null,
+    takerCompletedAt: row.taker_completed_at ? new Date(row.taker_completed_at).getTime() : null,
   };
 }
 
