@@ -37,6 +37,7 @@ export interface StoredRequest {
   completedAt: number | null;
   takenBy: string | null;
   takenAt: number | null;
+  takerCompletedAt: number | null;
 }
 
 type Row = {
@@ -53,6 +54,7 @@ type Row = {
   completed_at: string | null;
   taken_by: string | null;
   taken_at: string | null;
+  taker_completed_at: string | null;
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -70,6 +72,7 @@ function rowToRequest(row: Row): StoredRequest {
     completedAt: row.completed_at ? new Date(row.completed_at).getTime() : null,
     takenBy: row.taken_by,
     takenAt: row.taken_at ? new Date(row.taken_at).getTime() : null,
+    takerCompletedAt: row.taker_completed_at ? new Date(row.taker_completed_at).getTime() : null,
   };
 }
 
@@ -189,5 +192,27 @@ export async function takeRequest(id: string): Promise<StoredRequest> {
     .single();
   if (error) throw error;
   if (!data) throw new Error("This request has already been taken.");
+  return rowToRequest(data as Row);
+}
+
+export async function takerCompleteRequest(id: string): Promise<StoredRequest> {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ taker_completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToRequest(data as Row);
+}
+
+export async function takerReopenRequest(id: string): Promise<StoredRequest> {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ taker_completed_at: null })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
   return rowToRequest(data as Row);
 }

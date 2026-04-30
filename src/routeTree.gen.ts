@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettlementIdRouteImport } from './routes/settlement.$id'
 import { Route as RequestIdRouteImport } from './routes/request.$id'
 import { Route as NewTypeRouteImport } from './routes/new.$type'
 
@@ -60,6 +61,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettlementIdRoute = SettlementIdRouteImport.update({
+  id: '/settlement/$id',
+  path: '/settlement/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RequestIdRoute = RequestIdRouteImport.update({
   id: '/request/$id',
   path: '/request/$id',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
   '/request/$id': typeof RequestIdRoute
+  '/settlement/$id': typeof SettlementIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
   '/request/$id': typeof RequestIdRoute
+  '/settlement/$id': typeof SettlementIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
   '/request/$id': typeof RequestIdRoute
+  '/settlement/$id': typeof SettlementIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/use-cases'
     | '/new/$type'
     | '/request/$id'
+    | '/settlement/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -133,6 +143,7 @@ export interface FileRouteTypes {
     | '/use-cases'
     | '/new/$type'
     | '/request/$id'
+    | '/settlement/$id'
   id:
     | '__root__'
     | '/'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/use-cases'
     | '/new/$type'
     | '/request/$id'
+    | '/settlement/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -158,6 +170,7 @@ export interface RootRouteChildren {
   UseCasesRoute: typeof UseCasesRoute
   NewTypeRoute: typeof NewTypeRoute
   RequestIdRoute: typeof RequestIdRoute
+  SettlementIdRoute: typeof SettlementIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settlement/$id': {
+      id: '/settlement/$id'
+      path: '/settlement/$id'
+      fullPath: '/settlement/$id'
+      preLoaderRoute: typeof SettlementIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/request/$id': {
       id: '/request/$id'
       path: '/request/$id'
@@ -246,6 +266,7 @@ const rootRouteChildren: RootRouteChildren = {
   UseCasesRoute: UseCasesRoute,
   NewTypeRoute: NewTypeRoute,
   RequestIdRoute: RequestIdRoute,
+  SettlementIdRoute: SettlementIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
