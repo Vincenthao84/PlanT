@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, CreditCard } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import {
   getRequestType,
   fetchMyTasks,
-  markRequestDone,
-  reopenRequest,
+  takerCompleteRequest,
+  takerReopenRequest,
   type StoredRequest,
 } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
@@ -68,13 +68,17 @@ function MyTasksPage() {
 
   const handleToggleComplete = async (r: StoredRequest) => {
     try {
-      const updated = r.completedAt
-        ? await reopenRequest(r.id)
-        : await markRequestDone(r.id);
+      const updated = r.takerCompletedAt
+        ? await takerReopenRequest(r.id)
+        : await takerCompleteRequest(r.id);
       setTasks((prev) =>
         prev ? prev.map((x) => (x.id === r.id ? updated : x)) : prev,
       );
-      toast.success(updated.completedAt ? "Order completed" : "Order reopened");
+      toast.success(
+        updated.takerCompletedAt
+          ? "Marked complete — waiting for requester to confirm"
+          : "Reopened",
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not update";
       toast.error(msg);
@@ -118,7 +122,8 @@ function MyTasksPage() {
             {tasks.map((r) => {
               const t = getRequestType(r.type);
               const Icon = t?.icon ?? MapPin;
-              const isDone = !!r.completedAt;
+              const takerDone = !!r.takerCompletedAt;
+              const fullySettled = !!r.completedAt && !!r.takerCompletedAt;
               return (
                 <Card key={r.id} className="p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
                   <div className="flex gap-4">
@@ -133,7 +138,12 @@ function MyTasksPage() {
                         <Badge className="rounded-full text-xs gap-1">
                           <ClipboardList className="h-3 w-3" /> Taken
                         </Badge>
-                        {isDone && (
+                        {takerDone && !fullySettled && (
+                          <Badge variant="outline" className="rounded-full text-xs gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Awaiting requester
+                          </Badge>
+                        )}
+                        {fullySettled && (
                           <Badge variant="outline" className="rounded-full text-xs gap-1">
                             <CheckCircle2 className="h-3 w-3" /> Done
                           </Badge>
@@ -147,7 +157,7 @@ function MyTasksPage() {
                       <Link
                         to="/request/$id"
                         params={{ id: r.id }}
-                        className={`font-semibold leading-tight hover:underline block truncate ${isDone ? "line-through text-muted-foreground" : ""}`}
+                        className={`font-semibold leading-tight hover:underline block truncate ${fullySettled ? "line-through text-muted-foreground" : ""}`}
                       >
                         {r.title}
                       </Link>
@@ -173,22 +183,31 @@ function MyTasksPage() {
                       <Button asChild size="sm" variant="outline" className="rounded-full">
                         <Link to="/request/$id" params={{ id: r.id }}>View</Link>
                       </Button>
-                      <Button
-                        size="sm"
-                        variant={isDone ? "outline" : "default"}
-                        className="rounded-full"
-                        onClick={() => handleToggleComplete(r)}
-                      >
-                        {isDone ? (
-                          <>
-                            <RotateCcw className="h-4 w-4" /> Reopen
-                          </>
-                        ) : (
-                          <>
-                            <Check className="h-4 w-4" /> Complete Order
-                          </>
-                        )}
-                      </Button>
+                      {!fullySettled && (
+                        <Button
+                          size="sm"
+                          variant={takerDone ? "outline" : "default"}
+                          className="rounded-full"
+                          onClick={() => handleToggleComplete(r)}
+                        >
+                          {takerDone ? (
+                            <>
+                              <RotateCcw className="h-4 w-4" /> Reopen
+                            </>
+                          ) : (
+                            <>
+                              <Check className="h-4 w-4" /> Complete Order
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {fullySettled && (
+                        <Button asChild size="sm" className="rounded-full">
+                          <Link to="/settlement/$id" params={{ id: r.id }}>
+                            <CreditCard className="h-4 w-4" /> Settlement
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </Card>
