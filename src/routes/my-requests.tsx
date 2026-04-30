@@ -1,9 +1,9 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2 } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2, CreditCard } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import {
   getRequestType,
@@ -39,6 +39,7 @@ function timeAgo(ts: number): string {
 function MyRequestsPage() {
   const { user, loading: authLoading } = useAuth();
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) return;
@@ -80,6 +81,10 @@ function MyRequestsPage() {
   };
 
   const handleToggleDone = async (r: StoredRequest) => {
+    if (!r.completedAt && !r.takerCompletedAt && r.takenBy) {
+      toast.error("Wait for the task taker to complete the order first.");
+      return;
+    }
     try {
       const updated = r.completedAt
         ? await reopenRequest(r.id)
@@ -88,6 +93,10 @@ function MyRequestsPage() {
         prev ? prev.map((x) => (x.id === r.id ? updated : x)) : prev,
       );
       toast.success(updated.completedAt ? "Marked as done" : "Reopened");
+      // If both parties have now confirmed, route to settlement.
+      if (updated.completedAt && updated.takerCompletedAt) {
+        navigate({ to: "/settlement/$id", params: { id: updated.id } });
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not update";
       toast.error(msg);
@@ -132,6 +141,9 @@ function MyRequestsPage() {
               const t = getRequestType(r.type);
               const Icon = t?.icon ?? MapPin;
               const isDone = !!r.completedAt;
+              const takerDone = !!r.takerCompletedAt;
+              const fullySettled = isDone && takerDone;
+              const canMarkDone = takerDone || !r.takenBy;
               return (
                 <Card
                   key={r.id}
@@ -150,6 +162,11 @@ function MyRequestsPage() {
                         {isDone && (
                           <Badge className="rounded-full text-xs gap-1">
                             <CheckCircle2 className="h-3 w-3" /> Done
+                          </Badge>
+                        )}
+                        {!isDone && takerDone && (
+                          <Badge variant="outline" className="rounded-full text-xs gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Taker completed — confirm to settle
                           </Badge>
                         )}
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -194,6 +211,7 @@ function MyRequestsPage() {
                         size="sm"
                         variant={isDone ? "outline" : "default"}
                         className="rounded-full"
+                        disabled={!isDone && !canMarkDone}
                         onClick={() => handleToggleDone(r)}
                       >
                         {isDone ? (
@@ -206,6 +224,13 @@ function MyRequestsPage() {
                           </>
                         )}
                       </Button>
+                      {fullySettled && (
+                        <Button asChild size="sm" className="rounded-full">
+                          <Link to="/settlement/$id" params={{ id: r.id }}>
+                            <CreditCard className="h-4 w-4" /> Settlement
+                          </Link>
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
