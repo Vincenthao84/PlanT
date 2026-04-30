@@ -50,6 +50,7 @@ export type Database = {
           reward: string
           taken_at: string | null
           taken_by: string | null
+          taker_completed_at: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
           updated_at: string
@@ -66,6 +67,7 @@ export type Database = {
           reward?: string
           taken_at?: string | null
           taken_by?: string | null
+          taker_completed_at?: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
           updated_at?: string
@@ -82,6 +84,7 @@ export type Database = {
           reward?: string
           taken_at?: string | null
           taken_by?: string | null
+          taker_completed_at?: string | null
           title?: string
           type?: Database["public"]["Enums"]["request_type"]
           updated_at?: string
