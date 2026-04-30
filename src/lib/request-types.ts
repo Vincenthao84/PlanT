@@ -194,3 +194,25 @@ export async function takeRequest(id: string): Promise<StoredRequest> {
   if (!data) throw new Error("This request has already been taken.");
   return rowToRequest(data as Row);
 }
+
+export async function takerCompleteRequest(id: string): Promise<StoredRequest> {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ taker_completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToRequest(data as Row);
+}
+
+export async function takerReopenRequest(id: string): Promise<StoredRequest> {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ taker_completed_at: null })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToRequest(data as Row);
+}
