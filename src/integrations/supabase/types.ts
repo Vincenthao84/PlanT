@@ -40,51 +40,78 @@ export type Database = {
       }
       requests: {
         Row: {
+          amount_cents: number | null
           completed_at: string | null
           created_at: string
+          currency: string
           description: string
           id: string
           lat: number
           lng: number
           location_label: string
+          paid_at: string | null
+          payment_status: string
+          paypal_order_id: string | null
+          paypal_payout_batch_id: string | null
+          platform_fee_cents: number | null
+          released_at: string | null
           reward: string
           taken_at: string | null
           taken_by: string | null
           taker_completed_at: string | null
+          taker_paypal_email: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
           updated_at: string
           user_id: string
         }
         Insert: {
+          amount_cents?: number | null
           completed_at?: string | null
           created_at?: string
+          currency?: string
           description?: string
           id?: string
           lat: number
           lng: number
           location_label?: string
+          paid_at?: string | null
+          payment_status?: string
+          paypal_order_id?: string | null
+          paypal_payout_batch_id?: string | null
+          platform_fee_cents?: number | null
+          released_at?: string | null
           reward?: string
           taken_at?: string | null
           taken_by?: string | null
           taker_completed_at?: string | null
+          taker_paypal_email?: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
           updated_at?: string
           user_id: string
         }
         Update: {
+          amount_cents?: number | null
           completed_at?: string | null
           created_at?: string
+          currency?: string
           description?: string
           id?: string
           lat?: number
           lng?: number
           location_label?: string
+          paid_at?: string | null
+          payment_status?: string
+          paypal_order_id?: string | null
+          paypal_payout_batch_id?: string | null
+          platform_fee_cents?: number | null
+          released_at?: string | null
           reward?: string
           taken_at?: string | null
           taken_by?: string | null
           taker_completed_at?: string | null
+          taker_paypal_email?: string | null
           title?: string
           type?: Database["public"]["Enums"]["request_type"]
           updated_at?: string
