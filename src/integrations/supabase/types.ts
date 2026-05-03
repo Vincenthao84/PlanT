@@ -38,6 +38,41 @@ export type Database = {
         }
         Relationships: []
       }
+      request_messages: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          photo_urls: string[]
+          request_id: string
+        }
+        Insert: {
+          author_id: string
+          body?: string
+          created_at?: string
+          id?: string
+          photo_urls?: string[]
+          request_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          photo_urls?: string[]
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_messages_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       requests: {
         Row: {
           amount_cents: number | null
@@ -150,6 +185,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_request_participant: {
+        Args: { _request_id: string; _user_id: string }
         Returns: boolean
       }
     }
