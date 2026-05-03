@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, CreditCard } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { TaskThread } from "@/components/TaskThread";
 import {
   getRequestType,
   fetchMyTasks,
@@ -210,6 +211,7 @@ function MyTasksPage() {
                       )}
                     </div>
                   </div>
+                  <TaskThread requestId={r.id} currentUserId={user.id} />
                 </Card>
               );
             })}
