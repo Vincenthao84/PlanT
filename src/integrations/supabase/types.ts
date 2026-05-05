@@ -73,6 +73,39 @@ export type Database = {
           },
         ]
       }
+      request_ratings: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          request_id: string
+          requester_id: string
+          stars: number
+          taker_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment?: string
+          created_at?: string
+          id?: string
+          request_id: string
+          requester_id: string
+          stars: number
+          taker_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          request_id?: string
+          requester_id?: string
+          stars?: number
+          taker_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       requests: {
         Row: {
           amount_cents: number | null
