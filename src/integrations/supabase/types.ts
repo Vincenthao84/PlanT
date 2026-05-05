@@ -127,6 +127,8 @@ export type Database = {
           taken_at: string | null
           taken_by: string | null
           taker_completed_at: string | null
+          taker_payment_note: string
+          taker_payment_qr_url: string | null
           taker_paypal_email: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
@@ -153,6 +155,8 @@ export type Database = {
           taken_at?: string | null
           taken_by?: string | null
           taker_completed_at?: string | null
+          taker_payment_note?: string
+          taker_payment_qr_url?: string | null
           taker_paypal_email?: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
@@ -179,6 +183,8 @@ export type Database = {
           taken_at?: string | null
           taken_by?: string | null
           taker_completed_at?: string | null
+          taker_payment_note?: string
+          taker_payment_qr_url?: string | null
           taker_paypal_email?: string | null
           title?: string
           type?: Database["public"]["Enums"]["request_type"]
