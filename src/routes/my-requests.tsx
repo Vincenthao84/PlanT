@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2, CreditCard } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { RateTaker } from "@/components/RateTaker";
 import {
   getRequestType,
   fetchMyRequests,
@@ -241,6 +242,13 @@ function MyRequestsPage() {
                       </Button>
                     </div>
                   </div>
+                  {fullySettled && r.takenBy && (
+                    <RateTaker
+                      requestId={r.id}
+                      requesterId={r.userId}
+                      takerId={r.takenBy}
+                    />
+                  )}
                 </Card>
               );
             })}
