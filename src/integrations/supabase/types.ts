@@ -38,6 +38,74 @@ export type Database = {
         }
         Relationships: []
       }
+      request_messages: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          photo_urls: string[]
+          request_id: string
+        }
+        Insert: {
+          author_id: string
+          body?: string
+          created_at?: string
+          id?: string
+          photo_urls?: string[]
+          request_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          photo_urls?: string[]
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_messages_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      request_ratings: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          request_id: string
+          requester_id: string
+          stars: number
+          taker_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment?: string
+          created_at?: string
+          id?: string
+          request_id: string
+          requester_id: string
+          stars: number
+          taker_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          request_id?: string
+          requester_id?: string
+          stars?: number
+          taker_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       requests: {
         Row: {
           amount_cents: number | null
@@ -59,6 +127,8 @@ export type Database = {
           taken_at: string | null
           taken_by: string | null
           taker_completed_at: string | null
+          taker_payment_note: string
+          taker_payment_qr_url: string | null
           taker_paypal_email: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
@@ -85,6 +155,8 @@ export type Database = {
           taken_at?: string | null
           taken_by?: string | null
           taker_completed_at?: string | null
+          taker_payment_note?: string
+          taker_payment_qr_url?: string | null
           taker_paypal_email?: string | null
           title: string
           type: Database["public"]["Enums"]["request_type"]
@@ -111,6 +183,8 @@ export type Database = {
           taken_at?: string | null
           taken_by?: string | null
           taker_completed_at?: string | null
+          taker_payment_note?: string
+          taker_payment_qr_url?: string | null
           taker_paypal_email?: string | null
           title?: string
           type?: Database["public"]["Enums"]["request_type"]
@@ -150,6 +224,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_request_participant: {
+        Args: { _request_id: string; _user_id: string }
         Returns: boolean
       }
     }
