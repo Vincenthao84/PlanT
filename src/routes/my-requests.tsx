@@ -13,6 +13,7 @@ import {
   deleteRequest,
   markRequestDone,
   reopenRequest,
+  markFeeSettled,
   type StoredRequest,
 } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
@@ -257,6 +258,17 @@ function MyRequestsPage() {
                       currentUserId={user.id}
                     />
                   )}
+                  {r.takenBy && r.taker_payment_qr_url_present_placeholder ? null : null}
+                  {r.takenBy && r.takerCompletedAt && (
+                    <FeeSettlementButton
+                      request={r}
+                      onSettled={(updated) =>
+                        setRequests((prev) =>
+                          prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev,
+                        )
+                      }
+                    />
+                  )}
                 </Card>
               );
             })}
@@ -264,6 +276,46 @@ function MyRequestsPage() {
         )}
       </section>
       <SiteFooter />
+    </div>
+  );
+}
+
+function FeeSettlementButton({
+  request,
+  onSettled,
+}: {
+  request: StoredRequest;
+  onSettled: (r: StoredRequest) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const settled = !!request.feeSettledAt;
+
+  const handleClick = async () => {
+    if (settled) return;
+    setSaving(true);
+    try {
+      const updated = await markFeeSettled(request.id);
+      onSettled(updated);
+      toast.success("Fee Settlement Done");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-border/60">
+      <Button
+        size="sm"
+        variant={settled ? "outline" : "default"}
+        className="rounded-full"
+        disabled={settled || saving}
+        onClick={handleClick}
+      >
+        <CheckCircle2 className="h-4 w-4" />
+        {settled ? "Fee Settlement Done" : saving ? "Saving…" : "Fee Settlement Done"}
+      </Button>
     </div>
   );
 }
