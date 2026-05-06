@@ -113,6 +113,7 @@ export type Database = {
           created_at: string
           currency: string
           description: string
+          fee_settled_at: string | null
           id: string
           lat: number
           lng: number
@@ -141,6 +142,7 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string
+          fee_settled_at?: string | null
           id?: string
           lat: number
           lng: number
@@ -169,6 +171,7 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string
+          fee_settled_at?: string | null
           id?: string
           lat?: number
           lng?: number

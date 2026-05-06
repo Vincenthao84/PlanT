@@ -1,0 +1,1 @@
+ALTER TABLE public.requests ADD COLUMN fee_settled_at TIMESTAMP WITH TIME ZONE;
