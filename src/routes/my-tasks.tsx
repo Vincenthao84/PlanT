@@ -151,7 +151,7 @@ function MyTasksPage() {
                           </Badge>
                         )}
                         {r.feeSettledAt && (
-                          <Badge className="rounded-full text-xs gap-1 bg-emerald-600 hover:bg-emerald-600 text-white">
+                          <Badge className="rounded-full text-xs gap-1">
                             <BadgeCheck className="h-3 w-3" /> Fee Settlement Done
                           </Badge>
                         )}
