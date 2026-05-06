@@ -258,7 +258,6 @@ function MyRequestsPage() {
                       currentUserId={user.id}
                     />
                   )}
-                  {r.takenBy && r.taker_payment_qr_url_present_placeholder ? null : null}
                   {r.takenBy && r.takerCompletedAt && (
                     <FeeSettlementButton
                       request={r}
