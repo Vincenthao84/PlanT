@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, CreditCard } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, CreditCard, BadgeCheck } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -148,6 +148,11 @@ function MyTasksPage() {
                         {fullySettled && (
                           <Badge variant="outline" className="rounded-full text-xs gap-1">
                             <CheckCircle2 className="h-3 w-3" /> Done
+                          </Badge>
+                        )}
+                        {r.feeSettledAt && (
+                          <Badge className="rounded-full text-xs gap-1 bg-emerald-600 hover:bg-emerald-600 text-white">
+                            <BadgeCheck className="h-3 w-3" /> Fee Settlement Done
                           </Badge>
                         )}
                         {r.takenAt && (
