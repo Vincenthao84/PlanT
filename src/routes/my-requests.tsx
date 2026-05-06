@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2, CreditCard } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2 } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { RateTaker } from "@/components/RateTaker";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -227,13 +227,6 @@ function MyRequestsPage() {
                           </>
                         )}
                       </Button>
-                      {fullySettled && (
-                        <Button asChild size="sm" className="rounded-full">
-                          <Link to="/settlement/$id" params={{ id: r.id }}>
-                            <CreditCard className="h-4 w-4" /> Settlement
-                          </Link>
-                        </Button>
-                      )}
                       <Button
                         size="sm"
                         variant="ghost"

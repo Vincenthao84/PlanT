@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, CreditCard, BadgeCheck } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, BadgeCheck } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -206,13 +206,6 @@ function MyTasksPage() {
                               <Check className="h-4 w-4" /> Complete Order
                             </>
                           )}
-                        </Button>
-                      )}
-                      {fullySettled && (
-                        <Button asChild size="sm" className="rounded-full">
-                          <Link to="/settlement/$id" params={{ id: r.id }}>
-                            <CreditCard className="h-4 w-4" /> Settlement
-                          </Link>
                         </Button>
                       )}
                     </div>
