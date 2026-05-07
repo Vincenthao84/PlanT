@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,6 +31,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -39,6 +41,10 @@ function LoginPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (mode === "signup" && !acceptedTerms) {
+      toast.error("You must accept the Terms and Conditions to create an account.");
+      return;
+    }
     setSubmitting(true);
     try {
       if (mode === "signup") {
@@ -66,6 +72,10 @@ function LoginPage() {
   };
 
   const handleGoogle = async () => {
+    if (mode === "signup" && !acceptedTerms) {
+      toast.error("You must accept the Terms and Conditions to create an account.");
+      return;
+    }
     setSubmitting(true);
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
@@ -167,6 +177,24 @@ function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+
+            {mode === "signup" && (
+              <div className="flex items-start gap-2 pt-1">
+                <Checkbox
+                  id="accept-terms"
+                  checked={acceptedTerms}
+                  onCheckedChange={(v) => setAcceptedTerms(v === true)}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="accept-terms" className="text-sm font-normal leading-snug">
+                  I have read and agree to the{" "}
+                  <Link to="/terms" target="_blank" className="font-semibold text-primary hover:underline">
+                    Terms and Conditions
+                  </Link>
+                  .
+                </Label>
+              </div>
+            )}
 
             <Button type="submit" className="w-full rounded-full" disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
