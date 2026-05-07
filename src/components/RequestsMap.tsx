@@ -35,7 +35,7 @@ function getTypeIcon(slug: string): L.DivIcon {
     : "";
   const html = `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-      <div style="width:36px;height:36px;border-radius:9999px;background:hsl(var(--primary,220 90% 56%));border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;">
+      <div style="width:36px;height:36px;border-radius:9999px;background:#dc2626;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;">
         ${svg}
       </div>
       <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid white;margin-top:-2px;"></div>
