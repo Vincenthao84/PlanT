@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Gift, Clock, Inbox, CheckCircle2, Handshake, List, Map as MapIcon } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { RequestsMap } from "@/components/RequestsMap";
+const RequestsMap = lazy(() =>
+  import("@/components/RequestsMap").then((m) => ({ default: m.RequestsMap })),
+);
 import {
   getRequestType,
   fetchAllRequests,
@@ -191,7 +193,13 @@ function NoticeBoardPage() {
               </div>
             </div>
             {viewMode === "map" ? (
-              <RequestsMap requests={sortedRequests} />
+              <Suspense
+                fallback={
+                  <div className="w-full h-[480px] rounded-xl border bg-muted animate-pulse" />
+                }
+              >
+                <RequestsMap requests={sortedRequests} />
+              </Suspense>
             ) : (
             <div className="grid lg:grid-cols-[1fr_420px] gap-6">
             {/* List */}
