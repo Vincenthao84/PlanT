@@ -79,11 +79,12 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     return [22.3193, 114.1694];
   }, [userLoc, requests]);
 
-  const sorted = useMemo(() => {
+  const sorted = useMemo<StoredRequest[]>(() => {
     if (!userLoc) return requests;
     return [...requests]
       .map((r) => ({ r, d: haversineKm(userLoc, { lat: r.lat, lng: r.lng }) }))
-      .sort((a, b) => a.d - b.d);
+      .sort((a, b) => a.d - b.d)
+      .map((x) => x.r);
   }, [requests, userLoc]);
 
   return (
@@ -99,7 +100,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
             <Popup>You are here</Popup>
           </Marker>
         )}
-        {(userLoc ? sorted.map((s) => s.r) : requests).map((r) => {
+        {sorted.map((r) => {
           const t = getRequestType(r.type);
           const dist = userLoc ? haversineKm(userLoc, { lat: r.lat, lng: r.lng }) : null;
           return (
