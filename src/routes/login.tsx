@@ -178,6 +178,24 @@ function LoginPage() {
               />
             </div>
 
+            {mode === "signup" && (
+              <div className="flex items-start gap-2 pt-1">
+                <Checkbox
+                  id="accept-terms"
+                  checked={acceptedTerms}
+                  onCheckedChange={(v) => setAcceptedTerms(v === true)}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="accept-terms" className="text-sm font-normal leading-snug">
+                  I have read and agree to the{" "}
+                  <Link to="/terms" target="_blank" className="font-semibold text-primary hover:underline">
+                    Terms and Conditions
+                  </Link>
+                  .
+                </Label>
+              </div>
+            )}
+
             <Button type="submit" className="w-full rounded-full" disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {mode === "signin" ? "Sign in" : "Create account"}
