@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, Handshake } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, Handshake, List, Map as MapIcon } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { RequestsMap } from "@/components/RequestsMap";
 import {
   getRequestType,
   fetchAllRequests,
@@ -52,6 +53,7 @@ function NoticeBoardPage() {
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [takingId, setTakingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +158,21 @@ function NoticeBoardPage() {
               <span className="text-sm text-muted-foreground">
                 Showing {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <ToggleGroup
+                  type="single"
+                  size="sm"
+                  value={viewMode}
+                  onValueChange={(v) => v && setViewMode(v as "list" | "map")}
+                  variant="outline"
+                >
+                  <ToggleGroupItem value="list" aria-label="List view">
+                    <List className="h-3 w-3 mr-1" /> List
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="map" aria-label="Map view">
+                    <MapIcon className="h-3 w-3 mr-1" /> Nearby map
+                  </ToggleGroupItem>
+                </ToggleGroup>
                 <span className="text-xs text-muted-foreground">Sort by</span>
                 <ToggleGroup
                   type="single"
@@ -174,6 +190,9 @@ function NoticeBoardPage() {
                 </ToggleGroup>
               </div>
             </div>
+            {viewMode === "map" ? (
+              <RequestsMap requests={sortedRequests} />
+            ) : (
             <div className="grid lg:grid-cols-[1fr_420px] gap-6">
             {/* List */}
             <div className="space-y-3">
@@ -313,6 +332,7 @@ function NoticeBoardPage() {
               </p>
             </div>
             </div>
+            )}
           </>
         )}
       </section>
