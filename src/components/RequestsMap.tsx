@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Locate } from "lucide-react";
 import type { StoredRequest } from "@/lib/request-types";
 import { getRequestType } from "@/lib/request-types";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
 
 // Fix default marker icons (Leaflet + bundlers)
 const DefaultIcon = L.icon({
@@ -19,6 +21,35 @@ const DefaultIcon = L.icon({
   shadowSize: [41, 41],
 });
 L.Marker.prototype.options.icon = DefaultIcon;
+
+const typeIconCache = new Map<string, L.DivIcon>();
+function getTypeIcon(slug: string): L.DivIcon {
+  const cached = typeIconCache.get(slug);
+  if (cached) return cached;
+  const t = getRequestType(slug);
+  const Icon = t?.icon;
+  const svg = Icon
+    ? renderToStaticMarkup(
+        createElement(Icon, { size: 18, color: "white", strokeWidth: 2.5 }),
+      )
+    : "";
+  const html = `
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+      <div style="width:36px;height:36px;border-radius:9999px;background:hsl(var(--primary,220 90% 56%));border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;">
+        ${svg}
+      </div>
+      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid white;margin-top:-2px;"></div>
+    </div>`;
+  const icon = L.divIcon({
+    className: "",
+    html,
+    iconSize: [36, 46],
+    iconAnchor: [18, 44],
+    popupAnchor: [0, -40],
+  });
+  typeIconCache.set(slug, icon);
+  return icon;
+}
 
 const userIcon = L.divIcon({
   className: "",
@@ -104,7 +135,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           const t = getRequestType(r.type);
           const dist = userLoc ? haversineKm(userLoc, { lat: r.lat, lng: r.lng }) : null;
           return (
-            <Marker key={r.id} position={[r.lat, r.lng]}>
+            <Marker key={r.id} position={[r.lat, r.lng]} icon={getTypeIcon(r.type)}>
               <Popup>
                 <div className="space-y-1 min-w-[180px]">
                   <div className="text-xs text-muted-foreground">{t?.label ?? "Request"}</div>
