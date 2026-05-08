@@ -15,6 +15,8 @@ import {
   reopenRequest,
   markFeeSettled,
   updateRequest,
+  getMyMonthlyUsage,
+  type MonthlyUsage,
   type StoredRequest,
 } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
@@ -54,6 +56,7 @@ function MyRequestsPage() {
   const { user, loading: authLoading } = useAuth();
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [editing, setEditing] = useState<StoredRequest | null>(null);
+  const [usage, setUsage] = useState<MonthlyUsage | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -66,6 +69,11 @@ function MyRequestsPage() {
       .catch(() => {
         if (!cancelled) setRequests([]);
       });
+    getMyMonthlyUsage(user.id)
+      .then((u) => {
+        if (!cancelled) setUsage(u);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -134,6 +142,26 @@ function MyRequestsPage() {
             <Link to="/">Post a new request</Link>
           </Button>
         </div>
+
+        {usage && (
+          <Card className="p-4 mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" style={{ boxShadow: "var(--shadow-soft)" }}>
+            <div>
+              <span className="text-muted-foreground">This month — Requests posted: </span>
+              <span className="font-semibold">
+                {usage.posted} / {usage.isPaid ? "∞" : usage.postLimit}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Orders taken: </span>
+              <span className="font-semibold">
+                {usage.taken} / {usage.isPaid ? "∞" : usage.takeLimit}
+              </span>
+            </div>
+            <Badge variant={usage.isPaid ? "default" : "secondary"} className="rounded-full ml-auto">
+              {usage.isPaid ? "Paid plan" : "Free plan"}
+            </Badge>
+          </Card>
+        )}
 
         {requests === null ? (
           <p className="text-muted-foreground">Loading…</p>
