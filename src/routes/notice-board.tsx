@@ -309,16 +309,11 @@ function NoticeBoardPage() {
             {/* Map */}
             <div className="lg:sticky lg:top-24 self-start space-y-3">
               <Card className="overflow-hidden p-0" style={{ boxShadow: "var(--shadow-soft)" }}>
-                <div className="aspect-square w-full bg-muted">
-                  {mapSrc && (
-                    <iframe
-                      title="Map of open requests"
-                      src={mapSrc}
-                      className="w-full h-full border-0"
-                      loading="lazy"
-                    />
-                  )}
-                </div>
+                <Suspense
+                  fallback={<div className="aspect-square w-full bg-muted animate-pulse" />}
+                >
+                  <RequestsMap requests={sortedRequests} />
+                </Suspense>
                 <div className="px-4 py-3 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
                     {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"} on the map
