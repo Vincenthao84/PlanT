@@ -114,6 +114,10 @@ function LoginPage() {
             </p>
           </div>
 
+          <div className="mb-6 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs leading-relaxed text-foreground/80">
+            The Platform is now <span className="font-semibold">free to try for 1 month</span>. The owner of this Platform reserves all rights to charge a <span className="font-semibold">Subscription Fee of US$3</span> for usage of 3 months onwards.
+          </div>
+
           <Button
             type="button"
             variant="outline"
