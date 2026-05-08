@@ -158,6 +158,32 @@ export async function deleteRequest(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export type UpdateRequestInput = {
+  title: string;
+  description: string;
+  locationLabel: string;
+  reward: string;
+};
+
+export async function updateRequest(
+  id: string,
+  input: UpdateRequestInput,
+): Promise<StoredRequest> {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({
+      title: input.title,
+      description: input.description,
+      location_label: input.locationLabel,
+      reward: input.reward,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToRequest(data as Row);
+}
+
 export async function markRequestDone(id: string): Promise<StoredRequest> {
   const { data, error } = await supabase
     .from("requests")
