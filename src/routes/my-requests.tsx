@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2 } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2, Pencil } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { RateTaker } from "@/components/RateTaker";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -14,10 +14,21 @@ import {
   markRequestDone,
   reopenRequest,
   markFeeSettled,
+  updateRequest,
   type StoredRequest,
 } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/my-requests")({
   head: () => ({
@@ -42,6 +53,7 @@ function timeAgo(ts: number): string {
 function MyRequestsPage() {
   const { user, loading: authLoading } = useAuth();
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
+  const [editing, setEditing] = useState<StoredRequest | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -210,6 +222,16 @@ function MyRequestsPage() {
                       <Button asChild size="sm" variant="outline" className="rounded-full">
                         <Link to="/request/$id" params={{ id: r.id }}>View</Link>
                       </Button>
+                      {!r.takenBy && !isDone && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          onClick={() => setEditing(r)}
+                        >
+                          <Pencil className="h-4 w-4" /> Edit
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant={isDone ? "outline" : "default"}
@@ -267,8 +289,111 @@ function MyRequestsPage() {
           </div>
         )}
       </section>
+      <EditRequestDialog
+        request={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(updated) =>
+          setRequests((prev) =>
+            prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev,
+          )
+        }
+      />
       <SiteFooter />
     </div>
+  );
+}
+
+function EditRequestDialog({
+  request,
+  onClose,
+  onSaved,
+}: {
+  request: StoredRequest | null;
+  onClose: () => void;
+  onSaved: (r: StoredRequest) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [locationLabel, setLocationLabel] = useState("");
+  const [reward, setReward] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (request) {
+      setTitle(request.title);
+      setDescription(request.description);
+      setLocationLabel(request.locationLabel);
+      setReward(request.reward);
+    }
+  }, [request]);
+
+  const handleSave = async () => {
+    if (!request) return;
+    if (!title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated = await updateRequest(request.id, {
+        title: title.trim(),
+        description: description.trim(),
+        locationLabel: locationLabel.trim() || "Pinned location",
+        reward: reward.trim(),
+      });
+      onSaved(updated);
+      toast.success("Request updated");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!request} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit request</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-title">Title</Label>
+            <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-desc">Details</Label>
+            <Textarea
+              id="edit-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-loc">Location</Label>
+            <Input
+              id="edit-loc"
+              value={locationLabel}
+              onChange={(e) => setLocationLabel(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-reward">Reward</Label>
+            <Input id="edit-reward" value={reward} onChange={(e) => setReward(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="rounded-full" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button className="rounded-full" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
