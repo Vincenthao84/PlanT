@@ -196,6 +196,30 @@ export type Database = {
         }
         Relationships: []
       }
+      subscribers: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          tier: Database["public"]["Enums"]["subscription_tier"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -229,9 +253,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_paid_user: { Args: { _user_id: string }; Returns: boolean }
       is_request_participant: {
         Args: { _request_id: string; _user_id: string }
         Returns: boolean
+      }
+      orders_taken_this_month: { Args: { _user_id: string }; Returns: number }
+      requests_posted_this_month: {
+        Args: { _user_id: string }
+        Returns: number
       }
     }
     Enums: {
@@ -243,6 +273,7 @@ export type Database = {
         | "object"
         | "rental"
         | "anything"
+      subscription_tier: "free" | "paid"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -379,6 +410,7 @@ export const Constants = {
         "rental",
         "anything",
       ],
+      subscription_tier: ["free", "paid"],
     },
   },
 } as const
