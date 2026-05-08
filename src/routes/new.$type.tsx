@@ -193,6 +193,9 @@ function NewRequestPage() {
                   {locating ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MapPin className="h-3 w-3 mr-1" />}
                   Use my current location
                 </Button>
+                <p className="text-xs text-muted-foreground">
+                  Please type in the exact address including name of the street, district and country/region.
+                </p>
                 {coords && (
                   <p className="text-xs text-muted-foreground">
                     Pinned at {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
