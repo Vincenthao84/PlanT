@@ -256,3 +256,26 @@ export async function markFeeSettled(id: string): Promise<StoredRequest> {
   if (error) throw error;
   return rowToRequest(data as Row);
 }
+
+export interface MonthlyUsage {
+  posted: number;
+  taken: number;
+  postLimit: number;
+  takeLimit: number;
+  isPaid: boolean;
+}
+
+export async function getMyMonthlyUsage(userId: string): Promise<MonthlyUsage> {
+  const [postedRes, takenRes, subRes] = await Promise.all([
+    supabase.rpc("requests_posted_this_month", { _user_id: userId }),
+    supabase.rpc("orders_taken_this_month", { _user_id: userId }),
+    supabase.rpc("is_paid_user", { _user_id: userId }),
+  ]);
+  return {
+    posted: (postedRes.data as number | null) ?? 0,
+    taken: (takenRes.data as number | null) ?? 0,
+    isPaid: Boolean(subRes.data),
+    postLimit: 20,
+    takeLimit: 20,
+  };
+}
