@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as NoticeBoardRouteImport } from './routes/notice-board'
 import { Route as MyTasksRouteImport } from './routes/my-tasks'
 import { Route as MyRequestsRouteImport } from './routes/my-requests'
@@ -30,6 +31,11 @@ const UseCasesRoute = UseCasesRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NoticeBoardRoute = NoticeBoardRouteImport.update({
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/my-requests': typeof MyRequestsRoute
   '/my-tasks': typeof MyTasksRoute
   '/notice-board': typeof NoticeBoardRoute
+  '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/my-requests': typeof MyRequestsRoute
   '/my-tasks': typeof MyTasksRoute
   '/notice-board': typeof NoticeBoardRoute
+  '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/my-requests': typeof MyRequestsRoute
   '/my-tasks': typeof MyTasksRoute
   '/notice-board': typeof NoticeBoardRoute
+  '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/use-cases': typeof UseCasesRoute
   '/new/$type': typeof NewTypeRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/my-requests'
     | '/my-tasks'
     | '/notice-board'
+    | '/privacy'
     | '/terms'
     | '/use-cases'
     | '/new/$type'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/my-requests'
     | '/my-tasks'
     | '/notice-board'
+    | '/privacy'
     | '/terms'
     | '/use-cases'
     | '/new/$type'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/my-requests'
     | '/my-tasks'
     | '/notice-board'
+    | '/privacy'
     | '/terms'
     | '/use-cases'
     | '/new/$type'
@@ -179,6 +191,7 @@ export interface RootRouteChildren {
   MyRequestsRoute: typeof MyRequestsRoute
   MyTasksRoute: typeof MyTasksRoute
   NoticeBoardRoute: typeof NoticeBoardRoute
+  PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   UseCasesRoute: typeof UseCasesRoute
   NewTypeRoute: typeof NewTypeRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notice-board': {
@@ -283,6 +303,7 @@ const rootRouteChildren: RootRouteChildren = {
   MyRequestsRoute: MyRequestsRoute,
   MyTasksRoute: MyTasksRoute,
   NoticeBoardRoute: NoticeBoardRoute,
+  PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   UseCasesRoute: UseCasesRoute,
   NewTypeRoute: NewTypeRoute,
@@ -292,12 +313,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
