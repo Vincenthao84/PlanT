@@ -96,9 +96,13 @@ export function SiteFooter() {
         <div className="text-center md:text-right">
           <p>© {new Date().getFullYear()} PLAN T. A platform for offering & asking for help.</p>
           <p className="mt-1 text-xs">Copyright and ideas owned by Zero Point One International Company, Hong Kong.</p>
-          <p className="mt-2 text-xs">
+          <p className="mt-2 text-xs flex flex-wrap items-center justify-center md:justify-end gap-x-3">
             <Link to="/terms" className="font-medium text-primary hover:underline">
               Terms and Conditions
+            </Link>
+            <span aria-hidden>·</span>
+            <Link to="/privacy" className="font-medium text-primary hover:underline">
+              Privacy Policy
             </Link>
           </p>
         </div>
