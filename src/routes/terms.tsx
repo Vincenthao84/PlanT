@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 
 export const Route = createFileRoute("/terms")({
@@ -92,6 +92,14 @@ function TermsPage() {
             <h2 className="text-2xl font-semibold mt-6 mb-2">8. Changes to Terms</h2>
             <p>We may update these terms from time to time. Continued use of the Platform after changes are posted constitutes your acceptance of the new terms.</p>
           </section>
+
+          <p className="pt-6">
+            See also our{" "}
+            <Link to="/privacy" className="font-medium text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </article>
       </main>
       <SiteFooter />
