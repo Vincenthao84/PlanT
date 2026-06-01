@@ -68,7 +68,9 @@ function RequestPage() {
       .then(async (r) => {
         if (!cancelled) setRequest(r);
         if (r) {
-          const profiles = await fetchProfilesByIds([r.userId]).catch(() => ({}));
+          const profiles = await fetchProfilesByIds([r.userId]).catch(
+            () => ({}) as Record<string, { displayName: string | null; avatarUrl: string | null }>,
+          );
           if (!cancelled) setRequestorName(profiles[r.userId]?.displayName ?? null);
         }
       })
