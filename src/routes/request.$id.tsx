@@ -3,13 +3,36 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin, Clock, Gift } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Gift, CheckCircle2, XCircle, User } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { getRequestType, fetchRequest, deleteRequest, type StoredRequest } from "@/lib/request-types";
+import {
+  getRequestType,
+  fetchRequest,
+  deleteRequest,
+  listRequestBids,
+  acceptBid,
+  withdrawBid,
+  fetchProfilesByIds,
+  type StoredRequest,
+  type RequestBid,
+} from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { BidDialog } from "@/components/BidDialog";
+
+function timeAgo(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
 
 export const Route = createFileRoute("/request/$id")({
   head: () => ({
@@ -35,12 +58,19 @@ function RequestPage() {
   const navigate = useNavigate();
   const [request, setRequest] = useState<StoredRequest | null | undefined>(undefined);
   const [deleting, setDeleting] = useState(false);
+  const [bids, setBids] = useState<RequestBid[] | null>(null);
+  const [requestorName, setRequestorName] = useState<string | null>(null);
+  const [actingBidId, setActingBidId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetchRequest(id)
-      .then((r) => {
+      .then(async (r) => {
         if (!cancelled) setRequest(r);
+        if (r) {
+          const profiles = await fetchProfilesByIds([r.userId]).catch(() => ({}));
+          if (!cancelled) setRequestorName(profiles[r.userId]?.displayName ?? null);
+        }
       })
       .catch(() => {
         if (!cancelled) setRequest(null);
@@ -49,6 +79,21 @@ function RequestPage() {
       cancelled = true;
     };
   }, [id]);
+
+  const reloadBids = async () => {
+    try {
+      const list = await listRequestBids(id);
+      setBids(list);
+    } catch {
+      setBids([]);
+    }
+  };
+
+  useEffect(() => {
+    if (!user || !request) return;
+    void reloadBids();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, request?.id]);
 
   if (request === undefined) {
     return (
@@ -64,6 +109,8 @@ function RequestPage() {
   }
 
   const isOwner = user?.id === request.userId;
+  const myBid = bids?.find((b) => b.helperId === user?.id) ?? null;
+  const isAssigned = !!request.takenBy;
 
   const handleDelete = async () => {
     if (!confirm("Delete this request?")) return;
@@ -147,21 +194,54 @@ function RequestPage() {
               <div className="mt-5 space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  Posted just now
+                  Posted {timeAgo(request.createdAt)}
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  by {requestorName ?? "Anonymous"}
                 </div>
                 {request.reward && (
                   <div className="flex items-center gap-2 text-foreground">
                     <Gift className="h-4 w-4 text-accent" />
-                    Reward: <span className="font-semibold">{request.reward}</span>
+                    Suggested: <span className="font-semibold">{request.reward}</span>
                   </div>
                 )}
               </div>
             </Card>
 
             <Card className="p-5 bg-secondary/40 border-dashed">
-              <p className="text-sm text-muted-foreground">
-                Your request is now visible to nearby helpers. They'll bid to fulfill it — you pick the best one.
-              </p>
+              {isOwner ? (
+                <p className="text-sm text-muted-foreground">
+                  Your request is visible to nearby helpers. Review their bids below and pick one.
+                </p>
+              ) : isAssigned ? (
+                <p className="text-sm text-muted-foreground">
+                  This request has already been assigned to a helper.
+                </p>
+              ) : myBid ? (
+                <p className="text-sm text-muted-foreground">
+                  You bid <span className="font-semibold text-foreground">{myBid.amount}</span> — status:{" "}
+                  <span className="font-medium capitalize">{myBid.status}</span>. The requestor will pick one.
+                </p>
+              ) : user ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Place your bid — set your own price for taking this on.
+                  </p>
+                  <BidDialog
+                    requestId={request.id}
+                    suggestedReward={request.reward}
+                    onPlaced={reloadBids}
+                    trigger={
+                      <Button className="w-full rounded-full">Place a bid</Button>
+                    }
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Sign in to place a bid on this request.
+                </p>
+              )}
               <Button asChild className="mt-4 w-full rounded-full" variant="outline">
                 <Link to="/">Post another request</Link>
               </Button>
@@ -178,6 +258,118 @@ function RequestPage() {
                 </Button>
               )}
             </Card>
+
+            {(isOwner || myBid) && (
+              <Card className="p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
+                <h2 className="text-lg font-semibold mb-3">
+                  Bids {bids ? `(${bids.length})` : ""}
+                </h2>
+                {bids === null ? (
+                  <p className="text-sm text-muted-foreground">Loading bids…</p>
+                ) : bids.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No bids yet.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {bids.map((b) => {
+                      const mine = b.helperId === user?.id;
+                      return (
+                        <li
+                          key={b.id}
+                          className="rounded-lg border p-3 flex flex-col gap-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {b.helperDisplayName ?? "Helper"}
+                                {mine && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    (you)
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {timeAgo(b.createdAt)}
+                              </p>
+                            </div>
+                            <Badge
+                              variant={
+                                b.status === "accepted"
+                                  ? "default"
+                                  : b.status === "rejected"
+                                    ? "secondary"
+                                    : "outline"
+                              }
+                              className="rounded-full capitalize"
+                            >
+                              {b.status}
+                            </Badge>
+                          </div>
+                          <div className="text-sm font-semibold">{b.amount}</div>
+                          {b.note && (
+                            <p className="text-sm text-muted-foreground whitespace-pre-line">
+                              {b.note}
+                            </p>
+                          )}
+                          <div className="flex gap-2 pt-1">
+                            {isOwner &&
+                              !isAssigned &&
+                              b.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  className="rounded-full"
+                                  disabled={actingBidId === b.id}
+                                  onClick={async () => {
+                                    setActingBidId(b.id);
+                                    try {
+                                      await acceptBid(b.id);
+                                      toast.success("Bid accepted — helper assigned.");
+                                      const updated = await fetchRequest(id);
+                                      setRequest(updated);
+                                      await reloadBids();
+                                    } catch (err) {
+                                      toast.error(
+                                        err instanceof Error ? err.message : "Could not accept",
+                                      );
+                                    } finally {
+                                      setActingBidId(null);
+                                    }
+                                  }}
+                                >
+                                  <CheckCircle2 className="h-4 w-4" /> Accept this bid
+                                </Button>
+                              )}
+                            {mine && b.status === "pending" && !isAssigned && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="rounded-full text-destructive hover:text-destructive"
+                                disabled={actingBidId === b.id}
+                                onClick={async () => {
+                                  setActingBidId(b.id);
+                                  try {
+                                    await withdrawBid(b.id);
+                                    toast.success("Bid withdrawn");
+                                    await reloadBids();
+                                  } catch (err) {
+                                    toast.error(
+                                      err instanceof Error ? err.message : "Could not withdraw",
+                                    );
+                                  } finally {
+                                    setActingBidId(null);
+                                  }
+                                }}
+                              >
+                                <XCircle className="h-4 w-4" /> Withdraw
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </Card>
+            )}
           </div>
         </div>
       </section>
