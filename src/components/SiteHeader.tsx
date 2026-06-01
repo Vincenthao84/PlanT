@@ -1,7 +1,16 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Sparkles, LogOut } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetClose,
+} from "@/components/ui/sheet";
+import { Sparkles, LogOut, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useState } from "react";
 
 const publicNav = [
   { to: "/", label: "Make Requests" },
@@ -19,9 +28,11 @@ const authedExtraNav = [
 export function SiteHeader() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
+    setOpen(false);
     navigate({ to: "/login" });
   };
 
@@ -29,13 +40,15 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
-      <nav className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
+      <nav className="max-w-7xl mx-auto flex items-center justify-between px-4 py-4">
         <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-primary-foreground">
             <Sparkles className="h-4 w-4" />
           </span>
           PLAN&nbsp;T
         </Link>
+
+        {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
           {navItems.map((n) => {
             const highlighted = n.to === "/my-requests" || n.to === "/my-tasks";
@@ -68,16 +81,76 @@ export function SiteHeader() {
             );
           })}
         </div>
-        {user ? (
-          <Button variant="outline" className="rounded-full" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign out
-          </Button>
-        ) : (
-          <Button variant="default" className="rounded-full" asChild>
-            <Link to="/login">Sign in</Link>
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {user ? (
+            <Button variant="outline" className="rounded-full hidden sm:inline-flex" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign out
+            </Button>
+          ) : (
+            <Button variant="default" className="rounded-full hidden sm:inline-flex" asChild>
+              <Link to="/login">Sign in</Link>
+            </Button>
+          )}
+
+          {/* Mobile hamburger */}
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden rounded-lg">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[280px] p-0">
+              <SheetHeader className="px-6 pt-6 pb-4 border-b border-border text-left">
+                <SheetTitle className="flex items-center gap-2">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-primary-foreground">
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </span>
+                  PLAN T
+                </SheetTitle>
+              </SheetHeader>
+              <div className="flex flex-col gap-1 px-4 py-4">
+                {navItems.map((n) => {
+                  const highlighted = n.to === "/my-requests" || n.to === "/my-tasks";
+                  return (
+                    <SheetClose asChild key={n.to}>
+                      <Link
+                        to={n.to}
+                        activeOptions={{ exact: true }}
+                        activeProps={{
+                          className: highlighted
+                            ? "bg-primary text-primary-foreground font-semibold"
+                            : "text-foreground font-semibold bg-muted",
+                        }}
+                        className={
+                          highlighted
+                            ? "flex items-center rounded-lg px-4 py-3 text-sm font-medium bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition"
+                            : "flex items-center rounded-lg px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                        }
+                      >
+                        {n.label}
+                      </Link>
+                    </SheetClose>
+                  );
+                })}
+                <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2">
+                  {user ? (
+                    <Button variant="outline" className="w-full rounded-full" onClick={handleSignOut}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign out
+                    </Button>
+                  ) : (
+                    <Button variant="default" className="w-full rounded-full" asChild>
+                      <Link to="/login" onClick={() => setOpen(false)}>Sign in</Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </nav>
     </header>
   );
