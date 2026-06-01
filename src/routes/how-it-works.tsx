@@ -94,10 +94,7 @@ function HowItWorksPage() {
           </div>
           <ul className="space-y-3">
             {[
-              "10% service fee on public requests, 20% on secret",
-              "Currency auto-converted at the prevailing FX rate",
-              "Full deal history searchable on every profile",
-              "Secret deals stay sealed — even after completion",
+              "Deal history searchable on every profile",
             ].map((p) => (
               <li key={p} className="flex items-start gap-3">
                 <Award className="h-5 w-5 text-accent shrink-0 mt-0.5" />
