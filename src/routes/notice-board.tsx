@@ -12,11 +12,13 @@ const RequestsMap = lazy(() =>
 import {
   getRequestType,
   fetchAllRequests,
-  takeRequest,
+  fetchProfilesByIds,
   type StoredRequest,
 } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { BidDialog } from "@/components/BidDialog";
+import { User } from "lucide-react";
 
 export const Route = createFileRoute("/notice-board")({
   head: () => ({
@@ -54,14 +56,16 @@ function NoticeBoardPage() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
-  const [takingId, setTakingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const [profiles, setProfiles] = useState<Record<string, { displayName: string | null; avatarUrl: string | null }>>({});
 
   useEffect(() => {
     let cancelled = false;
     fetchAllRequests()
-      .then((rs) => {
+      .then(async (rs) => {
         if (!cancelled) setRequests(rs);
+        const map = await fetchProfilesByIds(rs.map((r) => r.userId)).catch(() => ({}));
+        if (!cancelled) setProfiles(map);
       })
       .catch(() => {
         if (!cancelled) setRequests([]);
@@ -102,24 +106,10 @@ function NoticeBoardPage() {
     return `https://www.openstreetmap.org/?mlat=${m.lat}&mlon=${m.lng}#map=13/${m.lat}/${m.lng}`;
   }, [requests]);
 
-  const handleTake = async (e: React.MouseEvent, id: string) => {
+  const handleNotSignedInBid = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!user) {
-      toast.error("Please sign in to take a request.");
-      return;
-    }
-    setTakingId(id);
-    try {
-      const updated = await takeRequest(id);
-      setRequests((prev) => (prev ? prev.map((r) => (r.id === id ? updated : r)) : prev));
-      toast.success("You've taken this request");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not take request";
-      toast.error(msg);
-    } finally {
-      setTakingId(null);
-    }
+    toast.error("Please sign in to place a bid.");
   };
 
   return (
@@ -241,7 +231,7 @@ function NoticeBoardPage() {
                             {isTaken && (
                               <Badge className="rounded-full text-xs gap-1">
                                 <CheckCircle2 className="h-3 w-3" />
-                                {takenByMe ? "Taken by you" : "Request Taken"}
+                                {takenByMe ? "Assigned to you" : "Assigned"}
                               </Badge>
                             )}
                             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -249,6 +239,10 @@ function NoticeBoardPage() {
                             </span>
                           </div>
                           <h3 className="font-semibold leading-tight truncate">{r.title}</h3>
+                          <p className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            by {profiles[r.userId]?.displayName ?? "Anonymous"}
+                          </p>
                           {r.description && (
                             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                               {r.description}
@@ -262,7 +256,7 @@ function NoticeBoardPage() {
                             {r.reward && (
                               <span className="inline-flex items-center gap-1 font-medium text-foreground">
                                 <Gift className="h-3 w-3 text-accent" />
-                                {r.reward}
+                                Suggested: {r.reward}
                               </span>
                             )}
                           </div>
@@ -276,7 +270,7 @@ function NoticeBoardPage() {
                               disabled
                             >
                               <CheckCircle2 className="h-4 w-4" />
-                              {takenByMe ? "Taken by you" : "Taken"}
+                              {takenByMe ? "Assigned" : "Assigned"}
                             </Button>
                           ) : isOwner ? (
                             <Button
@@ -287,16 +281,19 @@ function NoticeBoardPage() {
                             >
                               Your request
                             </Button>
-                          ) : (
+                          ) : !user ? (
                             <Button
                               size="sm"
                               className="rounded-full"
-                              onClick={(e) => handleTake(e, r.id)}
-                              disabled={takingId === r.id}
+                              onClick={handleNotSignedInBid}
                             >
-                              <Handshake className="h-4 w-4" />
-                              {takingId === r.id ? "Taking…" : "Take Order"}
+                              <Handshake className="h-4 w-4" /> Place bid
                             </Button>
+                          ) : (
+                            <BidDialog
+                              requestId={r.id}
+                              suggestedReward={r.reward}
+                            />
                           )}
                         </div>
                       </div>
