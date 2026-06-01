@@ -133,6 +133,102 @@ export async function fetchAllRequests(): Promise<StoredRequest[]> {
   return (data ?? []).map((r) => rowToRequest(r as Row));
 }
 
+export async function fetchProfilesByIds(
+  ids: string[],
+): Promise<Record<string, { displayName: string | null; avatarUrl: string | null }>> {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return {};
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, avatar_url")
+    .in("id", unique);
+  if (error) throw error;
+  const map: Record<string, { displayName: string | null; avatarUrl: string | null }> = {};
+  (data ?? []).forEach((p) => {
+    map[(p as { id: string }).id] = {
+      displayName: (p as { display_name: string | null }).display_name,
+      avatarUrl: (p as { avatar_url: string | null }).avatar_url,
+    };
+  });
+  return map;
+}
+
+export type BidStatus = "pending" | "accepted" | "rejected" | "withdrawn";
+
+export interface RequestBid {
+  id: string;
+  requestId: string;
+  helperId: string;
+  amount: string;
+  note: string;
+  status: BidStatus;
+  createdAt: number;
+  helperDisplayName: string | null;
+  helperAvatarUrl: string | null;
+}
+
+export async function listRequestBids(requestId: string): Promise<RequestBid[]> {
+  const { data, error } = await supabase.rpc("list_request_bids", {
+    _request_id: requestId,
+  });
+  if (error) throw error;
+  type Row = {
+    id: string;
+    request_id: string;
+    helper_id: string;
+    amount: string;
+    note: string;
+    status: BidStatus;
+    created_at: string;
+    helper_display_name: string | null;
+    helper_avatar_url: string | null;
+  };
+  return ((data ?? []) as Row[]).map((r) => ({
+    id: r.id,
+    requestId: r.request_id,
+    helperId: r.helper_id,
+    amount: r.amount,
+    note: r.note,
+    status: r.status,
+    createdAt: new Date(r.created_at).getTime(),
+    helperDisplayName: r.helper_display_name,
+    helperAvatarUrl: r.helper_avatar_url,
+  }));
+}
+
+export async function placeBid(
+  requestId: string,
+  amount: string,
+  note: string,
+): Promise<void> {
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr) throw userErr;
+  const user = userData.user;
+  if (!user) throw new Error("You must be signed in to place a bid.");
+  const { error } = await supabase.from("request_bids").insert({
+    request_id: requestId,
+    helper_id: user.id,
+    amount,
+    note,
+  });
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("You have already placed a bid on this request.");
+    }
+    throw error;
+  }
+}
+
+export async function withdrawBid(bidId: string): Promise<void> {
+  const { error } = await supabase.from("request_bids").delete().eq("id", bidId);
+  if (error) throw error;
+}
+
+export async function acceptBid(bidId: string): Promise<void> {
+  const { error } = await supabase.rpc("accept_request_bid", { _bid_id: bidId });
+  if (error) throw error;
+}
+
 export async function fetchMyRequests(userId: string): Promise<StoredRequest[]> {
   const { data, error } = await supabase
     .from("requests")
