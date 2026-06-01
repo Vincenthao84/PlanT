@@ -38,6 +38,47 @@ export type Database = {
         }
         Relationships: []
       }
+      request_bids: {
+        Row: {
+          amount: string
+          created_at: string
+          helper_id: string
+          id: string
+          note: string
+          request_id: string
+          status: Database["public"]["Enums"]["bid_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount?: string
+          created_at?: string
+          helper_id: string
+          id?: string
+          note?: string
+          request_id: string
+          status?: Database["public"]["Enums"]["bid_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: string
+          created_at?: string
+          helper_id?: string
+          id?: string
+          note?: string
+          request_id?: string
+          status?: Database["public"]["Enums"]["bid_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_bids_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       request_messages: {
         Row: {
           author_id: string
@@ -246,6 +287,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_request_bid: {
+        Args: { _bid_id: string }
+        Returns: {
+          amount: string
+          created_at: string
+          helper_id: string
+          id: string
+          note: string
+          request_id: string
+          status: Database["public"]["Enums"]["bid_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "request_bids"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      can_view_request_bids: {
+        Args: { _request_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -258,6 +322,20 @@ export type Database = {
         Args: { _request_id: string; _user_id: string }
         Returns: boolean
       }
+      list_request_bids: {
+        Args: { _request_id: string }
+        Returns: {
+          amount: string
+          created_at: string
+          helper_avatar_url: string
+          helper_display_name: string
+          helper_id: string
+          id: string
+          note: string
+          request_id: string
+          status: Database["public"]["Enums"]["bid_status"]
+        }[]
+      }
       orders_taken_this_month: { Args: { _user_id: string }; Returns: number }
       requests_posted_this_month: {
         Args: { _user_id: string }
@@ -266,6 +344,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      bid_status: "pending" | "accepted" | "rejected" | "withdrawn"
       request_type:
         | "snap"
         | "knowledge"
@@ -402,6 +481,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      bid_status: ["pending", "accepted", "rejected", "withdrawn"],
       request_type: [
         "snap",
         "knowledge",
