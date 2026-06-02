@@ -11,6 +11,7 @@ import {
 import { Sparkles, LogOut, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
+import plantLogo from "@/assets/plant-logo.png.asset.json";
 
 const publicNav = [
   { to: "/", label: "Make Requests" },
@@ -42,9 +43,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
       <nav className="max-w-7xl mx-auto flex items-center justify-between px-4 py-4">
         <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
+          <img src={plantLogo.url} alt="PLAN T logo" className="h-8 w-8 rounded-lg object-cover" />
           PLAN&nbsp;T
         </Link>
 
@@ -105,9 +104,7 @@ export function SiteHeader() {
             <SheetContent side="right" className="w-[280px] p-0">
               <SheetHeader className="px-6 pt-6 pb-4 border-b border-border text-left">
                 <SheetTitle className="flex items-center gap-2">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-primary-foreground">
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </span>
+                  <img src={plantLogo.url} alt="PLAN T logo" className="h-7 w-7 rounded-lg object-cover" />
                   PLAN T
                 </SheetTitle>
               </SheetHeader>
@@ -161,9 +158,7 @@ export function SiteFooter() {
     <footer className="border-t border-border py-10">
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
-            <Sparkles className="h-3 w-3" />
-          </span>
+          <img src={plantLogo.url} alt="PLAN T logo" className="h-6 w-6 rounded-md object-cover" />
           PLAN T
         </Link>
         <div className="text-center md:text-right">

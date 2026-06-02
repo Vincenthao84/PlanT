@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
+import plantLogo from "@/assets/plant-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,6 +43,11 @@ function Landing() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10" style={{ background: "var(--gradient-soft)" }} />
         <div className="max-w-7xl mx-auto px-6 pt-16 pb-12 text-center">
+          <img
+            src={plantLogo.url}
+            alt="PLAN T logo"
+            className="mx-auto mb-6 h-24 w-24 md:h-32 md:w-32 rounded-3xl shadow-lg object-cover"
+          />
           <Badge variant="secondary" className="mb-6 rounded-full px-4 py-1.5 text-xs font-medium">
             Six request types · One marketplace
           </Badge>
