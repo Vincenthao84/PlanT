@@ -77,6 +77,13 @@ export type Database = {
             referencedRelation: "requests"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "request_bids_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       request_messages: {
@@ -110,6 +117,13 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_messages_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests_public"
             referencedColumns: ["id"]
           },
         ]
@@ -287,7 +301,69 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      requests_public: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          fee_settled_at: string | null
+          id: string | null
+          is_secret: boolean | null
+          lat: number | null
+          lng: number | null
+          location_label: string | null
+          reward: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taker_completed_at: string | null
+          title: string | null
+          type: Database["public"]["Enums"]["request_type"] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          fee_settled_at?: string | null
+          id?: string | null
+          is_secret?: boolean | null
+          lat?: number | null
+          lng?: number | null
+          location_label?: string | null
+          reward?: string | null
+          taken_at?: string | null
+          taken_by?: string | null
+          taker_completed_at?: string | null
+          title?: string | null
+          type?: Database["public"]["Enums"]["request_type"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          fee_settled_at?: string | null
+          id?: string | null
+          is_secret?: boolean | null
+          lat?: number | null
+          lng?: number | null
+          location_label?: string | null
+          reward?: string | null
+          taken_at?: string | null
+          taken_by?: string | null
+          taker_completed_at?: string | null
+          title?: string | null
+          type?: Database["public"]["Enums"]["request_type"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_request_bid: {
