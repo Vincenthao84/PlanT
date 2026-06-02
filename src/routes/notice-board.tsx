@@ -241,7 +241,7 @@ function NoticeBoardPage() {
                           <h3 className="font-semibold leading-tight truncate">{r.title}</h3>
                           <p className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1">
                             <User className="h-3 w-3" />
-                            by {profiles[r.userId]?.displayName ?? "Anonymous"}
+                            by {r.isSecret ? "Secret Request" : (profiles[r.userId]?.displayName ?? "Anonymous")}
                           </p>
                           {r.description && (
                             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
