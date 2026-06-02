@@ -216,6 +216,18 @@ function NewRequestPage() {
               </div>
             </div>
 
+            <div className="flex items-start justify-between gap-4 rounded-xl border p-4">
+              <div className="space-y-1">
+                <Label htmlFor="secret" className="flex items-center gap-2">
+                  <EyeOff className="h-4 w-4" /> Secret Request
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Hide your username on the notice board. Helpers will see "Secret Request" instead.
+                </p>
+              </div>
+              <Switch id="secret" checked={isSecret} onCheckedChange={setIsSecret} />
+            </div>
+
             <div className="flex justify-end pt-2">
               <Button type="submit" size="lg" className="rounded-full" disabled={submitting}>
                 {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
