@@ -39,6 +39,7 @@ export interface StoredRequest {
   takenAt: number | null;
   takerCompletedAt: number | null;
   feeSettledAt: number | null;
+  isSecret: boolean;
 }
 
 type Row = {
@@ -57,6 +58,7 @@ type Row = {
   taken_at: string | null;
   taker_completed_at: string | null;
   fee_settled_at: string | null;
+  is_secret: boolean;
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -76,6 +78,7 @@ function rowToRequest(row: Row): StoredRequest {
     takenAt: row.taken_at ? new Date(row.taken_at).getTime() : null,
     takerCompletedAt: row.taker_completed_at ? new Date(row.taker_completed_at).getTime() : null,
     feeSettledAt: row.fee_settled_at ? new Date(row.fee_settled_at).getTime() : null,
+    isSecret: row.is_secret ?? false,
   };
 }
 
@@ -87,6 +90,7 @@ export type NewRequestInput = {
   lat: number;
   lng: number;
   reward: string;
+  isSecret?: boolean;
 };
 
 export async function createRequest(input: NewRequestInput): Promise<StoredRequest> {
@@ -106,6 +110,7 @@ export async function createRequest(input: NewRequestInput): Promise<StoredReque
       lat: input.lat,
       lng: input.lng,
       reward: input.reward,
+      is_secret: input.isSecret ?? false,
     })
     .select()
     .single();

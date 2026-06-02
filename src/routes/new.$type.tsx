@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, MapPin, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Loader2, EyeOff } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { Switch } from "@/components/ui/switch";
 import { getRequestType, createRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -61,6 +62,7 @@ function NewRequestPage() {
   const [description, setDescription] = useState("");
   const [locationLabel, setLocationLabel] = useState("");
   const [reward, setReward] = useState("");
+  const [isSecret, setIsSecret] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -119,6 +121,7 @@ function NewRequestPage() {
         lat,
         lng,
         reward: reward.trim(),
+        isSecret,
       });
       navigate({ to: "/request/$id", params: { id: created.id } });
     } catch (err) {
@@ -211,6 +214,18 @@ function NewRequestPage() {
                   placeholder="e.g. €10"
                 />
               </div>
+            </div>
+
+            <div className="flex items-start justify-between gap-4 rounded-xl border p-4">
+              <div className="space-y-1">
+                <Label htmlFor="secret" className="flex items-center gap-2">
+                  <EyeOff className="h-4 w-4" /> Secret Request
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Hide your username on the notice board. Helpers will see "Secret Request" instead.
+                </p>
+              </div>
+              <Switch id="secret" checked={isSecret} onCheckedChange={setIsSecret} />
             </div>
 
             <div className="flex justify-end pt-2">
