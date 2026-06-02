@@ -156,6 +156,7 @@ export type Database = {
           description: string
           fee_settled_at: string | null
           id: string
+          is_secret: boolean
           lat: number
           lng: number
           location_label: string
@@ -185,6 +186,7 @@ export type Database = {
           description?: string
           fee_settled_at?: string | null
           id?: string
+          is_secret?: boolean
           lat: number
           lng: number
           location_label?: string
@@ -214,6 +216,7 @@ export type Database = {
           description?: string
           fee_settled_at?: string | null
           id?: string
+          is_secret?: boolean
           lat?: number
           lng?: number
           location_label?: string

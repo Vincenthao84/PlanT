@@ -1,0 +1,1 @@
+ALTER TABLE public.requests ADD COLUMN is_secret boolean NOT NULL DEFAULT false;
