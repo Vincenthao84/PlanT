@@ -56,6 +56,15 @@ function Landing() {
             goes to someone who actually fits the job. Pick a type to start.
           </p>
           <div className="mt-8 flex flex-wrap gap-3 justify-center">
+            <Button
+              size="lg"
+              className="rounded-full text-base h-12 px-7 bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg hover:opacity-90"
+              asChild
+            >
+              <Link to="/notice-board">
+                Browse the Requests Notice Board <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
             <Button size="lg" variant="outline" className="rounded-full text-base h-12 px-7" asChild>
               <Link to="/how-it-works">See how it works</Link>
             </Button>
