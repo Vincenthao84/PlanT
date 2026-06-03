@@ -57,6 +57,9 @@ function Landing() {
               Endless things to get done.
             </span>
           </h1>
+          <p className="mt-4 text-xl md:text-2xl font-medium text-foreground/80">
+            For instant help, remote or near.
+          </p>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             Every request on PLAN T is tagged so the right helpers see it first — and your reward
             goes to someone who actually fits the job. Pick a type to start.

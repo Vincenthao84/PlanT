@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import plantLogo from "@/assets/plant-logo.png.asset.json";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -95,10 +96,8 @@ function LoginPage() {
       style={{ background: "var(--gradient-soft)" }}
     >
       <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center justify-center gap-2 mb-8 font-bold text-xl tracking-tight">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
+        <Link to="/" className="flex flex-col items-center justify-center gap-3 mb-8 font-bold text-xl tracking-tight">
+          <img src={plantLogo.url} alt="PLAN T logo" className="h-20 w-20 rounded-2xl shadow-md object-cover" />
           PLAN T
         </Link>
 
