@@ -377,6 +377,6 @@ export async function getMyMonthlyUsage(userId: string): Promise<MonthlyUsage> {
     taken: (takenRes.data as number | null) ?? 0,
     isPaid: Boolean(subRes.data),
     postLimit: 20,
-    takeLimit: 5,
+    takeLimit: 15,
   };
 }
