@@ -10,9 +10,23 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import plantLogo from '../assets/plant-logo.png';
-// Then use it in your JSX:
-<img src={plantLogo} alt="PlanT Logo" />
+
+
+// 1. Import the image at the top of the component file
+import plantLogo from './assets/plant-logo.png'; // Adjust the '../' path depending on where your file is located
+
+export default function Navbar() {
+  return (
+    <div className="flex items-center">
+      {/* 2. Use the imported variable directly in the src attribute */}
+      <img 
+        src={plantLogo} 
+        alt="PlanT Logo" 
+        className="h-8 w-auto" 
+      />
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/login")({
   head: () => ({
