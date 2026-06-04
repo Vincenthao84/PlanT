@@ -7,7 +7,7 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 
-<img src="/plant-logo.png" alt="PlanT Logo" />
+
 
 
 
