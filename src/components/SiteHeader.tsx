@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/sheet";
 import { Sparkles, LogOut, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import plantLogo from "@/assets/plant-logo.png.asset.json";
 
 const publicNav = [
@@ -30,6 +31,21 @@ export function SiteHeader() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle()
+      .then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -37,7 +53,13 @@ export function SiteHeader() {
     navigate({ to: "/login" });
   };
 
-  const navItems = user ? [...publicNav, ...authedExtraNav] : publicNav;
+  const navItems = user
+    ? [
+        ...publicNav,
+        ...authedExtraNav,
+        ...(isAdmin ? ([{ to: "/admin", label: "Admin" }] as const) : []),
+      ]
+    : publicNav;
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
