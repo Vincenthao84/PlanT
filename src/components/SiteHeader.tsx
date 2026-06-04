@@ -65,7 +65,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
       <nav className="max-w-7xl mx-auto flex items-center justify-between px-4 py-4">
         <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
-          <img src={plantLogo.url} alt="PLAN T logo" className="h-8 w-8 rounded-lg object-cover" />
+          <img src="/plant-logo.png" alt="PlanT Logo" className="h-8 w-8 rounded-lg object-cover" />
           PLAN&nbsp;T
         </Link>
 
@@ -180,7 +180,7 @@ export function SiteFooter() {
     <footer className="border-t border-border py-10">
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
-          <img src={plantLogo.url} alt="PLAN T logo" className="h-6 w-6 rounded-md object-cover" />
+          <img src="/plant-logo.png" alt="PlanT Logo" className="h-6 w-6 rounded-md object-cover" />
           PLAN T
         </Link>
         <div className="text-center md:text-right">
