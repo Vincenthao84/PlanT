@@ -12,7 +12,7 @@ import { Sparkles, LogOut, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import plantLogo from "@/assets/plant-logo.png.asset.json";
+
 
 const publicNav = [
   { to: "/", label: "Make Requests" },
@@ -126,7 +126,7 @@ export function SiteHeader() {
             <SheetContent side="right" className="w-[280px] p-0">
               <SheetHeader className="px-6 pt-6 pb-4 border-b border-border text-left">
                 <SheetTitle className="flex items-center gap-2">
-                  <img src={plantLogo.url} alt="PLAN T logo" className="h-7 w-7 rounded-lg object-cover" />
+                  <img src="/plant-logo.png" alt="PlanT Logo" className="h-7 w-7 rounded-lg object-cover" />
                   PLAN T
                 </SheetTitle>
               </SheetHeader>
