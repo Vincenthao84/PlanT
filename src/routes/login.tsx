@@ -11,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import plantLogo from '../assets/plant-logo.png';
+// Then use it in your JSX:
+<img src={plantLogo} alt="PlanT Logo" />
 
 export const Route = createFileRoute("/login")({
   head: () => ({
