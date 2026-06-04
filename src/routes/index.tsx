@@ -6,9 +6,26 @@ import { ArrowRight } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
-import plantLogo from '../assets/plant-logo.png';
-// Then use it in your JSX:
-<img src={plantLogo} alt="PlanT Logo" />
+
+// 1. Import the image at the top of the component file
+import plantLogo from './assets/plant-logo.png'; // Adjust the '../' path depending on where your file is located
+
+export default function Navbar() {
+  return (
+    <div className="flex items-center">
+      {/* 2. Use the imported variable directly in the src attribute */}
+      <img 
+        src={plantLogo} 
+        alt="PlanT Logo" 
+        className="h-8 w-auto" 
+      />
+    </div>
+  );
+}
+
+
+
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
