@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
-import plantLogo from "@/assets/plant-logo.png.asset.json";
+import plantLogo from '../assets/plant-logo.png';
 
 export const Route = createFileRoute("/")({
   head: () => ({
