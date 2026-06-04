@@ -7,7 +7,8 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import plantLogo from '../assets/plant-logo.png';
-
+// Then use it in your JSX:
+<img src={plantLogo} alt="PlanT Logo" />
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
