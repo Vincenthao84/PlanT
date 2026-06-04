@@ -12,7 +12,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 
-<img src="/plant-logo.png" alt="PlanT Logo" />
+
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -99,7 +99,7 @@ function LoginPage() {
     >
       <div className="w-full max-w-md">
         <Link to="/" className="flex flex-col items-center justify-center gap-3 mb-8 font-bold text-xl tracking-tight">
-          <img src={plantLogo.url} alt="PLAN T logo" className="h-20 w-20 rounded-2xl shadow-md object-cover" />
+          <img src="/plant-logo.png" alt="PlanT Logo" className="h-20 w-20 rounded-2xl shadow-md object-cover" />
           PLAN T
         </Link>
 
