@@ -12,21 +12,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 
-// 1. Import the image at the top of the component file
-import plantLogo from './assets/plant-logo.png'; // Adjust the '../' path depending on where your file is located
-
-export default function Navbar() {
-  return (
-    <div className="flex items-center">
-      {/* 2. Use the imported variable directly in the src attribute */}
-      <img 
-        src={plantLogo} 
-        alt="PlanT Logo" 
-        className="h-8 w-auto" 
-      />
-    </div>
-  );
-}
+<img src="/plant-logo.png" alt="PlanT Logo" />
 
 export const Route = createFileRoute("/login")({
   head: () => ({
