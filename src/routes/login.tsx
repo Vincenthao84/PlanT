@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import plantLogo from "@/assets/plant-logo.png.asset.json";
+import plantLogo from '../assets/plant-logo.png';
 
 export const Route = createFileRoute("/login")({
   head: () => ({
