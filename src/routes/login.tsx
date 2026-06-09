@@ -82,25 +82,30 @@ function LoginPage() {
     }
   };
 
-  const handleGoogle = async () => {
-    if (mode === "signup" && !acceptedTerms) {
-      toast.error("You must accept the Terms and Conditions to create an account.");
-      return;
-    }
-    setSubmitting(true);
-    const result = await lovable.auth.signInWithOAuth("google");
-                                                      
-                                                     
-     // redirect_uri: window.location.origin,
-    
-    if (result.error) {
-      toast.error("Google sign-in failed");
-      setSubmitting(false);
-      return;
-    }
-    if (result.redirected) return;
-    // Tokens received — auth listener will pick it up
-  };
+const handleGoogle = async () => {
+  if (mode === "signup" && !acceptedTerms) {
+    toast.error("You must accept the Terms and Conditions to create an account.");
+    return;
+  }
+  setSubmitting(true);
+  
+  try {
+    // FIXED: Using direct Supabase client instead of Lovable wrapper
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        // Tells Supabase to redirect back to your live Vercel website URL
+        redirectTo: window.location.origin, 
+      },
+    });
+
+    if (error) throw error;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Google sign-in failed";
+    toast.error(msg);
+    setSubmitting(false);
+  }
+};
 
   return (
     <div
