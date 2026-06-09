@@ -88,9 +88,11 @@ function LoginPage() {
       return;
     }
     setSubmitting(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
+    const result = await lovable.auth.signInWithOAuth("google");
+                                                      
+                                                      //,
+     // redirect_uri: window.location.origin,
+    
     if (result.error) {
       toast.error("Google sign-in failed");
       setSubmitting(false);
