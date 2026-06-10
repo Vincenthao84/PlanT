@@ -121,6 +121,20 @@ function Landing() {
         </div>
       </section>
 
+/* Custom CSS Pin Icons Mapping Layout */
+.custom-map-pin .fallback-icon-display {
+  font-size: 11px;
+  letter-spacing: -0.5px;
+  text-transform: uppercase;
+}
+
+/* Match the exact slug identifiers set in your requests registry config mapping */
+.custom-map-pin[data-type="cleaning"] .pin-marker-circle { background-color: #3b82f6 !important; }
+.custom-map-pin[data-type="delivery"] .pin-marker-circle { background-color: #10b981 !important; }
+.custom-map-pin[data-type="moving"] .pin-marker-circle { background-color: #f59e0b !important; }
+.custom-map-pin[data-type="repair"] .pin-marker-circle { background-color: #8b5cf6 !important; }
+
+      
       <SiteFooter />
     </div>
   );
