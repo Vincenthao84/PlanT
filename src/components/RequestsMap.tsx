@@ -8,44 +8,32 @@ import { Locate } from "lucide-react";
 import type { StoredRequest } from "@/lib/request-types";
 import { getRequestType } from "@/lib/request-types";
 
-// Explicit fallback asset URLs to ensure assets don't break during Vercel's minification steps
-const DefaultIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Pure CSS production pin generator. No react-dom/server or Canvas dependencies to crash mobile browsers.
+// Production Safe Pin System using native Inline Styles
+// This bypasses Tailwind scanning issues on Vercel completely
 function createProductionIcon(slug: string): L.DivIcon {
-  const typeConfig = getRequestType(slug);
-  
-  // Use generic pin appearance fallback if the type configuration cannot be matched
-  const pinBgColor = "#dc2626"; 
-  
-  // Create a base64 or custom fallback style vector mask for icons
-  let iconMaskStyle = "";
-  if (typeConfig?.icon) {
-    // We map a fallback character or fallback layout safely if SVG resolution delays occur.
-    // Instead of rendering a heavy element, we let standard Tailwind CSS classes render it seamlessly below.
-  }
+  // Map slugs to precise OKLCH color strings matching your styles.css theme
+  const colorMap: Record<string, string> = {
+    snap: "oklch(0.60 0.25 25)",
+    knowledge: "oklch(0.62 0.13 195)",
+    action: "oklch(0.65 0.18 150)",
+    object: "oklch(0.75 0.15 75)",
+    rental: "oklch(0.55 0.22 290)",
+    anything: "oklch(0.50 0.02 200)",
+  };
+
+  const pinBgColor = colorMap[slug] || "oklch(0.50 0.02 200)";
+  const shortText = slug ? slug.substring(0, 2).toUpperCase() : "RQ";
 
   const html = `
-    <div class="custom-map-pin flex flex-col items-center justify-center relative" data-type="${slug}">
-      <div style="width:36px;height:36px;border-radius:50%;background:${pinBgColor};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;" class="pin-marker-circle">
-        <span class="fallback-icon-display text-white text-xs font-bold font-sans uppercase">
-          ${slug.substring(0, 2)}
-        </span>
+    <div style="position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <div style="width:36px; height:36px; border-radius:50%; background:${pinBgColor}; border:3px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; color:white; font-family:sans-serif; font-size:11px; font-weight:700; letter-spacing:-0.5px;">
+        ${shortText}
       </div>
-      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid white;margin-top:-2px;"></div>
+      <div style="width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid white; margin-top:-2px;"></div>
     </div>`;
 
   return L.divIcon({
-    className: "leaflet-custom-production-icon-wrapper",
+    className: "leaflet-custom-pin-reset", // Simple clean wrapper
     html,
     iconSize: [36, 46],
     iconAnchor: [18, 44],
@@ -53,25 +41,17 @@ function createProductionIcon(slug: string): L.DivIcon {
   });
 }
 
-const userIcon = L.divIcon({
-  className: "",
-  html: `<div style="width:18px;height:18px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 0 0 2px rgba(0,0,0,0.25)"></div>`,
-  iconSize: [18, 18],
-  iconAnchor: [9, 9],
-});
-
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLng = ((b.lng - a.lng) * Math.PI) / 180;
   const lat1 = (a.lat * Math.PI) / 180;
   const lat2 = (b.lat * Math.PI) / 180;
-  const x =
-    Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  const x = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-// Fixed Sizing Observer & Automatic Map Tile Resizer
+// Controls recentering and fixes rendering tile gaps aggressively
 function MapController({ center, zoom, requestsCount }: { center: [number, number] | null; zoom?: number; requestsCount: number }) {
   const map = useMap();
   
@@ -81,16 +61,12 @@ function MapController({ center, zoom, requestsCount }: { center: [number, numbe
     }
   }, [center, zoom, map]);
 
-  // Instantly fixes the puzzle layout glitch when changing views on mobile devices
+  // Forces map sizes to re-calculate, repairing broken/missing tiles on mobile viewport changes
   useEffect(() => {
-    const triggerLayoutReset = () => {
-      map.invalidateSize();
-    };
-    
-    triggerLayoutReset();
-    const interval = setInterval(triggerLayoutReset, 400); // Poll briefly to account for responsive animation updates
-    const timer = setTimeout(() => clearInterval(interval), 2000);
-
+    const fixLayout = () => map.invalidateSize();
+    fixLayout();
+    const interval = setInterval(fixLayout, 300);
+    const timer = setTimeout(() => clearInterval(interval), 1500);
     return () => {
       clearInterval(interval);
       clearTimeout(timer);
@@ -101,13 +77,31 @@ function MapController({ center, zoom, requestsCount }: { center: [number, numbe
 }
 
 export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
+  const [mounted, setMounted] = useState(false);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const requested = useRef(false);
 
+  // Critical Protection: Stops Leaflet from touching global browser APIs before mount
+  useEffect(() => {
+    setMounted(true);
+    
+    // Safely assign default marker fallbacks only when window context exists
+    const DefaultIcon = L.icon({
+      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    });
+    L.Marker.prototype.options.icon = DefaultIcon;
+  }, []);
+
   const requestLocation = () => {
-    if (!("geolocation" in navigator)) return;
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -122,10 +116,11 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   };
 
   useEffect(() => {
-    if (requested.current) return;
-    requested.current = true;
-    requestLocation();
-  }, []);
+    if (mounted && !requested.current) {
+      requested.current = true;
+      requestLocation();
+    }
+  }, [mounted]);
 
   const center: [number, number] = useMemo(() => {
     if (userLoc) return [userLoc.lat, userLoc.lng];
@@ -142,8 +137,25 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       .map((x) => x.r);
   }, [requests, userLoc]);
 
+  // Safe fallback while the container initializes on modern cell phones
+  if (!mounted) {
+    return (
+      <div className="w-full h-[480px] rounded-xl bg-muted flex items-center justify-center text-sm text-muted-foreground animate-pulse border">
+        Initializing map parameters…
+      </div>
+    );
+  }
+
+  // User position pin fallback setup
+  const userIcon = L.divIcon({
+    className: "leaflet-custom-user-reset",
+    html: `<div style="width:18px; height:18px; border-radius:50%; background:#2563eb; border:3px solid white; box-shadow:0 0 0 2px rgba(0,0,0,0.25)"></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+
   return (
-    <div className="relative w-full h-full min-h-[380px] bg-muted">
+    <div className="relative w-full h-[480px] rounded-xl overflow-hidden border bg-muted">
       <MapContainer center={center} zoom={13} scrollWheelZoom className="w-full h-full z-10">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -170,7 +182,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
                   <div className="font-semibold text-sm leading-tight">{r.title}</div>
                   <div className="text-xs text-muted-foreground">{r.locationLabel}</div>
                   {dist !== null && (
-                    <div className="text-xs font-medium text-accent">
+                    <div className="text-xs font-medium text-primary">
                       {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`} away
                     </div>
                   )}
