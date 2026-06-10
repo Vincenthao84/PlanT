@@ -147,3 +147,30 @@
     color: var(--color-foreground);
   }
 }
+
+/* ==========================================================================
+   PLAN T — Production Map Pin Color System (Leaflet Isolation Overrides)
+   ========================================================================== */
+
+/* Cleans up Leaflet's custom canvas wrappers across layout routers */
+.leaflet-custom-production-icon-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Format text tags explicitly inside markers */
+.custom-map-pin .fallback-icon-display {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-transform: uppercase;
+}
+
+/* Dynamic Marker Background Bindings mapping to standard OKLCH spaces safely */
+.custom-map-pin[data-type="snap"] .pin-marker-circle { background-color: oklch(0.60 0.25 25) !important; }
+.custom-map-pin[data-type="knowledge"] .pin-marker-circle { background-color: oklch(0.62 0.13 195) !important; }
+.custom-map-pin[data-type="action"] .pin-marker-circle { background-color: oklch(0.65 0.18 150) !important; }
+.custom-map-pin[data-type="object"] .pin-marker-circle { background-color: oklch(0.75 0.15 75) !important; }
+.custom-map-pin[data-type="rental"] .pin-marker-circle { background-color: oklch(0.55 0.22 290) !important; }
+.custom-map-pin[data-type="anything"] .pin-marker-circle { background-color: oklch(0.50 0.02 200) !important; }
