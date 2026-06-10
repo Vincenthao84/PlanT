@@ -1,217 +1,182 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import { Link } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { Loader } from "@googlemaps/js-api-loader";
 import { Locate } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { StoredRequest } from "@/lib/request-types";
 import { getRequestType } from "@/lib/request-types";
 
-// Production Safe Pin System using native Inline Styles
-// This bypasses Tailwind scanning issues on Vercel completely
-function createProductionIcon(slug: string): L.DivIcon {
-  // Map slugs to precise OKLCH color strings matching your styles.css theme
-  const colorMap: Record<string, string> = {
-    snap: "oklch(0.60 0.25 25)",
-    knowledge: "oklch(0.62 0.13 195)",
-    action: "oklch(0.65 0.18 150)",
-    object: "oklch(0.75 0.15 75)",
-    rental: "oklch(0.55 0.22 290)",
-    anything: "oklch(0.50 0.02 200)",
-  };
-
-  const pinBgColor = colorMap[slug] || "oklch(0.50 0.02 200)";
-  const shortText = slug ? slug.substring(0, 2).toUpperCase() : "RQ";
-
-  const html = `
-    <div style="position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-      <div style="width:36px; height:36px; border-radius:50%; background:${pinBgColor}; border:3px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; color:white; font-family:sans-serif; font-size:11px; font-weight:700; letter-spacing:-0.5px;">
-        ${shortText}
-      </div>
-      <div style="width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid white; margin-top:-2px;"></div>
-    </div>`;
-
-  return L.divIcon({
-    className: "leaflet-custom-pin-reset", // Simple clean wrapper
-    html,
-    iconSize: [36, 46],
-    iconAnchor: [18, 44],
-    popupAnchor: [0, -40],
-  });
-}
-
-function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const x = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
-
-// Controls recentering and fixes rendering tile gaps aggressively
-function MapController({ center, zoom, requestsCount }: { center: [number, number] | null; zoom?: number; requestsCount: number }) {
-  const map = useMap();
-  
-  useEffect(() => {
-    if (center) {
-      map.flyTo(center, zoom ?? 13, { duration: 0.8 });
-    }
-  }, [center, zoom, map]);
-
-  // Forces map sizes to re-calculate, repairing broken/missing tiles on mobile viewport changes
-  useEffect(() => {
-    const fixLayout = () => map.invalidateSize();
-    fixLayout();
-    const interval = setInterval(fixLayout, 300);
-    const timer = setTimeout(() => clearInterval(interval), 1500);
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timer);
-    };
-  }, [map, requestsCount]);
-
-  return null;
-}
+// Dynamic Category Marker Config (OKLCH mapping to clean HEX hex values for Google Maps)
+const colorMap: Record<string, string> = {
+  snap: "#ef4444",      // Red
+  knowledge: "#3b82f6", // Blue
+  action: "#10b981",    // Emerald
+  object: "#f59e0b",    // Amber
+  rental: "#8b5cf6",    // Purple
+  anything: "#6b7280",  // Gray
+};
 
 export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
-  const [mounted, setMounted] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [google, setGoogle] = useState<any>(null);
+  const [mapInstance, setMapInstance] = useState<any>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
-  const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
-  const requested = useRef(false);
+  const infoWindowRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
 
-  // Critical Protection: Stops Leaflet from touching global browser APIs before mount
+  // 1. Initialize Google Maps Loader Safely
   useEffect(() => {
-    setMounted(true);
-    
-    // Safely assign default marker fallbacks only when window context exists
-    const DefaultIcon = L.icon({
-      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41],
+    const loader = new Loader({
+      apiKey: "YOUR_GOOGLE_MAPS_API_KEY", // Replace with your key or leave blank for development mode
+      version: "weekly",
     });
-    L.Marker.prototype.options.icon = DefaultIcon;
+
+    loader.load().then((googleInstance) => {
+      setGoogle(googleInstance);
+    }).catch(err => console.error("Google Maps failed to load", err));
   }, []);
 
+  // 2. Initialize Map Instance
+  useEffect(() => {
+    if (!google || !mapRef.current || mapInstance) return;
+
+    // Default Fallback Center (Hong Kong/Global fallback match)
+    const defaultCenter = requests && requests.length > 0 
+      ? { lat: requests[0].lat, lng: requests[0].lng }
+      : { lat: 22.3193, lng: 114.1694 };
+
+    const map = new google.maps.Map(mapRef.current, {
+      center: defaultCenter,
+      zoom: 13,
+      disableDefaultUI: true,
+      zoomControl: true,
+      clickableIcons: false,
+      styles: [
+        { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
+      ]
+    });
+
+    infoWindowRef.current = new google.maps.InfoWindow();
+    setMapInstance(map);
+  }, [google, requests]);
+
+  // 3. Handle Auto-Location Fetching
   const requestLocation = () => {
-    if (typeof window === "undefined" || !("geolocation" in navigator)) return;
+    if (!navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLoc(loc);
-        setFlyTarget([loc.lat, loc.lng]);
+        if (mapInstance) {
+          mapInstance.flyTo ? mapInstance.panTo(loc) : mapInstance.setCenter(loc);
+          mapInstance.setZoom(14);
+        }
         setLocating(false);
       },
       () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 8000 },
+      { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
   useEffect(() => {
-    if (mounted && !requested.current) {
-      requested.current = true;
+    if (mapInstance) {
       requestLocation();
     }
-  }, [mounted]);
+  }, [mapInstance]);
 
-  const center: [number, number] = useMemo(() => {
-    if (userLoc) return [userLoc.lat, userLoc.lng];
-    if (requests && requests.length > 0) return [requests[0].lat, requests[0].lng];
-    return [22.3193, 114.1694];
-  }, [userLoc, requests]);
+  // 4. Render Dynamic Custom Markers & Icons
+  useEffect(() => {
+    if (!google || !mapInstance) return;
 
-  const sorted = useMemo<StoredRequest[]>(() => {
-    if (!requests) return [];
-    if (!userLoc) return requests;
-    return [...requests]
-      .map((r) => ({ r, d: haversineKm(userLoc, { lat: r.lat, lng: r.lng }) }))
-      .sort((a, b) => a.d - b.d)
-      .map((x) => x.r);
-  }, [requests, userLoc]);
+    // Clear old markers completely to prevent memory leaks
+    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current = [];
 
-  // Safe fallback while the container initializes on modern cell phones
-  if (!mounted) {
-    return (
-      <div className="w-full h-[480px] rounded-xl bg-muted flex items-center justify-center text-sm text-muted-foreground animate-pulse border">
-        Initializing map parameters…
-      </div>
-    );
-  }
+    // Render Blue User Position Dot if available
+    if (userLoc) {
+      const userMarker = new google.maps.Marker({
+        position: userLoc,
+        map: mapInstance,
+        title: "Your Location",
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 7,
+          fillColor: "#2563eb",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 2,
+        }
+      });
+      markersRef.current.push(userMarker);
+    }
 
-  // User position pin fallback setup
-  const userIcon = L.divIcon({
-    className: "leaflet-custom-user-reset",
-    html: `<div style="width:18px; height:18px; border-radius:50%; background:#2563eb; border:3px solid white; box-shadow:0 0 0 2px rgba(0,0,0,0.25)"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
+    // Render Request Categorized Pin Assets
+    requests.forEach((r) => {
+      const t = getRequestType(r.type);
+      const hexColor = colorMap[r.type] || "#6b7280";
+      const shortLabel = r.type ? r.type.substring(0, 2).toUpperCase() : "RQ";
+
+      // Programmatic High-Resolution Pin Drawing
+      const marker = new google.maps.Marker({
+        position: { lat: r.lat, lng: r.lng },
+        map: mapInstance,
+        label: {
+          text: shortLabel,
+          color: "#ffffff",
+          fontSize: "11px",
+          fontWeight: "700"
+        },
+        icon: {
+          path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+          fillColor: hexColor,
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 1.5,
+          scale: 1.6,
+          anchor: new google.maps.Point(12, 21),
+          labelOrigin: new google.maps.Point(12, 9)
+        }
+      });
+
+      // Handle Map Pin Popups flawlessly
+      marker.addListener("click", () => {
+        const contentString = `
+          <div style="padding: 4px; font-family: system-ui, sans-serif; min-width: 160px; color: #1e293b;">
+            <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">${t?.label ?? "Request"}</div>
+            <div style="font-size: 14px; font-weight: 700; margin: 2px 0 4px 0; line-height: 1.2;">${r.title}</div>
+            <div style="font-size: 12px; color: #475569;">📍 ${r.locationLabel}</div>
+            <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">💰 Suggested: ${r.reward || "None"}</div>
+            <div style="margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 6px;">
+              <a href="/request/${r.id}" style="font-size: 12px; font-weight: 700; color: #2563eb; text-decoration: none;">View Details →</a>
+            </div>
+          </div>
+        `;
+        infoWindowRef.current.setContent(contentString);
+        infoWindowRef.current.open(mapInstance, marker);
+      });
+
+      markersRef.current.push(marker);
+    });
+
+  }, [google, mapInstance, requests, userLoc]);
 
   return (
-    <div className="relative w-full h-[480px] rounded-xl overflow-hidden border bg-muted">
-      <MapContainer center={center} zoom={13} scrollWheelZoom className="w-full h-full z-10">
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        <MapController center={flyTarget} requestsCount={sorted.length} />
-        
-        {userLoc && (
-          <Marker position={[userLoc.lat, userLoc.lng]} icon={userIcon}>
-            <Popup>You are here</Popup>
-          </Marker>
-        )}
-        
-        {sorted.map((r) => {
-          const t = getRequestType(r.type);
-          const dist = userLoc ? haversineKm(userLoc, { lat: r.lat, lng: r.lng }) : null;
-          
-          return (
-            <Marker key={r.id} position={[r.lat, r.lng]} icon={createProductionIcon(r.type)}>
-              <Popup>
-                <div className="space-y-1 min-w-[180px] text-foreground">
-                  <div className="text-xs text-muted-foreground font-medium">{t?.label ?? "Request"}</div>
-                  <div className="font-semibold text-sm leading-tight">{r.title}</div>
-                  <div className="text-xs text-muted-foreground">{r.locationLabel}</div>
-                  {dist !== null && (
-                    <div className="text-xs font-medium text-primary">
-                      {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`} away
-                    </div>
-                  )}
-                  <div className="pt-1">
-                    <Link
-                      to="/request/$id"
-                      params={{ id: r.id }}
-                      className="text-xs text-primary font-semibold hover:underline"
-                    >
-                      View details &rarr;
-                    </Link>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-      </MapContainer>
+    <div className="relative w-full h-full min-h-[420px] bg-muted">
+      {/* Target Canvas DOM Element */}
+      <div ref={mapRef} className="w-full h-full absolute inset-0" />
       
-      <div className="absolute top-3 right-3 z-[500]">
+      {/* Recenter / Geolocation floating action item widget */}
+      <div className="absolute bottom-4 right-4 z-20">
         <Button
           size="sm"
           variant="secondary"
-          className="rounded-full shadow-md border bg-background font-medium text-xs"
+          className="rounded-full shadow-lg border bg-background font-medium text-xs h-9 px-4"
           onClick={requestLocation}
           disabled={locating}
         >
-          <Locate className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-          {locating ? "Locating…" : userLoc ? "Recenter" : "Use my location"}
+          <Locate className="h-3.5 w-3.5 mr-1.5 text-muted-foreground animate-none" />
+          {locating ? "Locating…" : "Recenter"}
         </Button>
       </div>
     </div>
