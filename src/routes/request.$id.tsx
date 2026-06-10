@@ -1,3 +1,4 @@
+import { RequestsMap } from "@/components/RequestsMap";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -153,14 +154,13 @@ function RequestPage() {
         <div className="grid lg:grid-cols-[1fr_360px] gap-6">
           {/* Map */}
           <Card className="overflow-hidden p-0" style={{ boxShadow: "var(--shadow-soft)" }}>
-            <div className="aspect-[4/3] sm:aspect-[16/10] w-full bg-muted">
-              <iframe
-                title={`Map showing ${request.title}`}
-                src={mapSrc}
-                className="w-full h-full border-0"
-                loading="lazy"
-              />
-            </div>
+   
+   
+   <div className="aspect-[4/3] sm:aspect-[16/10] w-full bg-muted">
+  <RequestsMap requests={[request]} />
+</div>
+
+
             <div className="px-5 py-3 flex items-center justify-between text-sm">
               <span className="inline-flex items-center gap-2 text-muted-foreground">
                 <MapPin className="h-4 w-4 text-accent" />
