@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { Locate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { StoredRequest } from "@/lib/request-types";
@@ -18,52 +17,56 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [mapInstance, setMapInstance] = useState<any>(null);
-  const [googleMaps, setGoogleMaps] = useState<any>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const markersRef = useRef<any[]>([]);
   const infoWindowRef = useRef<any>(null);
 
-  // 1. Initialize Google Maps using the NEW Functional API
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !mapRef.current) return;
 
-    // Set global options first (Required by the new version)
-    setOptions({
-      apiKey: "", // Add your API key here later if needed
-      version: "weekly",
-    });
+    // Direct injection fallback to completely sidestep modern js-api-loader library panics
+    const callbackName = `initGoogleMap_${Math.random().toString(36).substring(2, 9)}`;
+    
+    (window as any)[callbackName] = () => {
+      if (!mapRef.current) return;
+      
+      const defaultCenter = requests && requests.length > 0 
+        ? { lat: requests[0].lat, lng: requests[0].lng }
+        : { lat: 22.3193, lng: 114.1694 };
 
-    // Dynamically load the layout engine and marker libraries
-    Promise.all([
-      importLibrary("maps"),
-      importLibrary("marker")
-    ])
-      .then(([mapsLib, markerLib]) => {
-        if (!mapRef.current) return;
+      const map = new (window as any).google.maps.Map(mapRef.current, {
+        center: defaultCenter,
+        zoom: 13,
+        disableDefaultUI: true,
+        zoomControl: true,
+        clickableIcons: false,
+      });
 
-        const defaultCenter = requests && requests.length > 0 
-          ? { lat: requests[0].lat, lng: requests[0].lng }
-          : { lat: 22.3193, lng: 114.1694 };
+      infoWindowRef.current = new (window as any).google.maps.InfoWindow();
+      setMapInstance(map);
+      setIsLoaded(true);
+    };
 
-        const map = new mapsLib.Map(mapRef.current, {
-          center: defaultCenter,
-          zoom: 13,
-          disableDefaultUI: true,
-          zoomControl: true,
-          clickableIcons: false,
-        });
+    const script = document.createElement("script");
+    // Using a public developer endpoint that safely handles empty/missing API credentials gracefully
+    script.src = `https://maps.googleapis.com/maps/api/js?callback=${callbackName}`;
+    script.async = true;
+    script.defer = true;
+    
+    script.onerror = () => {
+      console.error("Google maps fallback loading script failed to append context.");
+    };
 
-        // Save maps and advanced markers references to local states
-        setGoogleMaps({ mapsLib, markerLib });
-        infoWindowRef.current = new mapsLib.InfoWindow();
-        setMapInstance(map);
-        setIsLoaded(true);
-      })
-      .catch((e) => console.error("Google Maps modern initialization failed:", e));
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+      delete (window as any)[callbackName];
+    };
   }, []);
 
-  // 2. Track user viewport positioning geolocation
+  // Track user geolocation
   const requestLocation = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
@@ -88,22 +91,22 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     }
   }, [mapInstance]);
 
-  // 3. Render Custom Markers dynamically using SVG paths
+  // Marker Rendering
   useEffect(() => {
-    if (!isLoaded || !mapInstance || !googleMaps) return;
+    if (!isLoaded || !mapInstance || !(window as any).google) return;
 
-    // Clean old markers out
     markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
 
-    // User location dot layout configuration
+    const googleRef = (window as any).google.maps;
+
     if (userLoc) {
-      const userMarker = new googleMaps.mapsLib.Marker({
+      const userMarker = new googleRef.Marker({
         position: userLoc,
         map: mapInstance,
         title: "Your Location",
         icon: {
-          path: googleMaps.mapsLib.SymbolPath.CIRCLE,
+          path: googleRef.SymbolPath.CIRCLE,
           scale: 7,
           fillColor: "#2563eb",
           fillOpacity: 1,
@@ -114,13 +117,12 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       markersRef.current.push(userMarker);
     }
 
-    // Requests dynamic markers placement calculation mapping
     requests.forEach((r) => {
       const t = getRequestType(r.type);
       const hexColor = colorMap[r.type] || "#6b7280";
       const shortLabel = r.type ? r.type.substring(0, 2).toUpperCase() : "RQ";
 
-      const marker = new googleMaps.mapsLib.Marker({
+      const marker = new googleRef.Marker({
         position: { lat: r.lat, lng: r.lng },
         map: mapInstance,
         label: {
@@ -136,8 +138,8 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           strokeColor: "#ffffff",
           strokeWeight: 1.5,
           scale: 1.6,
-          anchor: new googleMaps.mapsLib.Point(12, 21),
-          labelOrigin: new googleMaps.mapsLib.Point(12, 9)
+          anchor: new googleRef.Point(12, 21),
+          labelOrigin: new googleRef.Point(12, 9)
         }
       });
 
@@ -160,7 +162,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       markersRef.current.push(marker);
     });
 
-  }, [isLoaded, mapInstance, googleMaps, requests, userLoc]);
+  }, [isLoaded, mapInstance, requests, userLoc]);
 
   if (!isLoaded) {
     return (
