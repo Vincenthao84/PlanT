@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css"; // Ensure this is imported here or in globals.css
+import "maplibre-gl/dist/maplibre-gl.css";
 import type { StoredRequest } from "@/lib/request-types";
+import { getRequestType } from "@/lib/request-types";
+
+// Category colors for the pins
+const colorMap: Record<string, string> = {
+  snap: "#ef4444", knowledge: "#3b82f6", action: "#10b981",
+  object: "#f59e0b", rental: "#8b5cf6", anything: "#6b7280",
+};
 
 export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -10,35 +17,45 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Use a simpler style to ensure we aren't fighting with complex tile loading
+    // 1. Initialize the map
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: {
         version: 8,
-        sources: { "osm": { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 } },
+        sources: {
+          "osm": { 
+            type: "raster", 
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], 
+            tileSize: 256,
+            attribution: "© OpenStreetMap"
+          } 
+        },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [114.1694, 22.3193],
+      center: [114.1694, 22.3193], // Default to HK
       zoom: 12,
     });
 
-    mapInstanceRef.current = map;
+    // 2. Add interaction controls
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
 
+    // 3. Handle Markers once map is ready
     map.on("load", () => {
-      // Add markers once the map is truly ready
+      mapInstanceRef.current = map;
+
       requests.forEach((r) => {
         const el = document.createElement("div");
         el.className = "marker";
-        el.style.width = "20px";
-        el.style.height = "20px";
-        el.style.backgroundColor = "red"; // Bright red to test visibility
+        el.style.width = "24px";
+        el.style.height = "24px";
+        el.style.backgroundColor = colorMap[r.type] || "#6b7280";
         el.style.borderRadius = "50%";
         el.style.border = "2px solid white";
+        el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.4)";
         el.style.cursor = "pointer";
-        el.style.zIndex = "1000"; // Force pin to the front
 
         new maplibregl.Marker({ element: el })
-          .setLngLat([r.lng, r.lat])
+          .setLngLat([Number(r.lng), Number(r.lat)])
           .addTo(map);
       });
     });
@@ -47,12 +64,8 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   }, [requests]);
 
   return (
-    <div className="relative w-full h-[450px] border border-gray-300">
-      <div 
-        ref={mapContainerRef} 
-        className="w-full h-full" 
-        style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}
-      />
+    <div className="w-full h-[450px] relative overflow-hidden rounded-lg border shadow-sm">
+      <div ref={mapContainerRef} className="w-full h-full" />
     </div>
   );
 }
