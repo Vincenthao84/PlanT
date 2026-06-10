@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { Locate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { StoredRequest } from "@/lib/request-types";
@@ -14,172 +16,127 @@ const colorMap: Record<string, string> = {
 };
 
 export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
-  const mapRef = useRef<HTMLDivElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<maplibregl.Marker[]>([]);
+  
   const [isLoaded, setIsLoaded] = useState(false);
-  const [mapInstance, setMapInstance] = useState<any>(null);
-  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
-  const markersRef = useRef<any[]>([]);
-  const infoWindowRef = useRef<any>(null);
 
+  // 1. Initialize Map Canvas
   useEffect(() => {
-    if (typeof window === "undefined" || !mapRef.current) return;
+    if (typeof window === "undefined" || !mapContainerRef.current) return;
 
-    // Direct injection fallback to completely sidestep modern js-api-loader library panics
-    const callbackName = `initGoogleMap_${Math.random().toString(36).substring(2, 9)}`;
-    
-    (window as any)[callbackName] = () => {
-      if (!mapRef.current) return;
-      
-      const defaultCenter = requests && requests.length > 0 
-        ? { lat: requests[0].lat, lng: requests[0].lng }
-        : { lat: 22.3193, lng: 114.1694 };
+    const defaultCenter: [number, number] = requests && requests.length > 0
+      ? [requests[0].lng, requests[0].lat]
+      : [114.1694, 22.3193]; // Hong Kong Default
 
-      const map = new (window as any).google.maps.Map(mapRef.current, {
-        center: defaultCenter,
-        zoom: 13,
-        disableDefaultUI: true,
-        zoomControl: true,
-        clickableIcons: false,
-      });
+    // Initialize the engine map viewport
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: "https://basemaps.cartocdn.com/gl/raster-tiles-style/style.json", // Open-source clean layout map style
+      center: defaultCenter,
+      zoom: 12,
+      attributionControl: false,
+    });
 
-      infoWindowRef.current = new (window as any).google.maps.InfoWindow();
-      setMapInstance(map);
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+
+    map.on("load", () => {
+      mapInstanceRef.current = map;
       setIsLoaded(true);
-    };
-
-    const script = document.createElement("script");
-    // Using a public developer endpoint that safely handles empty/missing API credentials gracefully
-    script.src = `https://maps.googleapis.com/maps/api/js?callback=${callbackName}`;
-    script.async = true;
-    script.defer = true;
-    
-    script.onerror = () => {
-      console.error("Google maps fallback loading script failed to append context.");
-    };
-
-    document.head.appendChild(script);
+    });
 
     return () => {
-      document.head.removeChild(script);
-      delete (window as any)[callbackName];
+      map.remove();
     };
   }, []);
 
-  // Track user geolocation
+  // 2. Track user geolocation viewport
   const requestLocation = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || !mapInstanceRef.current) return;
     setLocating(true);
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserLoc(loc);
-        if (mapInstance) {
-          mapInstance.panTo(loc);
-          mapInstance.setZoom(14);
-        }
+        const { latitude, longitude } = pos.coords;
+        mapInstanceRef.current?.flyTo({
+          center: [longitude, latitude],
+          zoom: 14,
+          essential: true
+        });
         setLocating(false);
       },
       () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 6000 }
     );
   };
 
+  // Trigger initial geolocation load
   useEffect(() => {
-    if (mapInstance) {
+    if (isLoaded) {
       requestLocation();
     }
-  }, [mapInstance]);
+  }, [isLoaded]);
 
-  // Marker Rendering
+  // 3. Render Custom Markers dynamically via DOM elements
   useEffect(() => {
-    if (!isLoaded || !mapInstance || !(window as any).google) return;
+    if (!isLoaded || !mapInstanceRef.current) return;
 
-    markersRef.current.forEach(m => m.setMap(null));
+    // Clear old markers from viewport mapping
+    markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
-
-    const googleRef = (window as any).google.maps;
-
-    if (userLoc) {
-      const userMarker = new googleRef.Marker({
-        position: userLoc,
-        map: mapInstance,
-        title: "Your Location",
-        icon: {
-          path: googleRef.SymbolPath.CIRCLE,
-          scale: 7,
-          fillColor: "#2563eb",
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeWeight: 2,
-        }
-      });
-      markersRef.current.push(userMarker);
-    }
 
     requests.forEach((r) => {
       const t = getRequestType(r.type);
       const hexColor = colorMap[r.type] || "#6b7280";
       const shortLabel = r.type ? r.type.substring(0, 2).toUpperCase() : "RQ";
 
-      const marker = new googleRef.Marker({
-        position: { lat: r.lat, lng: r.lng },
-        map: mapInstance,
-        label: {
-          text: shortLabel,
-          color: "#ffffff",
-          fontSize: "11px",
-          fontWeight: "700"
-        },
-        icon: {
-          path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
-          fillColor: hexColor,
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeWeight: 1.5,
-          scale: 1.6,
-          anchor: new googleRef.Point(12, 21),
-          labelOrigin: new googleRef.Point(12, 9)
-        }
-      });
+      // Programmatically create HTML Pin Element to avoid rendering image asset bugs
+      const el = document.createElement("div");
+      el.className = "custom-marker-pin";
+      el.style.width = "32px";
+      el.style.height = "32px";
+      el.style.cursor = "pointer";
+      el.innerHTML = `
+        <svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3));">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${hexColor}" stroke="#ffffff" stroke-width="1.5"/>
+          <text x="12" y="11" fill="#ffffff" font-size="8px" font-weight="700" text-anchor="middle" font-family="system-ui">${shortLabel}</text>
+        </svg>
+      `;
 
-      marker.addListener("click", () => {
-        const contentString = `
-          <div style="padding: 4px; font-family: system-ui, sans-serif; min-width: 160px; color: #1e293b;">
-            <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">${t?.label ?? "Request"}</div>
-            <div style="font-size: 14px; font-weight: 700; margin: 2px 0 4px 0; line-height: 1.2;">${r.title}</div>
-            <div style="font-size: 12px; color: #475569;">📍 ${r.locationLabel}</div>
-            <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">💰 Suggested: ${r.reward || "None"}</div>
-            <div style="margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 6px;">
-              <a href="/request/${r.id}" style="font-size: 12px; font-weight: 700; color: #2563eb; text-decoration: none;">View Details →</a>
-            </div>
-          </div>
-        `;
-        infoWindowRef.current.setContent(contentString);
-        infoWindowRef.current.open(mapInstance, marker);
-      });
+      // Build popup description details card structure
+      const popupContent = `
+        <div style="padding: 4px; font-family: system-ui, sans-serif; width: 170px; color: #1e293b;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700;">${t?.label ?? "Request"}</div>
+          <div style="font-size: 13px; font-weight: 700; margin: 2px 0; line-height: 1.2;">${r.title}</div>
+          <div style="font-size: 11px; color: #475569;">📍 ${r.locationLabel}</div>
+          <div style="font-size: 11px; font-weight: 600; color: #10b981; margin-top: 2px;">💰 Suggested: ${r.reward || "None"}</div>
+          <a href="/request/${r.id}" style="display: block; font-size: 11px; font-weight: 700; color: #2563eb; text-decoration: none; margin-top: 6px; border-top: 1px solid #e2e8f0; padding-top: 4px;">View Details →</a>
+        </div>
+      `;
+
+      const popup = new maplibregl.Popup({ offset: 15, closeButton: false })
+        .setHTML(popupContent);
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([r.lng, r.lat])
+        .setPopup(popup)
+        .addTo(mapInstanceRef.current!);
 
       markersRef.current.push(marker);
     });
-
-  }, [isLoaded, mapInstance, requests, userLoc]);
-
-  if (!isLoaded) {
-    return (
-      <div className="w-full h-full min-h-[420px] bg-muted animate-pulse flex items-center justify-center text-muted-foreground text-sm">
-        Initializing map parameters…
-      </div>
-    );
-  }
+  }, [isLoaded, requests]);
 
   return (
-    <div className="relative w-full h-full min-h-[420px]">
-      <div ref={mapRef} className="w-full h-full absolute inset-0" />
+    <div className="relative w-full h-full min-h-[420px] bg-muted overflow-hidden rounded-lg">
+      <div ref={mapContainerRef} className="w-full h-full absolute inset-0" />
+      
       <div className="absolute bottom-4 right-4 z-20">
         <Button
           size="sm"
           variant="secondary"
-          className="rounded-full shadow-lg border bg-background font-medium text-xs h-9 px-4"
+          className="rounded-full shadow-md border bg-background font-medium text-xs h-9 px-4"
           onClick={requestLocation}
           disabled={locating}
         >
