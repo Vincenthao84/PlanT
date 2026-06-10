@@ -86,3 +86,12 @@ function RootComponent() {
     </AuthProvider>
   );
 }
+
+// Find your main content wrapper element and apply the isolate class
+<div className="min-h-screen flex flex-col isolation-auto [@supports(isolation:isolate)]:isolate">
+  <SiteHeader />
+  <main className="flex-1">
+    <Outlet />
+  </main>
+  <SiteFooter />
+</div>
