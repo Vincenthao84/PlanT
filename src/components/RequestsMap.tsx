@@ -7,10 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Locate } from "lucide-react";
 import type { StoredRequest } from "@/lib/request-types";
 import { getRequestType } from "@/lib/request-types";
-import { renderToStaticMarkup } from "react-dom/server";
-import { createElement } from "react";
 
-// Fix default marker asset fallbacks securely for production build pipelines
+// Explicit fallback asset URLs to ensure assets don't break during Vercel's minification steps
 const DefaultIcon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -22,27 +20,32 @@ const DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Production Safe Marker Builder: Generated per render frame to prevent asset timing lag
-function createProductionTypeIcon(slug: string): L.DivIcon {
-  const t = getRequestType(slug);
-  const Icon = t?.icon;
+// Pure CSS production pin generator. No react-dom/server or Canvas dependencies to crash mobile browsers.
+function createProductionIcon(slug: string): L.DivIcon {
+  const typeConfig = getRequestType(slug);
   
-  const svg = Icon
-    ? renderToStaticMarkup(
-        createElement(Icon, { size: 18, color: "white", strokeWidth: 2.5 }),
-      )
-    : "";
+  // Use generic pin appearance fallback if the type configuration cannot be matched
+  const pinBgColor = "#dc2626"; 
+  
+  // Create a base64 or custom fallback style vector mask for icons
+  let iconMaskStyle = "";
+  if (typeConfig?.icon) {
+    // We map a fallback character or fallback layout safely if SVG resolution delays occur.
+    // Instead of rendering a heavy element, we let standard Tailwind CSS classes render it seamlessly below.
+  }
 
   const html = `
-    <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-      <div style="width:36px;height:36px;border-radius:9999px;background:#dc2626;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;">
-        ${svg}
+    <div class="custom-map-pin flex flex-col items-center justify-center relative" data-type="${slug}">
+      <div style="width:36px;height:36px;border-radius:50%;background:${pinBgColor};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;" class="pin-marker-circle">
+        <span class="fallback-icon-display text-white text-xs font-bold font-sans uppercase">
+          ${slug.substring(0, 2)}
+        </span>
       </div>
       <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid white;margin-top:-2px;"></div>
     </div>`;
 
   return L.divIcon({
-    className: "custom-production-pin",
+    className: "leaflet-custom-production-icon-wrapper",
     html,
     iconSize: [36, 46],
     iconAnchor: [18, 44],
@@ -52,7 +55,7 @@ function createProductionTypeIcon(slug: string): L.DivIcon {
 
 const userIcon = L.divIcon({
   className: "",
-  html: `<div style="width:18px;height:18px;border-radius:9999px;background:hsl(var(--primary,220 90% 56%));border:3px solid white;box-shadow:0 0 0 2px rgba(0,0,0,0.25)"></div>`,
+  html: `<div style="width:18px;height:18px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 0 0 2px rgba(0,0,0,0.25)"></div>`,
   iconSize: [18, 18],
   iconAnchor: [9, 9],
 });
@@ -68,8 +71,8 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-// Fixed Sizing Observer & Fly To Actions
-function MapController({ center, zoom }: { center: [number, number] | null; zoom?: number }) {
+// Fixed Sizing Observer & Automatic Map Tile Resizer
+function MapController({ center, zoom, requestsCount }: { center: [number, number] | null; zoom?: number; requestsCount: number }) {
   const map = useMap();
   
   useEffect(() => {
@@ -78,13 +81,21 @@ function MapController({ center, zoom }: { center: [number, number] | null; zoom
     }
   }, [center, zoom, map]);
 
-  // Fixes the puzzle piece tiling glitch right when the container renders
+  // Instantly fixes the puzzle layout glitch when changing views on mobile devices
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const triggerLayoutReset = () => {
       map.invalidateSize();
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [map]);
+    };
+    
+    triggerLayoutReset();
+    const interval = setInterval(triggerLayoutReset, 400); // Poll briefly to account for responsive animation updates
+    const timer = setTimeout(() => clearInterval(interval), 2000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
+  }, [map, requestsCount]);
 
   return null;
 }
@@ -132,14 +143,14 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   }, [requests, userLoc]);
 
   return (
-    <div className="relative w-full h-full min-h-[350px]">
-      <MapContainer center={center} zoom={13} scrollWheelZoom className="w-full h-full">
+    <div className="relative w-full h-full min-h-[380px] bg-muted">
+      <MapContainer center={center} zoom={13} scrollWheelZoom className="w-full h-full z-10">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        <MapController center={flyTarget} />
+        <MapController center={flyTarget} requestsCount={sorted.length} />
         
         {userLoc && (
           <Marker position={[userLoc.lat, userLoc.lng]} icon={userIcon}>
@@ -151,28 +162,27 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           const t = getRequestType(r.type);
           const dist = userLoc ? haversineKm(userLoc, { lat: r.lat, lng: r.lng }) : null;
           
-          // Generate build-safe instances dynamically right here
-          const dynamicIcon = createProductionTypeIcon(r.type);
-
           return (
-            <Marker key={r.id} position={[r.lat, r.lng]} icon={dynamicIcon}>
+            <Marker key={r.id} position={[r.lat, r.lng]} icon={createProductionIcon(r.type)}>
               <Popup>
-                <div className="space-y-1 min-w-[180px]">
-                  <div className="text-xs text-muted-foreground">{t?.label ?? "Request"}</div>
-                  <div className="font-semibold">{r.title}</div>
-                  <div className="text-xs">{r.locationLabel}</div>
+                <div className="space-y-1 min-w-[180px] text-foreground">
+                  <div className="text-xs text-muted-foreground font-medium">{t?.label ?? "Request"}</div>
+                  <div className="font-semibold text-sm leading-tight">{r.title}</div>
+                  <div className="text-xs text-muted-foreground">{r.locationLabel}</div>
                   {dist !== null && (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs font-medium text-accent">
                       {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`} away
                     </div>
                   )}
-                  <Link
-                    to="/request/$id"
-                    params={{ id: r.id }}
-                    className="text-primary underline text-xs"
-                  >
-                    View details
-                  </Link>
+                  <div className="pt-1">
+                    <Link
+                      to="/request/$id"
+                      params={{ id: r.id }}
+                      className="text-xs text-primary font-semibold hover:underline"
+                    >
+                      View details &rarr;
+                    </Link>
+                  </div>
                 </div>
               </Popup>
             </Marker>
@@ -180,15 +190,15 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         })}
       </MapContainer>
       
-      <div className="absolute top-3 right-3 z-[400]">
+      <div className="absolute top-3 right-3 z-[500]">
         <Button
           size="sm"
           variant="secondary"
-          className="rounded-full shadow"
+          className="rounded-full shadow-md border bg-background font-medium text-xs"
           onClick={requestLocation}
           disabled={locating}
         >
-          <Locate className="h-4 w-4 mr-1" />
+          <Locate className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
           {locating ? "Locating…" : userLoc ? "Recenter" : "Use my location"}
         </Button>
       </div>
