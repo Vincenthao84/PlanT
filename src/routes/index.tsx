@@ -58,7 +58,7 @@ function Landing() {
           </h1>
           
           <p className="mt-3 text-lg font-medium text-foreground/80">
-            For instant help, remote or near.
+            For instant help, remote or near, try to browse the Requests Notice Board below or click the Requests Types Buttons to Ask for helps.
           </p>
           
           <div className="mt-6 flex flex-wrap gap-3 justify-center">
@@ -125,7 +125,4 @@ function Landing() {
     </div>
   );
 }
-      <SiteFooter />
-    </div>
-  );
-}
+    
