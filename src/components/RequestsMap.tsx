@@ -19,15 +19,9 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
 
-  // 1. Initialize Core Map Instance Engine
+  // 1. Initialize Map Canvas
   useEffect(() => {
     if (!mapContainerRef.current) return;
-
-    // Determine initial fallback center point safely
-    const hasData = requests && requests.length > 0 && requests[0];
-    const initialCenter: [number, number] = hasData && !isNaN(Number(requests[0].lng))
-      ? [Number(requests[0].lng), Number(requests[0].lat)]
-      : [114.1694, 22.3193];
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -43,13 +37,12 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: initialCenter,
-      zoom: hasData ? 14 : 12, // Zoom closer if focusing on a single specific request detail page
+      center: [114.1694, 22.3193], // HK Default
+      zoom: 11,
     });
 
     mapRef.current = map;
 
-    // Keep layout calculations perfect if container sizes change or load asynchronously
     const resizeObserver = new ResizeObserver(() => {
       map.resize();
     });
@@ -63,29 +56,48 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       resizeObserver.disconnect();
       map.remove();
     };
-  }, []); // Only runs once on mount to establish canvas viewport
+  }, []);
 
-  // 2. Separate Dynamic Marker Layer (Watches data updates independently!)
+  // 2. Extract and Plot Pins with Strict Lovable Fallbacks
   useEffect(() => {
-    // We need BOTH the engine ready AND actual loaded request data
-    if (!isMapReady || !mapRef.current || !requests || requests.length === 0) return;
+    if (!isMapReady || !mapRef.current || !requests) return;
 
-    // Clear any leftover previous markers to prevent duplicates on state updates
+    // Clear older tracking elements
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    requests.forEach((r) => {
-      // Safety filter out uninitialized or broken objects
-      if (!r || isNaN(Number(r.lng)) || isNaN(Number(r.lat))) return;
+    // Filter out any invalid items
+    const validRequests = requests.filter(Boolean);
+    if (validRequests.length === 0) return;
 
-      const lng = Number(r.lng);
-      const lat = Number(r.lat);
+    // We collect valid coordinates to fit bounds if needed
+    const bounds = new maplibregl.LngLatBounds();
+    let validCoordinatesCount = 0;
+
+    validRequests.forEach((r: any) => {
+      // LOVABLE DATA EXTRACTION LAYER
+      // Check for 'lng'/'lat', then 'longitude'/'latitude', then nested coordinates fields
+      let rawLng = r.lng ?? r.longitude ?? r.coordinates?.lng ?? r.coordinates?.longitude ?? r.location?.lng;
+      let rawLat = r.lat ?? r.latitude ?? r.coordinates?.lat ?? r.coordinates?.latitude ?? r.location?.lat;
+
+      // Force conversion from string formats to structural float calculations
+      const lng = parseFloat(String(rawLng));
+      const lat = parseFloat(String(rawLat));
+
+      // Direct fallback backup: If still invalid, do not drop pin
+      if (isNaN(lng) || isNaN(lat)) {
+        console.warn("Skipping pin rendering due to untranslatable Lovable coordinates structure:", r);
+        return;
+      }
+
+      validCoordinatesCount++;
+      bounds.extend([lng, lat]);
 
       const t = getRequestType(r.type);
       const hexColor = colorMap[r.type] || "#6b7280";
       const shortLabel = r.type ? r.type.substring(0, 2).toUpperCase() : "RQ";
 
-      // Programmatic DOM construction for layout stability
+      // HTML DOM marker element construction overrides
       const el = document.createElement("div");
       el.style.width = "32px";
       el.style.height = "32px";
@@ -93,19 +105,18 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       el.style.cursor = "pointer";
       el.style.zIndex = "9999";
 
-      // Inject clean SVG pin architecture with custom category coloring hooks
+      // Native SVG Dynamic UI injection
       el.innerHTML = `
-        <svg viewBox="0 0 24 24" width="32" height="32" style="display: block; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.35)); pointer-events: none;">
+        <svg viewBox="0 0 24 24" width="32" height="32" style="display: block; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.4)); pointer-events: none;">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${hexColor}" stroke="#ffffff" stroke-width="1.5"/>
           <text x="12" y="11" fill="#ffffff" font-size="8px" font-weight="800" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif">${shortLabel}</text>
         </svg>
       `;
 
-      // Description popup layout string setup configuration
       const popupContent = `
         <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; width: 160px; color: #1e293b; line-height: 1.4;">
           <div style="font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: 700;">${t?.label ?? "Request"}</div>
-          <div style="font-size: 13px; font-weight: 700; margin: 1px 0; color: #0f172a; line-height: 1.2;">${r.title}</div>
+          <div style="font-size: 13px; font-weight: 700; margin: 1px 0; color: #0f172a; line-height: 1.2;">${r.title || "Untitled"}</div>
           <div style="font-size: 11px; color: #475569; margin-bottom: 2px;">📍 ${r.locationLabel || "Location"}</div>
           ${r.reward ? `<div style="font-size: 11px; font-weight: 600; color: #10b981;">💰 ${r.reward}</div>` : ""}
         </div>
@@ -114,35 +125,36 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const popup = new maplibregl.Popup({ offset: [0, -10], closeButton: false })
         .setHTML(popupContent);
 
-      // Create new Maplibre marker element
       const marker = new maplibregl.Marker({ 
         element: el,
         anchor: 'bottom'
       })
         .setLngLat([lng, lat])
         .setPopup(popup)
-        .addTo(mapRef.current);
+        .addTo(mapRef.current!);
 
-      // Save marker reference so it can be managed cleanly
       markersRef.current.push(marker);
     });
 
-    // Automatically pan map camera view right directly over the loaded single request coordinates
-    if (requests.length === 1 && requests[0]) {
-      const targetLng = Number(requests[0].lng);
-      const targetLat = Number(requests[0].lat);
-      if (!isNaN(targetLng) && !isNaN(targetLat)) {
-        mapRef.current.flyTo({
-          center: [targetLng, targetLat],
-          zoom: 14,
-          essential: true
-        });
+    // 3. Smart Camera Focus Adjustment
+    if (validCoordinatesCount > 0) {
+      if (validRequests.length === 1) {
+        // Single Request Page View focus point snap
+        const singleLng = parseFloat(String(validRequests[0].lng ?? validRequests[0].longitude));
+        const singleLat = parseFloat(String(validRequests[0].lat ?? validRequests[0].latitude));
+        if (!isNaN(singleLng) && !isNaN(singleLat)) {
+          mapRef.current.setCenter([singleLng, singleLat]);
+          mapRef.current.setZoom(14);
+        }
+      } else {
+        // Notice Board multi-pin bounds fitting layout auto focus snap
+        mapRef.current.fitBounds(bounds, { padding: 50, maxZoom: 15, duration: 800 });
       }
     }
-  }, [isMapReady, requests]); // 🚀 CRITICAL: Runs instantly the moment 'requests' array finishes fetching data!
+  }, [isMapReady, requests]);
 
   return (
-    <div className="w-full h-full min-h-[400px] relative bg-muted/30">
+    <div className="w-full h-full min-h-[400px] relative bg-muted/20">
       <div ref={mapContainerRef} className="w-full h-full absolute inset-0" />
     </div>
   );
