@@ -34,7 +34,27 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     // Initialize the engine map viewport
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: "https://basemaps.cartocdn.com/gl/raster-tiles-style/style.json", // Open-source clean layout map style
+      // ✅ SECURE BRIGHT VECTOR STYLE (Works perfectly over production HTTPS)
+      style: {
+        version: 8,
+        sources: {
+          "osm-tiles": {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors"
+          }
+        },
+        layers: [
+          {
+            id: "osm-tiles-layer",
+            type: "raster",
+            source: "osm-tiles",
+            minzoom: 0,
+            maxzoom: 19
+          }
+        ]
+      },
       center: defaultCenter,
       zoom: 12,
       attributionControl: false,
@@ -45,6 +65,10 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     map.on("load", () => {
       mapInstanceRef.current = map;
       setIsLoaded(true);
+      // Force an immediate layout recalculation to ensure the map fills the whole box
+      setTimeout(() => {
+        map.resize();
+      }, 100);
     });
 
     return () => {
@@ -72,7 +96,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     );
   };
 
-  // Trigger initial geolocation load
+  // Trigger initial geolocation load once ready
   useEffect(() => {
     if (isLoaded) {
       requestLocation();
@@ -92,16 +116,16 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#6b7280";
       const shortLabel = r.type ? r.type.substring(0, 2).toUpperCase() : "RQ";
 
-      // Programmatically create HTML Pin Element to avoid rendering image asset bugs
+      // Create HTML Pin Element
       const el = document.createElement("div");
       el.className = "custom-marker-pin";
       el.style.width = "32px";
       el.style.height = "32px";
       el.style.cursor = "pointer";
       el.innerHTML = `
-        <svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3));">
+        <svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3)); display: block;">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${hexColor}" stroke="#ffffff" stroke-width="1.5"/>
-          <text x="12" y="11" fill="#ffffff" font-size="8px" font-weight="700" text-anchor="middle" font-family="system-ui">${shortLabel}</text>
+          <text x="12" y="11" fill="#ffffff" font-size="8px" font-weight="700" text-anchor="middle" font-family="system-ui, sans-serif">${shortLabel}</text>
         </svg>
       `;
 
