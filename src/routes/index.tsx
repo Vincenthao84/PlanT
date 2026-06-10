@@ -7,11 +7,6 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 
-
-
-
-
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -40,11 +35,11 @@ function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex flex-col isolation-auto [@supports(isolation:isolate)]:isolate">
       <SiteHeader />
 
       {/* HERO — six request types front and center */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden shrink-0">
         <div className="absolute inset-0 -z-10" style={{ background: "var(--gradient-soft)" }} />
         <div className="max-w-7xl mx-auto px-6 pt-16 pb-12 text-center">
           <img src="/plant-logo.png" alt="PlanT Logo"
@@ -84,27 +79,30 @@ function Landing() {
       </section>
 
       {/* THE SIX REQUEST TYPES — main content */}
-      <section className="pb-24">
+      <section className="pb-24 flex-1 block clear-both relative z-10">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Modified Container Grid: Replaced standard Tailwind gap with individual block margins 
+              and applied explicit webview safety containment classes */}
+          <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-y-6 sm:gap-6 w-full clear-both pointer-events-auto">
             {requestTypes.map((r) => (
               <Link
                 key={r.slug}
                 to="/new/$type"
                 params={{ type: r.slug }}
-                className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-xl"
+                className="block w-full clear-both focus:outline-none focus:ring-2 focus:ring-ring rounded-xl h-auto overflow-hidden relative"
               >
+                {/* Removed -translate-y animations on mobile viewports to stabilize Android WebView layer engines */}
                 <Card
-                  className="p-8 bg-card border-border/60 group hover:border-accent/50 hover:-translate-y-1 transition-all h-full"
+                  className="p-8 bg-card border-border/60 group active:border-accent/50 md:hover:border-accent/50 md:hover:-translate-y-1 transition-all h-auto min-h-[160px] overflow-hidden block relative"
                   style={{ boxShadow: "var(--shadow-soft)" }}
                 >
                   <div className="flex items-start gap-5">
                     <div className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground transition">
                       <r.icon className="h-7 w-7" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-2xl tracking-tight">{r.label}</h2>
-                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{r.desc}</p>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-semibold text-2xl tracking-tight text-foreground">{r.label}</h2>
+                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed overflow-wrap-break-word whitespace-normal">{r.desc}</p>
                       <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary">
                         Post a {r.label.toLowerCase()} request <ArrowRight className="h-4 w-4" />
                       </span>
