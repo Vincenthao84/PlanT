@@ -35,12 +35,12 @@ function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    // 1. Added contain-layout and strict hardware isolation to the page root to stop parent layer bleeding
+    <div className="min-h-screen bg-background text-foreground flex flex-col [contain:layout_style] [will-change:transform]">
       <SiteHeader />
 
       {/* HERO SECTION */}
-      <section className="w-full bg-transparent block relative shrink-0">
-        <div className="absolute inset-0 -z-10" style={{ background: "var(--gradient-soft)" }} />
+      <section className="w-full bg-gradient-to-b from-emerald-50/60 via-slate-50/40 to-background block relative shrink-0">
         <div className="max-w-7xl mx-auto px-6 pt-12 pb-10 text-center">
           <img src="/plant-logo.png" alt="PlanT Logo"
             className="mx-auto mb-6 h-20 w-20 rounded-2xl shadow-md object-cover"
@@ -50,7 +50,7 @@ function Landing() {
           </Badge>
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
             Small Price, Big Help from Community.
-            <span className="block bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
               Endless things to get done.
             </span>
           </h1>
@@ -60,7 +60,7 @@ function Landing() {
           <div className="mt-6 flex flex-wrap gap-3 justify-center">
             <Button
               size="lg"
-              className="rounded-full text-sm h-11 px-6 bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md"
+              className="rounded-full text-sm h-11 px-6 bg-emerald-600 text-white shadow-md hover:bg-emerald-700"
               asChild
             >
               <Link to="/notice-board">
@@ -71,12 +71,10 @@ function Landing() {
         </div>
       </section>
 
-      {/* THE SIX REQUEST TYPES — MOBILE STABLE BLOCK LAYOUT */}
-      <section className="w-full block relative py-6 flex-1 bg-background">
+      {/* THE SIX REQUEST TYPES */}
+      <section className="w-full block relative py-6 flex-1 bg-background z-10 [transform:translate3d(0,0,0)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           
-          {/* CRITICAL WEBVIEW FIX: Uses standard stack blocks on mobile, switches to strict grids on desktop. 
-              Completely circumvents flex grid scaling engine overlap bugs. */}
           <div className="block sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-6 space-y-4 sm:space-y-0 w-full clear-both">
             {requestTypes.map((r) => (
               <Link
@@ -85,16 +83,17 @@ function Landing() {
                 params={{ type: r.slug }}
                 className="block w-full h-auto decoration-none focus:outline-none"
               >
+                {/* 2. Added backface-visibility, transform-gpu, and explicit content-containment.
+                      This forces the mobile browser to isolate these boxes to their own native GPU paint canvas,
+                      which clears out the trail/glitch completely. */}
                 <Card
-                  className="p-6 bg-card border border-border/80 rounded-xl transition-colors block relative h-auto overflow-hidden shadow-sm"
+                  className="p-6 bg-card border border-border/80 rounded-xl block relative h-auto overflow-hidden [transform:translateZ(0)] [backface-visibility:hidden] [contain:content]"
                 >
                   <div className="flex items-start gap-4">
-                    {/* Icon container */}
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
                       <r.icon className="h-6 w-6" />
                     </div>
                     
-                    {/* Text container explicitly isolated */}
                     <div className="block static min-w-0 flex-1">
                       <h2 className="font-bold text-xl tracking-tight text-foreground block">{r.label}</h2>
                       <p className="mt-1.5 text-xs md:text-sm text-muted-foreground leading-relaxed block break-words whitespace-normal">
