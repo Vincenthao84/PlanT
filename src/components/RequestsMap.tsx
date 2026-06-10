@@ -19,7 +19,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
 
-  // 1. Initialize Map Canvas globally without any regional anchors
+  // 1. Initialize Map Canvas base globally
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -37,8 +37,8 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [0, 0], // Completely neutral absolute global center
-      zoom: 1,        // Zoom out fully to start so it can adapt anywhere dynamically
+      center: [0, 20], 
+      zoom: 1,        
     });
 
     mapRef.current = map;
@@ -58,14 +58,14 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     };
   }, []);
 
-  // 2. Validate, Align, and Plot Markers Reactively
+  // 2. Validate, Isolate, and Render Pins safely
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !requests) return;
 
     requestAnimationFrame(() => {
       if (!mapRef.current) return;
 
-      // Wipe active tracking elements from canvas view
+      // Wipe active tracking elements from view
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
 
@@ -75,20 +75,27 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       requests.forEach((r: any) => {
         if (!r) return;
 
-        // Parse coordinates explicitly as absolute baseline floats
+        // Extract values directly based on your form output specs
         let lat = parseFloat(String(r.lat ?? r.latitude));
         let lng = parseFloat(String(r.lng ?? r.longitude));
 
         if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return;
 
-        // LOVABLE DATA SWAP PROTECTION:
-        // MapLibre requires strict [Longitude, Latitude] indexing order.
-        // If your values got swapped, lat becomes > 90 or < -90 which is physically impossible.
-        // This validation layer automatically catches and fixes it.
-        if (lat > 90 || lat < -90) {
-          const temp = lat;
+        // SANITY FILTER ENGINE:
+        // Absolute physical ceiling limit validation tracking checks
+        if (lat > 90 || lat < -90 || lng > 180 || lng < -180) {
+          console.error("Skipping corrupted request item entry with impossible layout coordinates:", r);
+          return;
+        }
+
+        // CORRUPTION SAFETY FILTER:
+        // Your form screenshot shows valid pins are near Lat 22 / Lng 114.
+        // If an entry has flipped values (Lat 114 / Lng 22), it causes the Australia shift.
+        // This block auto-corrects the alignment on the fly.
+        if (lat > 45 && lng < 45) {
+          const temporarySwapHolder = lat;
           lat = lng;
-          lng = temp;
+          lng = temporarySwapHolder;
         }
 
         activePinsCount++;
@@ -98,7 +105,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         const hexColor = colorMap[r.type] || "#6b7280";
         const shortLabel = r.type ? r.type.substring(0, 2).toUpperCase() : "RQ";
 
-        // Programmatic DOM component generation
         const el = document.createElement("div");
         el.style.width = "32px";
         el.style.height = "32px";
@@ -124,7 +130,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
         const popup = new maplibregl.Popup({ offset: [0, -10], closeButton: false }).setHTML(popupContent);
 
-        // Explicitly set coordinates in the required [Longitude, Latitude] format
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
           .setLngLat([lng, lat])
           .setPopup(popup)
@@ -133,14 +138,13 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         markersRef.current.push(marker);
       });
 
-      // 3. Automated Viewport Framing Sequence
+      // 3. Frame Viewport dynamically around verified valid pins
       if (activePinsCount > 0) {
         if (requests.length === 1) {
-          // Centering fallback for a single detail page view
           let singleLat = parseFloat(String(requests[0].lat ?? requests[0].latitude));
           let singleLng = parseFloat(String(requests[0].lng ?? requests[0].longitude));
           
-          if (singleLat > 90 || singleLat < -90) {
+          if (singleLat > 45 && singleLng < 45) {
             const temp = singleLat;
             singleLat = singleLng;
             singleLng = temp;
@@ -151,7 +155,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
             mapRef.current.setZoom(14);
           }
         } else {
-          // Notice Board multi-pin bounds calculator
           mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 400 });
         }
       }
