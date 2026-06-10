@@ -3,9 +3,11 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, Handshake, List, Map as MapIcon } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, Handshake, List, Map as MapIcon, User } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useMediaQuery } from "@/hooks/use-media-query"; // Import or use inline check below
+
 const RequestsMap = lazy(() =>
   import("@/components/RequestsMap").then((m) => ({ default: m.RequestsMap })),
 );
@@ -18,7 +20,6 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { BidDialog } from "@/components/BidDialog";
-import { User } from "lucide-react";
 
 export const Route = createFileRoute("/notice-board")({
   head: () => ({
@@ -58,7 +59,15 @@ function NoticeBoardPage() {
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [profiles, setProfiles] = useState<Record<string, { displayName: string | null; avatarUrl: string | null }>>({});
 
-  // Fix: Force global resize event down to Leaflet when view toggles occur
+  // Client-side detection to safely exclude rendering code branches on small layout screens
+  const [isLargeScreen, setIsLargeScreen] = useState(false);
+  useEffect(() => {
+    const checkScreen = () => setIsLargeScreen(window.innerWidth >= 1024);
+    checkScreen();
+    window.addEventListener("resize", checkScreen);
+    return () => window.removeEventListener("resize", checkScreen);
+  }, []);
+
   useEffect(() => {
     if (viewMode === "map") {
       const timer = setTimeout(() => {
@@ -179,11 +188,13 @@ function NoticeBoardPage() {
 
             {/* View Switching Container */}
             {viewMode === "map" ? (
-              /* Mobile/Tablet Isolated Map Container: Force clear constraints and distinct heights */
+              /* Mobile/Tablet View Map Mode */
               <div className="w-full block relative h-[500px] rounded-xl overflow-hidden border border-border bg-muted shadow-sm">
                 <Suspense
                   fallback={
-                    <div className="w-full h-full bg-muted animate-pulse" />
+                    <div className="w-full h-full bg-muted flex items-center justify-center text-sm text-muted-foreground animate-pulse">
+                      Loading Map View...
+                    </div>
                   }
                 >
                   <RequestsMap requests={sortedRequests} />
@@ -223,7 +234,7 @@ function NoticeBoardPage() {
                               )}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <Badge variant="secondary" className="rounded-full text-xs">
                                   {t?.label ?? "Request"}
                                 </Badge>
@@ -302,36 +313,38 @@ function NoticeBoardPage() {
                   })}
                 </div>
 
-                {/* Permanent Desktop Sidebar Map */}
-                <div className="hidden lg:block lg:sticky lg:top-24 self-start space-y-3 w-full">
-                  <Card className="overflow-hidden p-0 h-[420px] relative w-full flex flex-col" style={{ boxShadow: "var(--shadow-soft)" }}>
-                    <div className="flex-1 w-full h-full relative min-h-0">
-                      <Suspense
-                        fallback={<div className="w-full h-full bg-muted animate-pulse" />}
-                      >
-                        <RequestsMap requests={sortedRequests} />
-                      </Suspense>
-                    </div>
-                    <div className="px-4 py-3 flex items-center justify-between text-sm border-t bg-background shrink-0">
-                      <span className="text-muted-foreground">
-                        {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"} on the map
-                      </span>
-                      {fullMapHref && (
-                        <a
-                          href={fullMapHref}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary hover:underline font-medium"
+                {/* Permanent Desktop Sidebar Map — Completely skipped layout instantiation on Mobile screens */}
+                {isLargeScreen && (
+                  <div className="hidden lg:block lg:sticky lg:top-24 self-start space-y-3 w-full">
+                    <Card className="overflow-hidden p-0 h-[420px] relative w-full flex flex-col" style={{ boxShadow: "var(--shadow-soft)" }}>
+                      <div className="flex-1 w-full h-full relative min-h-0">
+                        <Suspense
+                          fallback={<div className="w-full h-full bg-muted flex items-center justify-center text-sm animate-pulse">Loading Map...</div>}
                         >
-                          Open full map
-                        </a>
-                      )}
-                    </div>
-                  </Card>
-                  <p className="text-xs text-muted-foreground px-1">
-                    Tap a request on the left to view its exact pin and details.
-                  </p>
-                </div>
+                          <RequestsMap requests={sortedRequests} />
+                        </Suspense>
+                      </div>
+                      <div className="px-4 py-3 flex items-center justify-between text-sm border-t bg-background shrink-0">
+                        <span className="text-muted-foreground">
+                          {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"} on the map
+                        </span>
+                        {fullMapHref && (
+                          <a
+                            href={fullMapHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline font-medium"
+                          >
+                            Open full map
+                          </a>
+                        )}
+                      </div>
+                    </Card>
+                    <p className="text-xs text-muted-foreground px-1">
+                      Tap a request on the left to view its exact pin and details.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </>
