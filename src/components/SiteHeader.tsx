@@ -8,11 +8,10 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import { Sparkles, LogOut, Menu } from "lucide-react";
+import { Sparkles, LogOut, Menu, User } from "lucide-react"; // Added User icon for visual style
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-
 
 const publicNav = [
   { to: "/", label: "Make Requests" },
@@ -32,6 +31,9 @@ export function SiteHeader() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Extract the display name from Supabase user metadata
+  const userName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User";
 
   useEffect(() => {
     if (!user) {
@@ -103,12 +105,20 @@ export function SiteHeader() {
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {user ? (
-            <Button variant="outline" className="rounded-full hidden sm:inline-flex" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign out
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Desktop Username Label */}
+              <span className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-foreground bg-muted px-3 py-1.5 rounded-full border border-border">
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                {userName}
+              </span>
+              
+              <Button variant="outline" className="rounded-full hidden sm:inline-flex" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign out
+              </Button>
+            </div>
           ) : (
             <Button variant="default" className="rounded-full hidden sm:inline-flex" asChild>
               <Link to="/login">Sign in</Link>
@@ -125,9 +135,11 @@ export function SiteHeader() {
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px] p-0">
               <SheetHeader className="px-6 pt-6 pb-4 border-b border-border text-left">
-                <SheetTitle className="flex items-center gap-2">
-                  <img src="/plant-logo.png" alt="PlanT Logo" className="h-7 w-7 rounded-lg object-cover" />
-                  PLAN T
+                <SheetTitle className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <img src="/plant-logo.png" alt="PlanT Logo" className="h-7 w-7 rounded-lg object-cover" />
+                    PLAN T
+                  </span>
                 </SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-1 px-4 py-4">
@@ -154,12 +166,20 @@ export function SiteHeader() {
                     </SheetClose>
                   );
                 })}
-                <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2">
+                <div className="mt-4 pt-4 border-t border-border flex flex-col gap-3">
                   {user ? (
-                    <Button variant="outline" className="w-full rounded-full" onClick={handleSignOut}>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Sign out
-                    </Button>
+                    <>
+                      {/* Mobile User Welcome Badge */}
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted text-xs font-medium text-muted-foreground">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        Signed in as <span className="font-semibold text-foreground truncate max-w-[140px] ml-1">{userName}</span>
+                      </div>
+                      
+                      <Button variant="outline" className="w-full rounded-full" onClick={handleSignOut}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign out
+                      </Button>
+                    </>
                   ) : (
                     <Button variant="default" className="w-full rounded-full" asChild>
                       <Link to="/login" onClick={() => setOpen(false)}>Sign in</Link>
@@ -172,31 +192,5 @@ export function SiteHeader() {
         </div>
       </nav>
     </header>
-  );
-}
-
-export function SiteFooter() {
-  return (
-    <footer className="border-t border-border py-10">
-      <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
-          <img src="/plant-logo.png" alt="PlanT Logo" className="h-6 w-6 rounded-md object-cover" />
-          PLAN T
-        </Link>
-        <div className="text-center md:text-right">
-          <p>© {new Date().getFullYear()} PLAN T. A platform for offering & asking for help.</p>
-          <p className="mt-1 text-xs">Copyright and ideas owned by Zero Point One International Company, Hong Kong.</p>
-          <p className="mt-2 text-xs flex flex-wrap items-center justify-center md:justify-end gap-x-3">
-            <Link to="/terms" className="font-medium text-primary hover:underline">
-              Terms and Conditions
-            </Link>
-            <span aria-hidden>·</span>
-            <Link to="/privacy" className="font-medium text-primary hover:underline">
-              Privacy Policy
-            </Link>
-          </p>
-        </div>
-      </div>
-    </footer>
   );
 }
