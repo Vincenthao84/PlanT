@@ -19,7 +19,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
 
-  // 1. Initialize Map Canvas
+  // 1. Initialize Map Canvas Base
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -32,12 +32,12 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
             type: "raster", 
             tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], 
             tileSize: 256,
-            attribution: "© OpenStreetMap"
+            attribution: "© OpenStreetMap contributors"
           } 
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [114.1694, 22.3193], // HK Default
+      center: [114.1694, 22.3193], // Default Hong Kong view anchor
       zoom: 11,
     });
 
@@ -58,37 +58,30 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     };
   }, []);
 
-  // 2. Extract and Plot Pins with Strict Lovable Fallbacks
+  // 2. Plot Dynamic Pin Coordinates
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !requests) return;
 
-    // Clear older tracking elements
+    // Wipe previous trackers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    // Filter out any invalid items
     const validRequests = requests.filter(Boolean);
     if (validRequests.length === 0) return;
 
-    // We collect valid coordinates to fit bounds if needed
     const bounds = new maplibregl.LngLatBounds();
     let validCoordinatesCount = 0;
 
     validRequests.forEach((r: any) => {
-      // LOVABLE DATA EXTRACTION LAYER
-      // Check for 'lng'/'lat', then 'longitude'/'latitude', then nested coordinates fields
+      // Extract properties checking all common Lovable variants
       let rawLng = r.lng ?? r.longitude ?? r.coordinates?.lng ?? r.coordinates?.longitude ?? r.location?.lng;
       let rawLat = r.lat ?? r.latitude ?? r.coordinates?.lat ?? r.coordinates?.latitude ?? r.location?.lat;
 
-      // Force conversion from string formats to structural float calculations
+      // Parse safely to numeric floats
       const lng = parseFloat(String(rawLng));
       const lat = parseFloat(String(rawLat));
 
-      // Direct fallback backup: If still invalid, do not drop pin
-      if (isNaN(lng) || isNaN(lat)) {
-        console.warn("Skipping pin rendering due to untranslatable Lovable coordinates structure:", r);
-        return;
-      }
+      if (isNaN(lng) || isNaN(lat)) return;
 
       validCoordinatesCount++;
       bounds.extend([lng, lat]);
@@ -97,7 +90,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#6b7280";
       const shortLabel = r.type ? r.type.substring(0, 2).toUpperCase() : "RQ";
 
-      // HTML DOM marker element construction overrides
+      // Build out HTML Pin Elements
       const el = document.createElement("div");
       el.style.width = "32px";
       el.style.height = "32px";
@@ -105,7 +98,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       el.style.cursor = "pointer";
       el.style.zIndex = "9999";
 
-      // Native SVG Dynamic UI injection
       el.innerHTML = `
         <svg viewBox="0 0 24 24" width="32" height="32" style="display: block; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.4)); pointer-events: none;">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${hexColor}" stroke="#ffffff" stroke-width="1.5"/>
@@ -125,6 +117,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const popup = new maplibregl.Popup({ offset: [0, -10], closeButton: false })
         .setHTML(popupContent);
 
+      // Maplibre requires strictly [Longitude, Latitude] alignment order 
       const marker = new maplibregl.Marker({ 
         element: el,
         anchor: 'bottom'
@@ -136,19 +129,22 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       markersRef.current.push(marker);
     });
 
-    // 3. Smart Camera Focus Adjustment
+    // 3. Camera Positioning Sequence
     if (validCoordinatesCount > 0) {
       if (validRequests.length === 1) {
-        // Single Request Page View focus point snap
-        const singleLng = parseFloat(String(validRequests[0].lng ?? validRequests[0].longitude));
-        const singleLat = parseFloat(String(validRequests[0].lat ?? validRequests[0].latitude));
-        if (!isNaN(singleLng) && !isNaN(singleLat)) {
-          mapRef.current.setCenter([singleLng, singleLat]);
+        // Single Detail Page configuration
+        let rawLng = validRequests[0].lng ?? validRequests[0].longitude;
+        let rawLat = validRequests[0].lat ?? validRequests[0].latitude;
+        const targetLng = parseFloat(String(rawLng));
+        const targetLat = parseFloat(String(rawLat));
+        
+        if (!isNaN(targetLng) && !isNaN(targetLat)) {
+          mapRef.current.setCenter([targetLng, targetLat]);
           mapRef.current.setZoom(14);
         }
       } else {
-        // Notice Board multi-pin bounds fitting layout auto focus snap
-        mapRef.current.fitBounds(bounds, { padding: 50, maxZoom: 15, duration: 800 });
+        // Notice Board multi-pin viewpoint fitting layout configuration
+        mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 400 });
       }
     }
   }, [isMapReady, requests]);
