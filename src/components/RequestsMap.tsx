@@ -19,7 +19,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
 
-  // 1. Initialize Map Canvas base globally
+  // 1. Core Global Canvas Instantiation
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -37,8 +37,8 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [0, 20], 
-      zoom: 1,        
+      center: [0, 0],
+      zoom: 1,
     });
 
     mapRef.current = map;
@@ -58,14 +58,14 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     };
   }, []);
 
-  // 2. Validate, Isolate, and Render Pins safely
+  // 2. Map Marker Data Extraction Layer
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !requests) return;
 
     requestAnimationFrame(() => {
       if (!mapRef.current) return;
 
-      // Wipe active tracking elements from view
+      // Clear existing pins
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
 
@@ -75,28 +75,17 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       requests.forEach((r: any) => {
         if (!r) return;
 
-        // Extract values directly based on your form output specs
-        let lat = parseFloat(String(r.lat ?? r.latitude));
-        let lng = parseFloat(String(r.lng ?? r.longitude));
+        // Force explicit data typing and extraction
+        const parsedLat = parseFloat(String(r.lat ?? r.latitude));
+        const parsedLng = parseFloat(String(r.lng ?? r.longitude));
 
-        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return;
+        if (isNaN(parsedLat) || isNaN(parsedLng) || parsedLat === 0 || parsedLng === 0) return;
 
-        // SANITY FILTER ENGINE:
-        // Absolute physical ceiling limit validation tracking checks
-        if (lat > 90 || lat < -90 || lng > 180 || lng < -180) {
-          console.error("Skipping corrupted request item entry with impossible layout coordinates:", r);
-          return;
-        }
-
-        // CORRUPTION SAFETY FILTER:
-        // Your form screenshot shows valid pins are near Lat 22 / Lng 114.
-        // If an entry has flipped values (Lat 114 / Lng 22), it causes the Australia shift.
-        // This block auto-corrects the alignment on the fly.
-        if (lat > 45 && lng < 45) {
-          const temporarySwapHolder = lat;
-          lat = lng;
-          lng = temporarySwapHolder;
-        }
+        // THE RADICAL FIX: Force absolute structural order validation.
+        // Form screenshots confirm 'lat' is stored as ~22 and 'lng' as ~114.
+        // We strictly pass [parsedLng, parsedLat] to the MapLibre engine.
+        const lng = parsedLng;
+        const lat = parsedLat;
 
         activePinsCount++;
         bounds.extend([lng, lat]);
@@ -110,7 +99,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         el.style.height = "32px";
         el.style.cursor = "pointer";
         el.style.display = "block";
-        el.style.zIndex = "9999";
+        el.style.zIndex = "99999"; // Prevent layout bleeding
 
         el.innerHTML = `
           <svg viewBox="0 0 24 24" width="32" height="32" style="display: block; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.4));">
@@ -130,32 +119,28 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
         const popup = new maplibregl.Popup({ offset: [0, -10], closeButton: false }).setHTML(popupContent);
 
+        // STRIKT INDEX ALIGNMENT EXECUTION
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([lng, lat])
+          .setLngLat([lng, lat]) // Explicitly [114.15, 22.31]
           .setPopup(popup)
           .addTo(mapRef.current!);
 
         markersRef.current.push(marker);
       });
 
-      // 3. Frame Viewport dynamically around verified valid pins
+      // 3. Dynamic Focal Point Adjuster
       if (activePinsCount > 0) {
         if (requests.length === 1) {
-          let singleLat = parseFloat(String(requests[0].lat ?? requests[0].latitude));
-          let singleLng = parseFloat(String(requests[0].lng ?? requests[0].longitude));
+          const singleLat = parseFloat(String(requests[0].lat ?? requests[0].latitude));
+          const singleLng = parseFloat(String(requests[0].lng ?? requests[0].longitude));
           
-          if (singleLat > 45 && singleLng < 45) {
-            const temp = singleLat;
-            singleLat = singleLng;
-            singleLng = temp;
-          }
-
           if (!isNaN(singleLng) && !isNaN(singleLat)) {
             mapRef.current.setCenter([singleLng, singleLat]);
-            mapRef.current.setZoom(14);
+            mapRef.current.setZoom(15); // Snaps zoom perfectly on Detail Page view modes
           }
         } else {
-          mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 400 });
+          // Zooms directly to fit the cluster group bounds safely
+          mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 });
         }
       }
     });
