@@ -35,7 +35,7 @@ function Landing() {
   }
 
   return (
-    // 1. Added contain-layout and strict hardware isolation to the page root to stop parent layer bleeding
+    // Hard hardware isolation applied to the layout root to prevent background buffer bleeding
     <div className="min-h-screen bg-background text-foreground flex flex-col [contain:layout_style] [will-change:transform]">
       <SiteHeader />
 
@@ -48,19 +48,24 @@ function Landing() {
           <Badge variant="secondary" className="mb-4 rounded-full px-4 py-1 text-xs font-medium">
             Six request types · One marketplace
           </Badge>
+          
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
             Small Price, Big Help from Community.
-            <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+            {/* Gradient text brought back safely */}
+            <span className="block bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               Endless things to get done.
             </span>
           </h1>
+          
           <p className="mt-3 text-lg font-medium text-foreground/80">
             For instant help, remote or near.
           </p>
+          
           <div className="mt-6 flex flex-wrap gap-3 justify-center">
+            {/* Gradient action button brought back safely */}
             <Button
               size="lg"
-              className="rounded-full text-sm h-11 px-6 bg-emerald-600 text-white shadow-md hover:bg-emerald-700"
+              className="rounded-full text-sm h-11 px-6 bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
               asChild
             >
               <Link to="/notice-board">
@@ -83,9 +88,7 @@ function Landing() {
                 params={{ type: r.slug }}
                 className="block w-full h-auto decoration-none focus:outline-none"
               >
-                {/* 2. Added backface-visibility, transform-gpu, and explicit content-containment.
-                      This forces the mobile browser to isolate these boxes to their own native GPU paint canvas,
-                      which clears out the trail/glitch completely. */}
+                {/* Fixed layer context container prevents Chromium snapshot trails on scroll */}
                 <Card
                   className="p-6 bg-card border border-border/80 rounded-xl block relative h-auto overflow-hidden [transform:translateZ(0)] [backface-visibility:hidden] [contain:content]"
                 >
@@ -118,6 +121,10 @@ function Landing() {
         </div>
       </section>
 
+      <SiteFooter />
+    </div>
+  );
+}
       <SiteFooter />
     </div>
   );
