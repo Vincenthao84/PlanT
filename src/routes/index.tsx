@@ -57,7 +57,7 @@ function Landing() {
             </span>
           </h1>
           
-          <p className="mt-3 text-lg font-medium text-foreground/80">
+          <p className="mt-3 text-lg font-medium text-foreground/80 max-w-3xl mx-auto">
             For instant help, remote or near, try to browse the Requests Notice Board below to offer help; or click the Requests Types Buttons to Ask for helps.
           </p>
           
@@ -121,36 +121,9 @@ function Landing() {
         </div>
       </section>
 
-
-
-      
       <SiteFooter />
     </div>
   );
 }
 
-/* ==========================================================================
-   PLAN T — Production Map Pin Color System
-   ========================================================================== */
-
-/* Fixes Leaflet custom container alignment constraints */
-.leaflet-custom-production-icon-wrapper {
-  background: transparent !important;
-  border: none !important;
-}
-
-/* Base custom pin styles */
-.custom-map-pin .fallback-icon-display {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  text-transform: uppercase;
-}
-
-/* Request Type Slug to Color Mapping */
-.custom-map-pin[data-type="snap"] .pin-marker-circle { background-color: #ef4444 !important; }      /* Red */
-.custom-map-pin[data-type="knowledge"] .pin-marker-circle { background-color: #3b82f6 !important; } /* Blue */
-.custom-map-pin[data-type="action"] .pin-marker-circle { background-color: #10b981 !important; }    /* Emerald */
-.custom-map-pin[data-type="object"] .pin-marker-circle { background-color: #f59e0b !important; }    /* Amber */
-.custom-map-pin[data-type="rental"] .pin-marker-circle { background-color: #8b5cf6 !important; }    /* Purple */
-.custom-map-pin[data-type="anything"] .pin-marker-circle { background-color: #6b7280 !important; }  /* Gray */
+export default Landing;
