@@ -19,7 +19,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
 
-  // 1. Core Global Canvas Instantiation
+  // 1. Initialize Map Canvas Globally
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -37,8 +37,8 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [0, 0],
-      zoom: 1,
+      center: [0, 20], 
+      zoom: 1,        
     });
 
     mapRef.current = map;
@@ -58,34 +58,46 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     };
   }, []);
 
-  // 2. Map Marker Data Extraction Layer
+  // 2. Parse Data payloads and Render Pins
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !requests) return;
 
     requestAnimationFrame(() => {
       if (!mapRef.current) return;
 
-      // Clear existing pins
+      // Wipe active tracking elements from canvas
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
 
       const bounds = new maplibregl.LngLatBounds();
       let activePinsCount = 0;
 
+      // Print data structure to the console to see what Lovable is returning
+      console.log("DEBUG MAP PAYLOADS:", requests);
+
       requests.forEach((r: any) => {
         if (!r) return;
 
-        // Force explicit data typing and extraction
-        const parsedLat = parseFloat(String(r.lat ?? r.latitude));
-        const parsedLng = parseFloat(String(r.lng ?? r.longitude));
+        // Extract values from various possible formats
+        let rawLat = r.lat ?? r.latitude ?? r.coordinates?.lat;
+        let rawLng = r.lng ?? r.longitude ?? r.coordinates?.lng;
 
-        if (isNaN(parsedLat) || isNaN(parsedLng) || parsedLat === 0 || parsedLng === 0) return;
+        // Clean up strings if Lovable saved them with commas, spaces, or extra characters
+        let lat = parseFloat(String(rawLat).replace(/[^\d.-]/g, ''));
+        let lng = parseFloat(String(rawLng).replace(/[^\d.-]/g, ''));
 
-        // THE RADICAL FIX: Force absolute structural order validation.
-        // Form screenshots confirm 'lat' is stored as ~22 and 'lng' as ~114.
-        // We strictly pass [parsedLng, parsedLat] to the MapLibre engine.
-        const lng = parsedLng;
-        const lat = parsedLat;
+        // Validation fallback
+        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+          console.warn("Skipping invalid coordinate entry:", r);
+          return;
+        }
+
+        // If the values are swapped (Latitude should never be greater than 90)
+        if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
+          const temp = lat;
+          lat = lng;
+          lng = temp;
+        }
 
         activePinsCount++;
         bounds.extend([lng, lat]);
@@ -99,7 +111,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         el.style.height = "32px";
         el.style.cursor = "pointer";
         el.style.display = "block";
-        el.style.zIndex = "99999"; // Prevent layout bleeding
+        el.style.zIndex = "99999";
 
         el.innerHTML = `
           <svg viewBox="0 0 24 24" width="32" height="32" style="display: block; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.4));">
@@ -119,27 +131,31 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
         const popup = new maplibregl.Popup({ offset: [0, -10], closeButton: false }).setHTML(popupContent);
 
-        // STRIKT INDEX ALIGNMENT EXECUTION
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([lng, lat]) // Explicitly [114.15, 22.31]
+          .setLngLat([lng, lat])
           .setPopup(popup)
           .addTo(mapRef.current!);
 
         markersRef.current.push(marker);
       });
 
-      // 3. Dynamic Focal Point Adjuster
+      // 3. Dynamic Focal Camera System
       if (activePinsCount > 0) {
         if (requests.length === 1) {
-          const singleLat = parseFloat(String(requests[0].lat ?? requests[0].latitude));
-          const singleLng = parseFloat(String(requests[0].lng ?? requests[0].longitude));
+          let singleLat = parseFloat(String(requests[0].lat ?? requests[0].latitude).replace(/[^\d.-]/g, ''));
+          let singleLng = parseFloat(String(requests[0].lng ?? requests[0].longitude).replace(/[^\d.-]/g, ''));
           
+          if (Math.abs(singleLat) > 90 && Math.abs(singleLng) <= 90) {
+            const temp = singleLat;
+            singleLat = singleLng;
+            singleLng = temp;
+          }
+
           if (!isNaN(singleLng) && !isNaN(singleLat)) {
             mapRef.current.setCenter([singleLng, singleLat]);
-            mapRef.current.setZoom(15); // Snaps zoom perfectly on Detail Page view modes
+            mapRef.current.setZoom(14);
           }
         } else {
-          // Zooms directly to fit the cluster group bounds safely
           mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 });
         }
       }
