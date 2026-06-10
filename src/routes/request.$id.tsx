@@ -156,8 +156,8 @@ function RequestPage() {
           <Card className="overflow-hidden p-0" style={{ boxShadow: "var(--shadow-soft)" }}>
    
    
-   <div className="aspect-[4/3] sm:aspect-[16/10] w-full bg-muted">
-  <RequestsMap requests={[request]} />
+<div className="aspect-[4/3] sm:aspect-[16/10] w-full bg-muted">
+  {request && <RequestsMap requests={[request]} />}
 </div>
 
 
