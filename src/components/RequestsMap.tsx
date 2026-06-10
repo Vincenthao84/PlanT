@@ -19,7 +19,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [isMapReady, setIsMapReady] = useState(false);
 
-  // 1. Initialize Map Canvas Globally
+  // 1. Initialize Map Canvas base globally
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -37,8 +37,8 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [0, 20], 
-      zoom: 1,        
+      center: [114.1581, 22.3177], // Default center right on Hong Kong!
+      zoom: 11,        
     });
 
     mapRef.current = map;
@@ -58,45 +58,78 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     };
   }, []);
 
-  // 2. Parse Data payloads and Render Pins
+  // 2. Validate, Isolate, and Deep-Parse Pins safely
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !requests) return;
 
     requestAnimationFrame(() => {
       if (!mapRef.current) return;
 
-      // Wipe active tracking elements from canvas
+      // Wipe active tracking elements from view
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
 
       const bounds = new maplibregl.LngLatBounds();
       let activePinsCount = 0;
 
-      // Print data structure to the console to see what Lovable is returning
-      console.log("DEBUG MAP PAYLOADS:", requests);
-
       requests.forEach((r: any) => {
         if (!r) return;
 
-        // Extract values from various possible formats
-        let rawLat = r.lat ?? r.latitude ?? r.coordinates?.lat;
-        let rawLng = r.lng ?? r.longitude ?? r.coordinates?.lng;
+        let rawLat: any = undefined;
+        let rawLng: any = undefined;
 
-        // Clean up strings if Lovable saved them with commas, spaces, or extra characters
+        // DEEP SEARCH NESTED KEY MATCHING ENGINE:
+        // Level 1: Root level fields
+        if (r.lat !== undefined) rawLat = r.lat;
+        if (r.lng !== undefined) rawLng = r.lng;
+        if (r.latitude !== undefined) rawLat = r.latitude;
+        if (r.longitude !== undefined) rawLng = r.longitude;
+
+        // Level 2: Nested inside location sub-objects (Option A)
+        if (r.location && typeof r.location === 'object') {
+          if (r.location.lat !== undefined) rawLat = r.location.lat;
+          if (r.location.lng !== undefined) rawLng = r.location.lng;
+          if (r.location.latitude !== undefined) rawLat = r.location.latitude;
+          if (r.location.longitude !== undefined) rawLng = r.location.longitude;
+        }
+
+        // Level 3: Nested inside coordinate wrappers (Option B)
+        if (r.coordinates) {
+          if (Array.isArray(r.coordinates) && r.coordinates.length >= 2) {
+            // GeoJSON order standard is [lng, lat]
+            rawLng = r.coordinates[0];
+            rawLat = r.coordinates[1];
+          } else if (typeof r.coordinates === 'object') {
+            if (r.coordinates.lat !== undefined) rawLat = r.coordinates.lat;
+            if (r.coordinates.lng !== undefined) rawLng = r.coordinates.lng;
+          }
+        }
+
+        // Parse extracted values
         let lat = parseFloat(String(rawLat).replace(/[^\d.-]/g, ''));
         let lng = parseFloat(String(rawLng).replace(/[^\d.-]/g, ''));
 
-        // Validation fallback
-        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-          console.warn("Skipping invalid coordinate entry:", r);
-          return;
+        // Fallback: If parsing failed but a pinned label string exists containing hardcoded numbers
+        if ((isNaN(lat) || isNaN(lng)) && r.locationLabel) {
+          // Checks for patterns like "Pinned at 22.3177, 114.1581"
+          const match = String(r.locationLabel).match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+          if (match && match.length >= 3) {
+            lat = parseFloat(match[1]);
+            lng = parseFloat(match[2]);
+          }
         }
 
-        // If the values are swapped (Latitude should never be greater than 90)
+        // Final sanity check validation
+        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+          return; // Skip broken items cleanly
+        }
+
+        // SWAP PROTECTION ENGINE:
+        // Force absolute global tracking standard layout alignment
         if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
-          const temp = lat;
+          const temporarySwapHolder = lat;
           lat = lng;
-          lng = temp;
+          lng = temporarySwapHolder;
         }
 
         activePinsCount++;
@@ -139,25 +172,19 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         markersRef.current.push(marker);
       });
 
-      // 3. Dynamic Focal Camera System
+      // 3. Zoom Camera dynamically around verified valid pins
       if (activePinsCount > 0) {
-        if (requests.length === 1) {
-          let singleLat = parseFloat(String(requests[0].lat ?? requests[0].latitude).replace(/[^\d.-]/g, ''));
-          let singleLng = parseFloat(String(requests[0].lng ?? requests[0].longitude).replace(/[^\d.-]/g, ''));
-          
-          if (Math.abs(singleLat) > 90 && Math.abs(singleLng) <= 90) {
-            const temp = singleLat;
-            singleLat = singleLng;
-            singleLng = temp;
-          }
-
-          if (!isNaN(singleLng) && !isNaN(singleLat)) {
-            mapRef.current.setCenter([singleLng, singleLat]);
-            mapRef.current.setZoom(14);
-          }
+        if (activePinsCount === 1) {
+          // If there's only one pin, center on it directly
+          mapRef.current.setCenter(bounds.getCenter());
+          mapRef.current.setZoom(14);
         } else {
           mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 });
         }
+      } else {
+        // Fallback: If no pins parsed successfully, default view to Hong Kong
+        mapRef.current.setCenter([114.1581, 22.3177]);
+        mapRef.current.setZoom(11);
       }
     });
   }, [isMapReady, requests]);
