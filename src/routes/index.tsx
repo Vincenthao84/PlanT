@@ -15,9 +15,9 @@ import { useAuth } from "@/hooks/use-auth";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "PLAN T — Six ways to ask. Endless things to get done." },
+      { title: "PLAN T — Small Price, Big Help from Community. Endless things to get done." },
       { name: "description", content: "Snap, Knowledge, Action, Object, Rental or Anything — pick the type of help you need and let nearby helpers bid on your request." },
-      { property: "og:title", content: "PLAN T — Six ways to ask. Endless things to get done." },
+      { property: "og:title", content: "PLAN T — Small Price, Big Help from Community. Endless things to get done." },
       { property: "og:description", content: "Six request types, one location-aware help marketplace." },
     ],
   }),
@@ -54,7 +54,7 @@ function Landing() {
             Six request types · One marketplace
           </Badge>
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05]">
-            Six ways to ask.
+            Small Price, Big Help from Community.
             <span className="block bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               Endless things to get done.
             </span>
