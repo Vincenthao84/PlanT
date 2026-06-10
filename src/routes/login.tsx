@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +9,6 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-
-
-
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -82,30 +78,58 @@ function LoginPage() {
     }
   };
 
-const handleGoogle = async () => {
-  if (mode === "signup" && !acceptedTerms) {
-    toast.error("You must accept the Terms and Conditions to create an account.");
-    return;
-  }
-  setSubmitting(true);
-  
-  try {
-    // FIXED: Using direct Supabase client instead of Lovable wrapper
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        // Tells Supabase to redirect back to your live Vercel website URL
-        redirectTo: window.location.origin, 
-      },
-    });
+  const handleGoogle = async () => {
+    if (mode === "signup" && !acceptedTerms) {
+      toast.error("You must accept the Terms and Conditions to create an account.");
+      return;
+    }
+    setSubmitting(true);
+    
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin, 
+        },
+      });
+      if (error) throw error;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Google sign-in failed";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    if (error) throw error;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Google sign-in failed";
-    toast.error(msg);
-    setSubmitting(false);
-  }
-};
+  // Dedicated handler to request password resets from the bottom link
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address in the form field above first.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("Password reset link sent! Please check your email inbox.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not send reset link";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleMode = () => {
+    setMode((prev) => (prev === "signin" ? "signup" : "signin"));
+    setEmail("");
+    setPassword("");
+    setDisplayName("");
+    setAcceptedTerms(false);
+  };
 
   return (
     <div
@@ -222,16 +246,31 @@ const handleGoogle = async () => {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === "signin" ? "New to PLAN T?" : "Already have an account?"}{" "}
-            <button
-              type="button"
-              className="font-semibold text-primary hover:underline"
-              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            >
-              {mode === "signin" ? "Create an account" : "Sign in"}
-            </button>
-          </p>
+          {/* Combined Navigation Footer Section */}
+          <div className="mt-6 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+            <p>
+              {mode === "signin" ? "New to PLAN T?" : "Already have an account?"}{" "}
+              <button
+                type="button"
+                className="font-semibold text-primary hover:underline"
+                onClick={toggleMode}
+                disabled={submitting}
+              >
+                {mode === "signin" ? "Create an account" : "Sign in"}
+              </button>
+            </p>
+            
+            {mode === "signin" && (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground/80 hover:text-primary hover:underline mt-1 transition-colors"
+                onClick={handleForgotPassword}
+                disabled={submitting}
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
         </Card>
       </div>
     </div>
