@@ -34,36 +34,33 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       setIsLoaded(true);
     });
 
-    // Forced init fallback
-    const timer = setTimeout(() => {
-      if (!isLoaded) {
-        mapInstanceRef.current = map;
-        setIsLoaded(true);
-      }
-    }, 1500);
-
-    return () => {
-      clearTimeout(timer);
-      map.remove();
-    };
+    return () => map.remove();
   }, []);
 
   useEffect(() => {
+    // Force a slight delay to ensure the map container has dimensions before adding markers
     if (!isLoaded || !mapInstanceRef.current) return;
-    
-    requests.forEach((r) => {
-      const el = document.createElement("div");
-      el.style.width = "24px"; 
-      el.style.height = "24px";
-      el.style.backgroundColor = colorMap[r.type] || "#6b7280";
-      el.style.borderRadius = "50%";
-      el.style.border = "2px solid white";
-      el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
-      
-      new maplibregl.Marker({ element: el })
-        .setLngLat([r.lng, r.lat])
-        .addTo(mapInstanceRef.current!);
-    });
+
+    const timer = setTimeout(() => {
+      requests.forEach((r) => {
+        const el = document.createElement("div");
+        el.className = "marker";
+        el.style.width = "24px"; 
+        el.style.height = "24px";
+        el.style.backgroundColor = colorMap[r.type] || "#6b7280";
+        el.style.borderRadius = "50%";
+        el.style.border = "2px solid white";
+        el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
+        // Crucial: Marker elements need absolute positioning to render in the Maplibre canvas
+        el.style.position = "absolute"; 
+        
+        new maplibregl.Marker({ element: el })
+          .setLngLat([r.lng, r.lat])
+          .addTo(mapInstanceRef.current!);
+      });
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [isLoaded, requests]);
 
   return (
