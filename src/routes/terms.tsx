@@ -10,7 +10,7 @@ export const Route = createFileRoute("/terms")({
   }),
   component: TermsPage,
 });
-/
+
 function TermsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
