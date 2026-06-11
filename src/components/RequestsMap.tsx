@@ -45,7 +45,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [114.1694, 22.3193], // Fallback default map coordinates
+      center: [114.1694, 22.3193], 
       zoom: 12,        
     });
 
@@ -84,20 +84,19 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
-      // 1. Core Pin Wrap Element
+      // 1. Create pin element container
       const el = document.createElement("div");
-      el.className = "custom-pin-wrapper";
+      el.className = "custom-pin-container";
 
-      // 2. Visible Internal Marker Element
       const pin = document.createElement("div");
       pin.className = "custom-map-pin";
       pin.style.backgroundColor = hexColor;
       pin.innerHTML = svgIcon;
       el.appendChild(pin);
 
-      // 3. Complete Information Content String
+      // 2. Build explicit content presentation layout
       const popupContent = `
-        <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; min-width: 140px; pointer-events: none;">
+        <div style="padding: 2px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px;">
           <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.3;">${r.title || "Request"}</div>
           <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">Price: ${r.reward || r.price || "N/A"}</div>
           <div style="font-size: 11px; color: #475569; margin-top: 2px;">📍 ${r.locationLabel || "Location"}</div>
@@ -105,27 +104,31 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       `;
       
       const popup = new maplibregl.Popup({ 
-        offset: [0, -18], 
+        offset: [0, -16], 
         closeButton: false, 
-        closeOnClick: false,
-        className: 'custom-hover-popup'
+        closeOnClick: false
       }).setHTML(popupContent);
 
-      // 4. Solid Single Request Routing Action
+      // 3. Attach hover events directly to the inner pin element
+      pin.addEventListener('mouseenter', () => {
+        popup.setLngLat(coordinates).addTo(mapRef.current!);
+      });
+      
+      pin.addEventListener('mouseleave', () => {
+        popup.remove();
+      });
+      
+      // 4. Secure app route navigation click execution
       pin.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
 
-      // 5. Native Safe Mounting Configuration
+      // 5. Add Marker directly to map without passing it internal popup states
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat(coordinates)
-        .setPopup(popup)
         .addTo(mapRef.current!);
-
-      // 6. Instantly open popup so it's controlled natively by the wrapper CSS states
-      marker.togglePopup();
 
       markersRef.current.push(marker);
     });
@@ -137,11 +140,10 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   return (
     <div className="w-full h-full min-h-[400px] relative z-0">
       <style>{`
-        /* Anchor Wrapper context */
-        .custom-pin-wrapper {
-          position: relative;
+        .custom-pin-container {
           width: 32px;
           height: 32px;
+          position: relative;
         }
 
         .custom-map-pin {
@@ -157,25 +159,11 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transition: transform 0.1s ease-in-out !important;
         }
 
-        /* 1. Scale Up Marker Pin Graphic on Hover */
-        .custom-pin-wrapper:hover .custom-map-pin {
+        .custom-map-pin:hover {
           transform: scale(1.15) !important;
         }
 
-        /* 2. CSS Controlled Tooltip State: Completely avoids Javascript DOM-displacement bugs */
-        .custom-pin-wrapper .custom-hover-popup {
-          visibility: hidden;
-          opacity: 0;
-          transition: opacity 0.15s ease-in-out;
-        }
-
-        .custom-pin-wrapper:hover .custom-hover-popup {
-          visibility: visible;
-          opacity: 1;
-          z-index: 9999;
-        }
-
-        /* Standard Native Overrides */
+        /* Essential Anchoring Fixes from your stable template layout */
         .maplibregl-marker {
           position: absolute !important;
           top: 0 !important;
@@ -184,11 +172,11 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transform-style: flat !important;
         }
         
-        .maplibregl-canvas {
+        .maplibregl-canvas, .maplibregl-popup {
           transition: none !important;
         }
 
-        .custom-hover-popup .maplibregl-popup-content {
+        .maplibregl-popup-content {
           border-radius: 8px !important;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
           padding: 8px 12px !important;
