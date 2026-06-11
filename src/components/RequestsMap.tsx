@@ -45,23 +45,20 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [0, 0],
-      zoom: 2,        
+      center: [114.1694, 22.3193], // Fallback safe starting location (Hong Kong) instead of [0,0]
+      zoom: 12,        
     });
 
     mapRef.current = map;
 
-    // ADDITION 1: Center on the User dynamically without forcing hardcoded boundaries
+    // Fix 1: Properly update center to user location upon browser permission approval
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          map.flyTo({
-            center: [pos.coords.longitude, pos.coords.latitude],
-            zoom: 12,
-            animate: false
-          });
+          map.setCenter([pos.coords.longitude, pos.coords.latitude]);
+          map.setZoom(13);
         },
-        (err) => console.log("Using default global center:", err)
+        (err) => console.log("Geolocation fallback used:", err)
       );
     }
 
@@ -76,9 +73,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    const bounds = new maplibregl.LngLatBounds();
-    let validPinsCount = 0;
-
     requests.forEach((r: any) => {
       if (!r) return;
 
@@ -87,10 +81,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
       if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return;
 
-      validPinsCount++;
       const coordinates: [number, number] = [lng, lat];
-      bounds.extend(coordinates);
-
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
@@ -99,34 +90,46 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       el.style.backgroundColor = hexColor;
       el.innerHTML = svgIcon;
 
-      // ADDITION 2: Enhanced tooltip structure explicitly rendering your requested Price/Reward data
+      // Fix 2: Re-inserted the descriptive title and price layouts directly here
       const popupContent = `
-        <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px;">
-          <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${r.title || "Request"}</div>
-          <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 3px;">Price: ${r.reward || r.price || "N/A"}</div>
+        <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px; pointer-events: none;">
+          <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.3;">${r.title || "Request"}</div>
+          <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">Price: ${r.reward || r.price || "N/A"}</div>
           <div style="font-size: 11px; color: #475569; margin-top: 2px;">📍 ${r.locationLabel || "Location"}</div>
         </div>
       `;
       
-      const popup = new maplibregl.Popup({ offset: [0, -20], closeButton: false, closeOnClick: false })
-        .setHTML(popupContent);
+      const popup = new maplibregl.Popup({ 
+        offset: [0, -15], 
+        closeButton: false, 
+        closeOnClick: false,
+        className: 'custom-hover-popup'
+      }).setHTML(popupContent);
 
-      el.addEventListener('mouseenter', () => popup.addTo(mapRef.current!));
-      el.addEventListener('mouseleave', () => popup.remove());
+      // Fix 3: Handled native MapLibre popup states cleanly so DOM event propagation doesn't kill the navigation click rule
+      el.addEventListener('mouseenter', () => {
+        popup.setLngLat(coordinates).addTo(mapRef.current!);
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        popup.remove();
+      });
+      
       el.addEventListener('click', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat(coordinates)
-        .setPopup(popup) 
         .addTo(mapRef.current!);
 
       markersRef.current.push(marker);
     });
 
-    // We removed applyBounds from here so it NEVER overrides your user location positioning!
+    // We keep the map view fixed directly to the user's focus coordinates without snapping back out!
+    mapRef.current.resize();
     
   }, [requests, navigate]);
 
@@ -144,10 +147,12 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           justify-content: center;
           cursor: pointer;
           transition: transform 0.1s ease-in-out !important;
+          pointer-events: auto !important;
         }
 
         .custom-map-pin:hover {
           transform: scale(1.15) !important;
+          z-index: 99;
         }
 
         .maplibregl-marker {
@@ -158,13 +163,15 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transform-style: flat !important;
         }
         
-        .maplibregl-canvas, .maplibregl-popup {
+        .maplibregl-canvas {
           transition: none !important;
         }
-        
-        .maplibregl-popup-content {
+
+        .custom-hover-popup .maplibregl-popup-content {
           border-radius: 8px !important;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+          padding: 8px 12px !important;
+          pointer-events: none !important;
         }
       `}</style>
       
