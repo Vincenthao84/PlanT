@@ -246,4 +246,127 @@ function NoticeBoardPage() {
           <p className="text-muted-foreground">Loading…</p>
         ) : sortedRequests.length === 0 ? (
           <Card className="p-12 text-center" style={{ boxShadow: "var(--shadow-soft)" }}>
-            <div className="inline-
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
+              <Inbox className="h-7 w-7" />
+            </div>
+            <h2 className="text-xl font-semibold">No requests yet</h2>
+            <p className="text-muted-foreground mt-2 mb-6">
+              Be the first to post one — it will appear here and on the map.
+            </p>
+            <Button asChild className="rounded-full">
+              <Link to="/">Post a request</Link>
+            </Button>
+          </Card>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <span className="text-sm text-muted-foreground">
+                Showing {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"}
+              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <ToggleGroup
+                  type="single"
+                  size="sm"
+                  value={viewMode}
+                  onValueChange={(v) => v && setViewMode(v)}
+                  variant="outline"
+                >
+                  <ToggleGroupItem value="list" aria-label="List view">
+                    <List className="h-3 w-3 mr-1" /> List
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="map" aria-label="Map view">
+                    <MapIcon className="h-3 w-3 mr-1" /> Nearby map
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <span className="text-xs text-muted-foreground">Sort by</span>
+                <ToggleGroup
+                  type="single"
+                  size="sm"
+                  value={sortMode}
+                  onValueChange={(v) => v && setSortMode(v as SortMode)}
+                  variant="outline"
+                >
+                  <ToggleGroupItem value="newest" aria-label="Sort by newest">
+                    <Clock className="h-3 w-3 mr-1" /> Newest
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="reward" aria-label="Rank by reward">
+                    <Gift className="h-3 w-3 mr-1" /> Highest reward
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
+
+            {/* View Switching Layout Modes */}
+            {viewMode === "map" ? (
+              /* Map View Mode (Now Default) with Feed stacked directly below it */
+              <div className="space-y-6">
+                <div className="w-full block relative h-[500px] rounded-xl overflow-hidden border border-border bg-muted shadow-sm">
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-full bg-muted flex items-center justify-center text-sm text-muted-foreground animate-pulse">
+                        Loading Map View...
+                      </div>
+                    }
+                  >
+                    <RequestsMap requests={sortedRequests} />
+                  </Suspense>
+                </div>
+                
+                {/* Active underlying feed block list container */}
+                <div className="space-y-3">
+                  <h2 className="text-lg font-semibold tracking-tight px-1">Nearby Requests Feed</h2>
+                  {sortedRequests.map((r, idx) => renderRequestCard(r, idx))}
+                </div>
+              </div>
+            ) : (
+              /* Traditional pure listing grid row mode layout */
+              <div className="grid lg:grid-cols-[1fr_420px] gap-6 items-start">
+                <div className="space-y-3">
+                  {sortedRequests.map((r, idx) => renderRequestCard(r, idx))}
+                </div>
+
+                {/* Desktop Sidebar Sticky Map Projection */}
+                {isLargeScreen && (
+                  <div className="hidden lg:block lg:sticky lg:top-24 self-start space-y-3 w-full">
+                    <Card className="overflow-hidden p-0 h-[420px] relative w-full flex flex-col" style={{ boxShadow: "var(--shadow-soft)" }}>
+                      <div className="flex-1 w-full h-full relative min-h-0">
+                        <Suspense
+                          fallback={
+                            <div className="w-full h-full bg-muted flex items-center justify-center text-sm animate-pulse">
+                              Loading Map...
+                            </div>
+                          }
+                        >
+                          <RequestsMap requests={sortedRequests} />
+                        </Suspense>
+                      </div>
+                      <div className="px-4 py-3 flex items-center justify-between text-sm border-t bg-background shrink-0">
+                        <span className="text-muted-foreground">
+                          {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"} on the map
+                        </span>
+                        {fullMapHref && (
+                          <a
+                            href={fullMapHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline font-medium"
+                          >
+                            Open full map
+                          </a>
+                        )}
+                      </div>
+                    </Card>
+                    <p className="text-xs text-muted-foreground px-1">
+                      Tap a request on the left to view its exact pin and details.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+      <SiteFooter />
+    </div>
+  );
+}
