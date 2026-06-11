@@ -96,3 +96,19 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         if (validPinsCount === 1) {
             // For Single Detail Page: Center directly on the lone pin
             mapRef.current.setCenter(bounds.getCenter());
+            mapRef.current.setZoom(15);
+        } else {
+            // For Notice Board: Fit everything tightly
+            mapRef.current.fitBounds(bounds, { padding: 50, maxZoom: 15, duration: 0 });
+        }
+    }
+  }, [requests]);
+
+  return (
+    <div className="w-full h-full min-h-[400px] relative z-0">
+      <div ref={mapContainerRef} className="w-full h-full absolute inset-0" />
+    </div>
+  );
+}
+
+export default RequestsMap;
