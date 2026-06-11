@@ -104,8 +104,26 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     }
   }, [requests]);
 
-  return (
+return (
     <div className="w-full h-full min-h-[400px] relative z-0">
+      <style>{`
+        /* Fix 1: Stop markers from stacking in a vertical line */
+        .maplibregl-marker {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          
+          /* Fix 2: Stop markers from floating/lagging when panning and zooming */
+          transition: none !important;
+          transform-style: flat !important;
+        }
+        
+        /* Protect the map canvas and popups from global CSS transitions as well */
+        .maplibregl-canvas, .maplibregl-popup {
+          transition: none !important;
+        }
+      `}</style>
+      
       <div ref={mapContainerRef} className="w-full h-full absolute inset-0" />
     </div>
   );
