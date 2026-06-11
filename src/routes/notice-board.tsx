@@ -55,10 +55,11 @@ function NoticeBoardPage() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
-  
-  // Changed default view mode here from "list" to "map"
   const [viewMode, setViewMode] = useState<"list" | "map" | string>("map");
   const [profiles, setProfiles] = useState<Record<string, { displayName: string | null; avatarUrl: string | null }>>({});
+
+  // State to hold user's geoposition
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const [isLargeScreen, setIsLargeScreen] = useState(false);
   useEffect(() => {
@@ -77,8 +78,28 @@ function NoticeBoardPage() {
     }
   }, [viewMode]);
 
+  // Fetch requests and user's current geolocation
   useEffect(() => {
     let cancelled = false;
+    
+    // 1. Get the user's location coordinates
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (!cancelled) {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          }
+        },
+        (error) => {
+          console.warn("Notice Board coordinate filtering fallback activated:", error);
+        }
+      );
+    }
+
+    // 2. Fetch requests from database
     fetchAllRequests()
       .then(async (rs) => {
         if (!cancelled) setRequests(rs);
@@ -88,26 +109,46 @@ function NoticeBoardPage() {
       .catch(() => {
         if (!cancelled) setRequests([]);
       });
+
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const sortedRequests = useMemo(() => {
+  // Filter and sort the requests
+  const filteredAndSortedRequests = useMemo(() => {
     if (!requests) return null;
+
+    // Filter requests dynamically based on whether they fall within user location ± 1 degree boundary box
+    let result = requests.filter((r: any) => {
+      // Safely fall back to alternative field formatting schemas
+      let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
+      let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
+      
+      if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return false;
+
+      // If the user's browser geolocation hasn't updated or was blocked, show all entries as a fallback
+      if (!userLocation) return true;
+
+      const latDiff = Math.abs(lat - userLocation.lat);
+      const lngDiff = Math.abs(lng - userLocation.lng);
+
+      // Keep only markers within ±1.0 degree distance bounding boxes
+      return latDiff <= 1.0 && lngDiff <= 1.0;
+    });
+
+    // Execute sorting patterns
     if (sortMode === "reward") {
-      return [...requests].sort(
-        (a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward),
-      );
+      return result.sort((a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward));
     }
-    return [...requests].sort((a, b) => b.createdAt - a.createdAt);
-  }, [requests, sortMode]);
+    return result.sort((a, b) => b.createdAt - a.createdAt);
+  }, [requests, sortMode, userLocation]);
 
   const fullMapHref = useMemo(() => {
-    if (!requests || requests.length === 0) return null;
-    const m = requests[0];
+    if (!filteredAndSortedRequests || filteredAndSortedRequests.length === 0) return null;
+    const m = filteredAndSortedRequests[0];
     return `https://www.openstreetmap.org/?mlat=${m.lat}&mlon=${m.lng}#map=13/${m.lat}/${m.lng}`;
-  }, [requests]);
+  }, [filteredAndSortedRequests]);
 
   const handleNotSignedInBid = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -115,7 +156,6 @@ function NoticeBoardPage() {
     toast.error("Please sign in to place a bid.");
   };
 
-  // Shared single-card component render logic
   const renderRequestCard = (r: StoredRequest, idx: number) => {
     const t = getRequestType(r.type);
     const Icon = t?.icon ?? MapPin;
@@ -242,16 +282,16 @@ function NoticeBoardPage() {
           </Button>
         </div>
 
-        {sortedRequests === null ? (
+        {filteredAndSortedRequests === null ? (
           <p className="text-muted-foreground">Loading…</p>
-        ) : sortedRequests.length === 0 ? (
+        ) : filteredAndSortedRequests.length === 0 ? (
           <Card className="p-12 text-center" style={{ boxShadow: "var(--shadow-soft)" }}>
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
               <Inbox className="h-7 w-7" />
             </div>
-            <h2 className="text-xl font-semibold">No requests yet</h2>
+            <h2 className="text-xl font-semibold">No requests nearby</h2>
             <p className="text-muted-foreground mt-2 mb-6">
-              Be the first to post one — it will appear here and on the map.
+              There are no active requests within your immediate vicinity at the moment.
             </p>
             <Button asChild className="rounded-full">
               <Link to="/">Post a request</Link>
@@ -261,7 +301,7 @@ function NoticeBoardPage() {
           <>
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <span className="text-sm text-muted-foreground">
-                Showing {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"}
+                Showing {filteredAndSortedRequests.length} nearby request{filteredAndSortedRequests.length === 1 ? "" : "s"}
               </span>
               <div className="flex items-center gap-2 flex-wrap">
                 <ToggleGroup
@@ -298,7 +338,6 @@ function NoticeBoardPage() {
 
             {/* View Switching Layout Modes */}
             {viewMode === "map" ? (
-              /* Map View Mode (Now Default) with Feed stacked directly below it */
               <div className="space-y-6">
                 <div className="w-full block relative h-[500px] rounded-xl overflow-hidden border border-border bg-muted shadow-sm">
                   <Suspense
@@ -308,24 +347,21 @@ function NoticeBoardPage() {
                       </div>
                     }
                   >
-                    <RequestsMap requests={sortedRequests} />
+                    <RequestsMap requests={filteredAndSortedRequests} />
                   </Suspense>
                 </div>
                 
-                {/* Active underlying feed block list container */}
                 <div className="space-y-3">
                   <h2 className="text-lg font-semibold tracking-tight px-1">Nearby Requests Feed</h2>
-                  {sortedRequests.map((r, idx) => renderRequestCard(r, idx))}
+                  {filteredAndSortedRequests.map((r, idx) => renderRequestCard(r, idx))}
                 </div>
               </div>
             ) : (
-              /* Traditional pure listing grid row mode layout */
               <div className="grid lg:grid-cols-[1fr_420px] gap-6 items-start">
                 <div className="space-y-3">
-                  {sortedRequests.map((r, idx) => renderRequestCard(r, idx))}
+                  {filteredAndSortedRequests.map((r, idx) => renderRequestCard(r, idx))}
                 </div>
 
-                {/* Desktop Sidebar Sticky Map Projection */}
                 {isLargeScreen && (
                   <div className="hidden lg:block lg:sticky lg:top-24 self-start space-y-3 w-full">
                     <Card className="overflow-hidden p-0 h-[420px] relative w-full flex flex-col" style={{ boxShadow: "var(--shadow-soft)" }}>
@@ -337,12 +373,12 @@ function NoticeBoardPage() {
                             </div>
                           }
                         >
-                          <RequestsMap requests={sortedRequests} />
+                          <RequestsMap requests={filteredAndSortedRequests} />
                         </Suspense>
                       </div>
                       <div className="px-4 py-3 flex items-center justify-between text-sm border-t bg-background shrink-0">
                         <span className="text-muted-foreground">
-                          {sortedRequests.length} request{sortedRequests.length === 1 ? "" : "s"} on the map
+                          {filteredAndSortedRequests.length} request{filteredAndSortedRequests.length === 1 ? "" : "s"} on the map
                         </span>
                         {fullMapHref && (
                           <a
