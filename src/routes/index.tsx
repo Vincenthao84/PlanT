@@ -2,10 +2,11 @@ import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -19,8 +20,57 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
+// Clean, free OpenStreetMap reverse-geocoding helper function
+async function getNeighborhoodName(lat: number, lng: number): Promise<string> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+      {
+        headers: {
+          "User-Agent": "PlanT-Notice-Board-App",
+        },
+      }
+    );
+    const data = await response.json();
+    const addr = data.address;
+    
+    // Fallback down the chain to find the most meaningful local place name
+    return addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || addr.city || "Nearby";
+  } catch (error) {
+    console.error("Failed to reverse geocode user coordinates:", error);
+    return "Nearby";
+  }
+}
+
 function Landing() {
   const { user, loading } = useAuth();
+  const [localPlace, setLocalPlace] = useState<string | null>(null);
+
+  // Detect user's current neighborhood dynamically on mount
+  useEffect(() => {
+    if (!user || !navigator.geolocation) return;
+
+    let cancelled = false;
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const placeName = await getNeighborhoodName(
+          position.coords.latitude,
+          position.coords.longitude
+        );
+        if (!cancelled) {
+          setLocalPlace(placeName);
+        }
+      },
+      (error) => {
+        console.warn("Location lookup skipped or denied on Landing:", error);
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   if (loading) {
     return (
@@ -35,7 +85,6 @@ function Landing() {
   }
 
   return (
-    // Hard hardware isolation applied to the layout root to prevent background buffer bleeding
     <div className="min-h-screen bg-background text-foreground flex flex-col [contain:layout_style] [will-change:transform]">
       <SiteHeader />
 
@@ -45,13 +94,20 @@ function Landing() {
           <img src="/plant-logo.png" alt="PlanT Logo"
             className="mx-auto mb-6 h-20 w-20 rounded-2xl shadow-md object-cover"
           />
-          <Badge variant="secondary" className="mb-4 rounded-full px-4 py-1 text-xs font-medium">
-            Six request types · One marketplace
-          </Badge>
+          
+          <div className="flex justify-center items-center gap-2 mb-4">
+            <Badge variant="secondary" className="rounded-full px-4 py-1 text-xs font-medium">
+              Six request types · One marketplace
+            </Badge>
+            {localPlace && (
+              <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-medium border-emerald-500/30 bg-emerald-500/5 text-emerald-600 flex items-center gap-1 animate-in fade-in duration-300">
+                <MapPin className="h-3 w-3 text-emerald-500" /> Live in: {localPlace}
+              </Badge>
+            )}
+          </div>
           
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
             Small Price, Big Help from Community.
-            {/* Gradient text brought back safely */}
             <span className="block bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               Endless things to get done.
             </span>
@@ -62,7 +118,6 @@ function Landing() {
           </p>
           
           <div className="mt-6 flex flex-wrap gap-3 justify-center">
-            {/* Gradient action button brought back safely */}
             <Button
               size="lg"
               className="rounded-full text-sm h-11 px-6 bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md hover:opacity-90 transition-opacity"
@@ -88,7 +143,6 @@ function Landing() {
                 params={{ type: r.slug }}
                 className="block w-full h-auto decoration-none focus:outline-none"
               >
-                {/* Fixed layer context container prevents Chromium snapshot trails on scroll */}
                 <Card
                   className="p-6 bg-card border border-border/80 rounded-xl block relative h-auto overflow-hidden [transform:translateZ(0)] [backface-visibility:hidden] [contain:content]"
                 >
