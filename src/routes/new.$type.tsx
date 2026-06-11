@@ -35,6 +35,29 @@ export const Route = createFileRoute("/new/$type")({
   component: NewRequestPage,
 });
 
+// Clean, free OpenStreetMap reverse-geocoding helper function for the form layer
+async function fetchAddressFromCoords(lat: number, lng: number): Promise<string> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+      {
+        headers: {
+          "User-Agent": "PlanT-Notice-Board-App",
+        },
+      }
+    );
+    const data = await response.json();
+    const addr = data.address;
+    if (!addr) return "Pinned location";
+    
+    // Cascading fallback match rules to catch the finest hyper-local neighborhood name available
+    return addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || addr.city || "Pinned location";
+  } catch (error) {
+    console.error("Failed to reverse geocode inside form container:", error);
+    return "Pinned location";
+  }
+}
+
 function NewRequestPage() {
   const params = Route.useParams();
   const type = getRequestType(params.type);
@@ -67,16 +90,27 @@ function NewRequestPage() {
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Updated handler to correctly inject reverse-geocoded string labels asynchronously
   const useMyLocation = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        if (!locationLabel) setLocationLabel("My current location");
+      async (pos) => {
+        const currentLat = pos.coords.latitude;
+        const currentLng = pos.coords.longitude;
+        
+        setCoords({ lat: currentLat, lng: currentLng });
+        
+        // Fetch real geolocation name structure based on exact coordinates map data
+        const calculatedAddress = await fetchAddressFromCoords(currentLat, currentLng);
+        setLocationLabel(calculatedAddress);
+        
         setLocating(false);
       },
-      () => setLocating(false),
+      () => {
+        toast.error("Location lookup timed out or access denied.");
+        setLocating(false);
+      },
       { enableHighAccuracy: true, timeout: 8000 },
     );
   };
@@ -89,7 +123,7 @@ function NewRequestPage() {
     let lat = coords?.lat;
     let lng = coords?.lng;
 
-    // Geocode the typed location with the free OpenStreetMap Nominatim service
+    // Geocode the typed location with the free OpenStreetMap Nominatim service if coords weren't pinned via GPS
     if ((lat === undefined || lng === undefined) && locationLabel.trim()) {
       try {
         const res = await fetch(
