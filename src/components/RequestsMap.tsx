@@ -26,6 +26,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,6 +52,14 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
     mapRef.current = map;
 
+    // Create a single shared popup instance attached globally directly to the map canvas viewport context
+    hoverPopupRef.current = new maplibregl.Popup({
+      offset: [0, -16],
+      closeButton: false,
+      closeOnClick: false,
+      className: 'interactive-hover-popup'
+    });
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -62,6 +71,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     }
 
     return () => {
+      hoverPopupRef.current?.remove();
       map.remove();
     };
   }, []);
@@ -84,7 +94,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
-      // 1. Create native base DOM node elements
       const el = document.createElement("div");
       el.className = "custom-pin-container";
 
@@ -94,38 +103,47 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       pin.innerHTML = svgIcon;
       el.appendChild(pin);
 
-      // 2. Build template markup string with explicit fallback checks
       const popupContent = `
-        <div class="popup-inner-card">
-          <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.3;">${r.title || "Request"}</div>
+        <div style="padding: 2px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px; text-align: left;">
+          <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.title || "Request"}</div>
           <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">Price: ${r.reward || r.price || "N/A"}</div>
-          <div style="font-size: 11px; color: #475569; margin-top: 2px;">📍 ${r.locationLabel || "Location"}</div>
+          <div style="font-size: 11px; color: #475569; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📍 ${r.locationLabel || "Location"}</div>
         </div>
       `;
       
-      const popup = new maplibregl.Popup({ 
-        offset: [0, -18], 
-        closeButton: false, 
-        closeOnClick: false,
-        className: 'interactive-hover-popup'
-      }).setHTML(popupContent);
+      // Global canvas coordinate tracker integration bypasses layout element blocking
+      el.addEventListener('mouseenter', () => {
+        if (hoverPopupRef.current && mapRef.current) {
+          hoverPopupRef.current
+            .setLngLat(coordinates)
+            .setHTML(popupContent)
+            .addTo(mapRef.current);
+        }
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        hoverPopupRef.current?.remove();
+      });
 
-      // 3. Attach native MapLibre listeners directly to the instance tracker instead of DOM
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat(coordinates)
-        .setPopup(popup)
-        .addTo(mapRef.current!);
+      // Touch screen support for finger tapping gestures
+      el.addEventListener('touchstart', () => {
+        if (hoverPopupRef.current && mapRef.current) {
+          hoverPopupRef.current
+            .setLngLat(coordinates)
+            .setHTML(popupContent)
+            .addTo(mapRef.current);
+        }
+      }, { passive: true });
 
-      // Toggles native map tracking safely on hover or click without fighting layout state transformations
-      el.addEventListener('mouseenter', () => marker.togglePopup());
-      el.addEventListener('mouseleave', () => marker.togglePopup());
-
-      // 4. Clean click routing navigation rules execution 
       pin.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat(coordinates)
+        .addTo(mapRef.current!);
 
       markersRef.current.push(marker);
     });
@@ -161,7 +179,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transform: scale(1.15) !important;
         }
 
-        /* Anchoring fixes protecting map projection layout from shifting layout paths */
         .maplibregl-marker {
           position: absolute !important;
           top: 0 !important;
@@ -174,15 +191,15 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transition: none !important;
         }
 
-        /* Protect tooltips from capturing user interaction layouts */
         .interactive-hover-popup {
           pointer-events: none !important;
+          z-index: 99999 !important;
         }
 
         .interactive-hover-popup .maplibregl-popup-content {
           border-radius: 8px !important;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
-          padding: 8px 12px !important;
+          padding: 10px 14px !important;
           background: #ffffff !important;
         }
       `}</style>
