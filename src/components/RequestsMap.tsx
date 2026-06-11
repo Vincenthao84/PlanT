@@ -26,7 +26,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
-  const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,14 +51,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
     mapRef.current = map;
 
-    // Create a single shared popup instance attached globally directly to the map canvas viewport context
-    hoverPopupRef.current = new maplibregl.Popup({
-      offset: [0, -16],
-      closeButton: false,
-      closeOnClick: false,
-      className: 'interactive-hover-popup'
-    });
-
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -71,7 +62,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     }
 
     return () => {
-      hoverPopupRef.current?.remove();
       map.remove();
     };
   }, []);
@@ -94,54 +84,33 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
+      // 1. Root container for the custom element
       const el = document.createElement("div");
-      el.className = "custom-pin-container";
+      el.className = "custom-permanent-marker";
 
-      const pin = document.createElement("div");
-      pin.className = "custom-map-pin";
-      pin.style.backgroundColor = hexColor;
-      pin.innerHTML = svgIcon;
-      el.appendChild(pin);
-
-      const popupContent = `
-        <div style="padding: 2px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px; text-align: left;">
-          <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.title || "Request"}</div>
-          <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">Price: ${r.reward || r.price || "N/A"}</div>
-          <div style="font-size: 11px; color: #475569; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📍 ${r.locationLabel || "Location"}</div>
+      // 2. Build layout content directly inside the marker container layout tree
+      el.innerHTML = `
+        <div class="marker-pin-bubble" style="background-color: ${hexColor};">
+          ${svgIcon}
+        </div>
+        <div class="marker-info-label">
+          <span class="label-title">${r.title || "Request"}</span>
+          <span class="label-price">${r.reward || r.price || "N/A"}</span>
         </div>
       `;
-      
-      // Global canvas coordinate tracker integration bypasses layout element blocking
-      el.addEventListener('mouseenter', () => {
-        if (hoverPopupRef.current && mapRef.current) {
-          hoverPopupRef.current
-            .setLngLat(coordinates)
-            .setHTML(popupContent)
-            .addTo(mapRef.current);
-        }
-      });
-      
-      el.addEventListener('mouseleave', () => {
-        hoverPopupRef.current?.remove();
-      });
 
-      // Touch screen support for finger tapping gestures
-      el.addEventListener('touchstart', () => {
-        if (hoverPopupRef.current && mapRef.current) {
-          hoverPopupRef.current
-            .setLngLat(coordinates)
-            .setHTML(popupContent)
-            .addTo(mapRef.current);
-        }
-      }, { passive: true });
-
-      pin.addEventListener('click', (e) => {
+      // 3. Clean routing link click context
+      el.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
 
-      const marker = new maplibregl.Marker({ element: el })
+      // 4. Anchor the entire structure directly into MapLibre
+      const marker = new maplibregl.Marker({ 
+        element: el,
+        anchor: "top-left" // Pins the absolute top left of our block to the geographical coordinate
+      })
         .setLngLat(coordinates)
         .addTo(mapRef.current!);
 
@@ -155,30 +124,74 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   return (
     <div className="w-full h-full min-h-[400px] relative z-0">
       <style>{`
-        .custom-pin-container {
-          width: 32px;
-          height: 32px;
-          position: relative;
+        /* Core wrapper layout combining icon and descriptive label */
+        .custom-permanent-marker {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
           pointer-events: auto !important;
+          /* Offsets layout translation so the pin graphic aligns perfectly with the coordinates */
+          transform: translate(-16px, -16px); 
         }
 
-        .custom-map-pin {
+        /* The Round Icon Badge styling */
+        .marker-pin-bubble {
           width: 32px;
           height: 32px;
+          min-width: 32px;
           border-radius: 50%;
           border: 3px solid white;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
           display: flex;
           align-items: center;
           justify-content: center;
-          cursor: pointer;
-          transition: transform 0.1s ease-in-out !important;
+          transition: transform 0.1s ease-in-out;
+          z-index: 2;
         }
 
-        .custom-map-pin:hover {
-          transform: scale(1.15) !important;
+        /* The Permanent Label Card box right next to the pin */
+        .marker-info-label {
+          background: #ffffff;
+          padding: 4px 8px;
+          border-radius: 6px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+          border: 1px solid #e2e8f0;
+          display: flex;
+          flex-direction: column;
+          max-width: 130px;
+          font-family: system-ui, -apple-system, sans-serif;
+          pointer-events: none;
+          z-index: 1;
         }
 
+        .label-title {
+          font-size: 11px;
+          font-weight: 700;
+          color: #0f172a;
+          line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .label-price {
+          font-size: 10px;
+          font-weight: 600;
+          color: #10b981;
+          margin-top: 1px;
+        }
+
+        /* Brings element forward on hover profile */
+        .custom-permanent-marker:hover {
+          z-index: 99999 !important;
+        }
+        
+        .custom-permanent-marker:hover .marker-pin-bubble {
+          transform: scale(1.1);
+        }
+
+        /* Standard native map system overrides */
         .maplibregl-marker {
           position: absolute !important;
           top: 0 !important;
@@ -189,18 +202,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         
         .maplibregl-canvas {
           transition: none !important;
-        }
-
-        .interactive-hover-popup {
-          pointer-events: none !important;
-          z-index: 99999 !important;
-        }
-
-        .interactive-hover-popup .maplibregl-popup-content {
-          border-radius: 8px !important;
-          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
-          padding: 10px 14px !important;
-          background: #ffffff !important;
         }
       `}</style>
       
