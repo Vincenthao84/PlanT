@@ -4,15 +4,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { StoredRequest } from "@/lib/request-types";
 import { useNavigate } from "@tanstack/react-router";
 
-const colorMap: Record<string, string> = {
-  snap: "#ef4444",
-  knowledge: "#3b82f6",
-  action: "#10b981",
-  object: "#f59e0b",
-  rental: "#8b5cf6",
-  anything: "#6b7280",
-};
-
 export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -21,7 +12,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    const map = new maplibregl.Map({
+    mapRef.current = new maplibregl.Map({
       container: mapContainerRef.current,
       style: {
         version: 8,
@@ -34,14 +25,22 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       zoom: 12,
     });
 
-    mapRef.current = map;
-    return () => map.remove();
+    return () => mapRef.current?.remove();
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !requests || !map.loaded()) return;
+    if (!map || !requests) return;
 
+    // Wait for the map to be fully loaded before adding markers
+    if (!map.loaded()) {
+      map.on("load", () => renderMarkers(map, requests));
+    } else {
+      renderMarkers(map, requests);
+    }
+  }, [requests, navigate]);
+
+  const renderMarkers = (map: maplibregl.Map, requests: StoredRequest[]) => {
     const bounds = new maplibregl.LngLatBounds();
     let count = 0;
 
@@ -53,41 +52,36 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       count++;
       bounds.extend([lng, lat]);
 
-      // Create Popup
-      const popup = new maplibregl.Popup({ offset: 25, closeButton: false, closeOnClick: false })
-        .setHTML(`
-          <div style="font-family: sans-serif;">
-            <div style="font-weight:bold; font-size:14px;">${r.title}</div>
-            <div style="color:#10b981; font-weight:bold; font-size:12px;">Price: ${r.reward || r.price || "N/A"}</div>
-          </div>
-        `);
-
-      // Create Marker Element
       const el = document.createElement("div");
-      el.className = "marker";
-      el.style.backgroundColor = colorMap[r.type] || "#3b82f6";
-
+      el.className = "map-marker-pin";
+      el.style.backgroundColor = "#3b82f6";
+      
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([lng, lat])
-        .setPopup(popup)
         .addTo(map);
 
-      // Mouse events for Hover
-      el.addEventListener("mouseenter", () => marker.togglePopup());
-      el.addEventListener("mouseleave", () => marker.togglePopup());
+      // Simple Click handler
       el.addEventListener("click", () => navigate({ to: "/request/$id", params: { id: r.id } }));
     });
 
-    if (count > 0) {
-      map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
-    }
-  }, [requests, navigate]);
+    if (count > 0) map.fitBounds(bounds, { padding: 50 });
+  };
 
   return (
-    <div className="relative w-full h-full min-h-[400px]">
+    <div className="relative w-full h-[400px]">
       <style>{`
-        .marker { width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; cursor: pointer; }
-        .marker:hover { transform: scale(1.2); }
+        /* FORCED VISIBILITY: These styles make sure the pins are not hidden */
+        .map-marker-pin {
+          width: 20px !important;
+          height: 20px !important;
+          border-radius: 50% !important;
+          border: 2px solid white !important;
+          background-color: blue !important;
+          cursor: pointer !important;
+          display: block !important;
+          position: absolute !important;
+          z-index: 1000 !important;
+        }
       `}</style>
       <div ref={mapContainerRef} className="w-full h-full" />
     </div>
