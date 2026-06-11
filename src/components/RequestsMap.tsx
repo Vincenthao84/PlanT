@@ -84,7 +84,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
-      // 1. Create pin element container
+      // 1. Create native base DOM node elements
       const el = document.createElement("div");
       el.className = "custom-pin-container";
 
@@ -94,9 +94,9 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       pin.innerHTML = svgIcon;
       el.appendChild(pin);
 
-      // 2. Build explicit content presentation layout
+      // 2. Build template markup string with explicit fallback checks
       const popupContent = `
-        <div style="padding: 2px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px;">
+        <div class="popup-inner-card">
           <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.3;">${r.title || "Request"}</div>
           <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">Price: ${r.reward || r.price || "N/A"}</div>
           <div style="font-size: 11px; color: #475569; margin-top: 2px;">📍 ${r.locationLabel || "Location"}</div>
@@ -104,31 +104,28 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       `;
       
       const popup = new maplibregl.Popup({ 
-        offset: [0, -16], 
+        offset: [0, -18], 
         closeButton: false, 
-        closeOnClick: false
+        closeOnClick: false,
+        className: 'interactive-hover-popup'
       }).setHTML(popupContent);
 
-      // 3. Attach hover events directly to the inner pin element
-      pin.addEventListener('mouseenter', () => {
-        popup.setLngLat(coordinates).addTo(mapRef.current!);
-      });
-      
-      pin.addEventListener('mouseleave', () => {
-        popup.remove();
-      });
-      
-      // 4. Secure app route navigation click execution
+      // 3. Attach native MapLibre listeners directly to the instance tracker instead of DOM
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat(coordinates)
+        .setPopup(popup)
+        .addTo(mapRef.current!);
+
+      // Toggles native map tracking safely on hover or click without fighting layout state transformations
+      el.addEventListener('mouseenter', () => marker.togglePopup());
+      el.addEventListener('mouseleave', () => marker.togglePopup());
+
+      // 4. Clean click routing navigation rules execution 
       pin.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
-
-      // 5. Add Marker directly to map without passing it internal popup states
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat(coordinates)
-        .addTo(mapRef.current!);
 
       markersRef.current.push(marker);
     });
@@ -144,6 +141,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           width: 32px;
           height: 32px;
           position: relative;
+          pointer-events: auto !important;
         }
 
         .custom-map-pin {
@@ -163,7 +161,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transform: scale(1.15) !important;
         }
 
-        /* Essential Anchoring Fixes from your stable template layout */
+        /* Anchoring fixes protecting map projection layout from shifting layout paths */
         .maplibregl-marker {
           position: absolute !important;
           top: 0 !important;
@@ -172,15 +170,20 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transform-style: flat !important;
         }
         
-        .maplibregl-canvas, .maplibregl-popup {
+        .maplibregl-canvas {
           transition: none !important;
         }
 
-        .maplibregl-popup-content {
+        /* Protect tooltips from capturing user interaction layouts */
+        .interactive-hover-popup {
+          pointer-events: none !important;
+        }
+
+        .interactive-hover-popup .maplibregl-popup-content {
           border-radius: 8px !important;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
           padding: 8px 12px !important;
-          pointer-events: none !important;
+          background: #ffffff !important;
         }
       `}</style>
       
