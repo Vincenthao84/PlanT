@@ -26,8 +26,11 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const boundsRef = useRef<maplibregl.LngLatBounds | null>(null);
+  const validPinsCountRef = useRef<number>(0);
   const navigate = useNavigate();
 
+  // 1. Initialize Map & Setup ResizeObserver
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -51,11 +54,32 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
     mapRef.current = map;
 
+    // This ResizeObserver fixes the "List vs Map Tab" auto-zoom bug completely.
+    // When the map container suddenly becomes visible, it recalculates bounds perfectly.
+    const resizeObserver = new ResizeObserver(() => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+        
+        if (boundsRef.current && validPinsCountRef.current > 0) {
+          if (validPinsCountRef.current === 1) {
+            mapRef.current.setCenter(boundsRef.current.getCenter());
+            mapRef.current.setZoom(15);
+          } else {
+            mapRef.current.fitBounds(boundsRef.current, { padding: 50, maxZoom: 15, duration: 0 });
+          }
+        }
+      }
+    });
+
+    resizeObserver.observe(mapContainerRef.current);
+
     return () => {
+      resizeObserver.disconnect();
       map.remove();
     };
   }, []);
 
+  // 2. Plot Markers
   useEffect(() => {
     if (!mapRef.current || !requests) return;
 
@@ -80,49 +104,61 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
-      const el = document.createElement("div");
-      el.className = "custom-map-pin";
-      el.style.backgroundColor = hexColor;
-      el.innerHTML = svgIcon;
+      // Outer Wrapper for MapLibre positioning (DO NOT apply CSS scale to this)
+      const elWrapper = document.createElement("div");
+      elWrapper.className = "marker-wrapper";
+
+      // Inner element for CSS scaling (This prevents MapLibre teleporting bugs)
+      const elPin = document.createElement("div");
+      elPin.className = "custom-map-pin";
+      elPin.style.backgroundColor = hexColor;
+      elPin.innerHTML = svgIcon;
+      
+      elWrapper.appendChild(elPin);
+
+      // Check for price property to display
+      const priceVal = r.reward || r.suggested_price || r.price;
+      const priceHtml = priceVal ? `<div style="font-size: 11.5px; font-weight: 700; color: #10b981; margin-top: 4px;">💰 Suggested: ${priceVal}</div>` : '';
 
       const popupContent = `
-        <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; min-width: 120px;">
-          <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${r.title || "Request"}</div>
-          <div style="font-size: 11px; color: #475569; margin-top: 2px;">📍 ${r.locationLabel || "Location"}</div>
+        <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px;">
+          <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.2;">${r.title || "Request"}</div>
+          <div style="font-size: 11px; color: #475569; margin-top: 4px;">📍 ${r.locationLabel || "Location"}</div>
+          ${priceHtml}
         </div>
       `;
       
-      const popup = new maplibregl.Popup({ offset: [0, -20], closeButton: false, closeOnClick: false })
+      const popup = new maplibregl.Popup({ offset: [0, -15], closeButton: false, closeOnClick: false })
         .setHTML(popupContent);
 
-      // We handle popup and routing manually!
-      el.addEventListener('mouseenter', () => {
+      elWrapper.addEventListener('mouseenter', () => {
         popup.setLngLat(coordinates).addTo(mapRef.current!);
       });
       
-      el.addEventListener('mouseleave', () => {
+      elWrapper.addEventListener('mouseleave', () => {
         popup.remove();
       });
       
-      el.addEventListener('click', (e) => {
+      elWrapper.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
 
-      // Notice we DO NOT use .setPopup() here anymore. It ruins DOM events.
-      const marker = new maplibregl.Marker({ element: el })
+      const marker = new maplibregl.Marker({ element: elWrapper })
         .setLngLat(coordinates)
         .addTo(mapRef.current!);
 
       markersRef.current.push(marker);
     });
 
+    // Save bounds to Refs so ResizeObserver can use them on tab switches
+    boundsRef.current = bounds;
+    validPinsCountRef.current = validPinsCount;
+
     const applyBounds = () => {
       if (!mapRef.current) return;
-      
-      // Force MapLibre to calculate the container's true dimensions
-      mapRef.current.resize();
+      mapRef.current.resize(); 
 
       if (validPinsCount === 1) {
         mapRef.current.setCenter(bounds.getCenter());
@@ -132,7 +168,6 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       }
     };
 
-    // A tiny timeout guarantees the DOM layout is 100% finished painting
     if (mapRef.current.loaded()) {
       setTimeout(applyBounds, 50);
     } else {
@@ -144,6 +179,13 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   return (
     <div className="w-full h-full min-h-[400px] relative z-0">
       <style>{`
+        /* Wrapper controls positioning. Do not scale this. */
+        .marker-wrapper {
+          pointer-events: auto !important; 
+          cursor: pointer;
+        }
+
+        /* Inner element controls visual scale independently */
         .custom-map-pin {
           width: 32px;
           height: 32px;
@@ -153,15 +195,11 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           display: flex;
           align-items: center;
           justify-content: center;
-          cursor: pointer;
-          transition: transform 0.1s ease-in-out !important;
-          /* Ensure clicks register properly */
-          pointer-events: auto !important; 
+          transition: transform 0.15s ease-out !important;
         }
 
-        .custom-map-pin:hover {
-          transform: scale(1.15) !important;
-          z-index: 50; /* Bring hovered pin to front */
+        .marker-wrapper:hover .custom-map-pin {
+          transform: scale(1.15) translateY(-2px) !important;
         }
 
         .maplibregl-marker {
@@ -170,6 +208,11 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           left: 0 !important;
           transition: none !important;
           transform-style: flat !important;
+          z-index: 10;
+        }
+
+        .marker-wrapper:hover {
+          z-index: 50; /* Bring hovered marker to front */
         }
         
         .maplibregl-canvas, .maplibregl-popup {
@@ -180,6 +223,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           border-radius: 8px !important;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
           pointer-events: none; /* Stops popup from glitching mouseleave */
+          z-index: 60;
         }
       `}</style>
       
