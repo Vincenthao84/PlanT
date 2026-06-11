@@ -45,13 +45,12 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [114.1694, 22.3193], // Fallback safe starting location (Hong Kong) instead of [0,0]
+      center: [114.1694, 22.3193], // Fallback default map coordinates
       zoom: 12,        
     });
 
     mapRef.current = map;
 
-    // Fix 1: Properly update center to user location upon browser permission approval
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -85,14 +84,20 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
+      // 1. Core Pin Wrap Element
       const el = document.createElement("div");
-      el.className = "custom-map-pin";
-      el.style.backgroundColor = hexColor;
-      el.innerHTML = svgIcon;
+      el.className = "custom-pin-wrapper";
 
-      // Fix 2: Re-inserted the descriptive title and price layouts directly here
+      // 2. Visible Internal Marker Element
+      const pin = document.createElement("div");
+      pin.className = "custom-map-pin";
+      pin.style.backgroundColor = hexColor;
+      pin.innerHTML = svgIcon;
+      el.appendChild(pin);
+
+      // 3. Complete Information Content String
       const popupContent = `
-        <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; min-width: 130px; pointer-events: none;">
+        <div style="padding: 4px; font-family: system-ui, -apple-system, sans-serif; min-width: 140px; pointer-events: none;">
           <div style="font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.3;">${r.title || "Request"}</div>
           <div style="font-size: 12px; font-weight: 600; color: #10b981; margin-top: 4px;">Price: ${r.reward || r.price || "N/A"}</div>
           <div style="font-size: 11px; color: #475569; margin-top: 2px;">📍 ${r.locationLabel || "Location"}</div>
@@ -100,35 +105,31 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       `;
       
       const popup = new maplibregl.Popup({ 
-        offset: [0, -15], 
+        offset: [0, -18], 
         closeButton: false, 
         closeOnClick: false,
         className: 'custom-hover-popup'
       }).setHTML(popupContent);
 
-      // Fix 3: Handled native MapLibre popup states cleanly so DOM event propagation doesn't kill the navigation click rule
-      el.addEventListener('mouseenter', () => {
-        popup.setLngLat(coordinates).addTo(mapRef.current!);
-      });
-      
-      el.addEventListener('mouseleave', () => {
-        popup.remove();
-      });
-      
-      el.addEventListener('click', (e) => {
+      // 4. Solid Single Request Routing Action
+      pin.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
 
+      // 5. Native Safe Mounting Configuration
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat(coordinates)
+        .setPopup(popup)
         .addTo(mapRef.current!);
+
+      // 6. Instantly open popup so it's controlled natively by the wrapper CSS states
+      marker.togglePopup();
 
       markersRef.current.push(marker);
     });
 
-    // We keep the map view fixed directly to the user's focus coordinates without snapping back out!
     mapRef.current.resize();
     
   }, [requests, navigate]);
@@ -136,6 +137,13 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   return (
     <div className="w-full h-full min-h-[400px] relative z-0">
       <style>{`
+        /* Anchor Wrapper context */
+        .custom-pin-wrapper {
+          position: relative;
+          width: 32px;
+          height: 32px;
+        }
+
         .custom-map-pin {
           width: 32px;
           height: 32px;
@@ -147,14 +155,27 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           justify-content: center;
           cursor: pointer;
           transition: transform 0.1s ease-in-out !important;
-          pointer-events: auto !important;
         }
 
-        .custom-map-pin:hover {
+        /* 1. Scale Up Marker Pin Graphic on Hover */
+        .custom-pin-wrapper:hover .custom-map-pin {
           transform: scale(1.15) !important;
-          z-index: 99;
         }
 
+        /* 2. CSS Controlled Tooltip State: Completely avoids Javascript DOM-displacement bugs */
+        .custom-pin-wrapper .custom-hover-popup {
+          visibility: hidden;
+          opacity: 0;
+          transition: opacity 0.15s ease-in-out;
+        }
+
+        .custom-pin-wrapper:hover .custom-hover-popup {
+          visibility: visible;
+          opacity: 1;
+          z-index: 9999;
+        }
+
+        /* Standard Native Overrides */
         .maplibregl-marker {
           position: absolute !important;
           top: 0 !important;
