@@ -14,12 +14,12 @@ const colorMap: Record<string, string> = {
 };
 
 const iconMap: Record<string, string> = {
-  snap: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
-  knowledge: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>`,
-  action: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
-  object: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`,
-  rental: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`,
-  anything: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`
+  snap: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
+  knowledge: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke-dasharray="2 2" stroke-opacity="0.3"></path><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"></path><path d="M12 5v13"></path></svg>`,
+  action: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5"></path><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6"></path><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8.5"></path><path d="M18 8a2 2 0 0 1 2 2v3a7 7 0 0 1-7 7h-1a7 7 0 0 1-7-7v-3a2 2 0 0 1 4 0v1.5"></path></svg>`,
+  object: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`,
+  rental: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 3-9.5 9.5"></path><path d="m19 5 1.5 1.5"></path><path d="m16 8 1.5 1.5"></path></svg>`,
+  anything: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>`
 };
 
 export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
@@ -30,6 +30,21 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
+
+    const isSingleRequest = requests && requests.length === 1 && requests[0];
+    
+    let initialCenter: [number, number] = [114.1694, 22.3193];
+    let initialZoom = 12;
+
+    if (isSingleRequest) {
+      const r = requests[0];
+      const lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
+      const lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
+      if (!isNaN(lat) && !isNaN(lng) && !(lat === 0 && lng === 0)) {
+        initialCenter = [lng, lat];
+        initialZoom = 15;
+      }
+    }
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -45,17 +60,19 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }]
       },
-      center: [114.1694, 22.3193], 
-      zoom: 12,        
+      center: initialCenter, 
+      zoom: initialZoom,        
     });
 
     mapRef.current = map;
 
-    if (navigator.geolocation) {
+    if (!isSingleRequest && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          map.setCenter([pos.coords.longitude, pos.coords.latitude]);
-          map.setZoom(13);
+          if (mapRef.current) {
+            map.setCenter([pos.coords.longitude, pos.coords.latitude]);
+            map.setZoom(13);
+          }
         },
         (err) => console.log("Geolocation fallback used:", err)
       );
@@ -64,7 +81,7 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
     return () => {
       map.remove();
     };
-  }, []);
+  }, [requests]);
 
   useEffect(() => {
     if (!mapRef.current || !requests) return;
@@ -84,11 +101,9 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
       const hexColor = colorMap[r.type] || "#3b82f6";
       const svgIcon = iconMap[r.type] || iconMap.anything;
 
-      // 1. Root container for the custom element
       const el = document.createElement("div");
       el.className = "custom-permanent-marker";
 
-      // 2. Build layout content directly inside the marker container layout tree
       el.innerHTML = `
         <div class="marker-pin-bubble" style="background-color: ${hexColor};">
           ${svgIcon}
@@ -99,17 +114,15 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
         </div>
       `;
 
-      // 3. Clean routing link click context
       el.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         navigate({ to: "/request/$id", params: { id: r.id } });
       });
 
-      // 4. Anchor the entire structure directly into MapLibre
       const marker = new maplibregl.Marker({ 
         element: el,
-        anchor: "top-left" // Pins the absolute top left of our block to the geographical coordinate
+        anchor: "top-left"
       })
         .setLngLat(coordinates)
         .addTo(mapRef.current!);
@@ -124,18 +137,15 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
   return (
     <div className="w-full h-full min-h-[400px] relative z-0">
       <style>{`
-        /* Core wrapper layout combining icon and descriptive label */
         .custom-permanent-marker {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
           cursor: pointer;
           pointer-events: auto !important;
-          /* Offsets layout translation so the pin graphic aligns perfectly with the coordinates */
           transform: translate(-16px, -16px); 
         }
 
-        /* The Round Icon Badge styling */
         .marker-pin-bubble {
           width: 32px;
           height: 32px;
@@ -150,39 +160,37 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           z-index: 2;
         }
 
-        /* The Permanent Label Card box right next to the pin */
         .marker-info-label {
           background: #ffffff;
-          padding: 4px 8px;
-          border-radius: 6px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-          border: 1px solid #e2e8f0;
+          padding: 6px 10px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+          border: 1px solid #cbd5e1;
           display: flex;
           flex-direction: column;
-          max-width: 130px;
+          max-width: 160px;
           font-family: system-ui, -apple-system, sans-serif;
           pointer-events: none;
           z-index: 1;
         }
 
         .label-title {
-          font-size: 11px;
+          font-size: 13px;
           font-weight: 700;
           color: #0f172a;
-          line-height: 1.2;
+          line-height: 1.3;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
         .label-price {
-          font-size: 10px;
-          font-weight: 600;
+          font-size: 11px;
+          font-weight: 700;
           color: #10b981;
-          margin-top: 1px;
+          margin-top: 2px;
         }
 
-        /* Brings element forward on hover profile */
         .custom-permanent-marker:hover {
           z-index: 99999 !important;
         }
@@ -191,7 +199,35 @@ export function RequestsMap({ requests }: { requests: StoredRequest[] }) {
           transform: scale(1.1);
         }
 
-        /* Standard native map system overrides */
+        /* FIX: Forces the OpenStreetMap attribution block completely 
+           away from the bottom-left corner to stop overlapping the address.
+        */
+        .maplibregl-ctrl-bottom-left {
+          display: none !important; /* Removes default positioning container */
+        }
+
+        .maplibregl-ctrl-attrib {
+          position: absolute !important;
+          bottom: 12px !important;
+          right: 110px !important; /* Pushes it leftward next to the "Open in maps" button */
+          background-color: rgba(255, 255, 255, 0.85) !important;
+          padding: 4px 8px !important;
+          border-radius: 6px !important;
+          border: 1px solid #e2e8f0 !important;
+          font-size: 11px !important;
+          color: #64748b !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        }
+
+        .maplibregl-ctrl-attrib a {
+          color: #3b82f6 !important;
+          text-decoration: none !important;
+        }
+        
+        .maplibregl-ctrl-attrib a:hover {
+          text-decoration: underline !important;
+        }
+
         .maplibregl-marker {
           position: absolute !important;
           top: 0 !important;
