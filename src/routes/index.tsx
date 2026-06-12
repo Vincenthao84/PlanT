@@ -101,7 +101,7 @@ function Landing() {
             </Badge>
             {localPlace && (
               <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-medium border-emerald-500/30 bg-emerald-500/5 text-emerald-600 flex items-center gap-1 animate-in fade-in duration-300">
-                <MapPin className="h-3 w-3 text-emerald-500" /> Live in: {localPlace}
+                <MapPin className="h-3 w-3 text-emerald-500" /> Now at: {localPlace}
               </Badge>
             )}
           </div>
