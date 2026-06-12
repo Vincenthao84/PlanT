@@ -121,7 +121,7 @@ export async function createRequest(input: NewRequestInput): Promise<StoredReque
 
 export async function fetchRequest(id: string): Promise<StoredRequest | null> {
   const { data, error } = await supabase
-    .from("requests_public")
+    .from("requests")
     .select("*")
     .eq("id", id)
     .maybeSingle();
@@ -131,7 +131,7 @@ export async function fetchRequest(id: string): Promise<StoredRequest | null> {
 
 export async function fetchAllRequests(): Promise<StoredRequest[]> {
   const { data, error } = await supabase
-    .from("requests_public")
+    .from("requests")
     .select("*")
     .order("created_at", { ascending: false });
   if (error) throw error;
