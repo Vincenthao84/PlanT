@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, BadgeCheck } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, BadgeCheck, MessageSquare } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -40,6 +40,9 @@ function timeAgo(ts: number): string {
 function MyTasksPage() {
   const { user, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<StoredRequest[] | null>(null);
+  
+  // Tracks which task has its message board active/toggled open
+  const [activeChatTaskId, setActiveChatTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -124,10 +127,14 @@ function MyTasksPage() {
             {tasks.map((r) => {
               const t = getRequestType(r.type);
               const Icon = t?.icon ?? MapPin;
-              const takerDone = !!r.takerCompletedAt;
-              const fullySettled = !!r.completedAt && !!r.takerCompletedAt;
+              const { takerCompletedAt, completedAt, feeSettledAt, takenAt, id, title, description, locationLabel, reward, userId, takenBy } = r;
+              
+              const takerDone = !!takerCompletedAt;
+              const fullySettled = !!completedAt && takerDone;
+              const isChatOpen = activeChatTaskId === id;
+
               return (
-                <Card key={r.id} className="p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
+                <Card key={id} className="p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
                   <div className="flex gap-4">
                     <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
                       <Icon className="h-5 w-5" />
@@ -150,46 +157,58 @@ function MyTasksPage() {
                             <CheckCircle2 className="h-3 w-3" /> Done
                           </Badge>
                         )}
-                        {r.feeSettledAt && (
+                        {feeSettledAt && (
                           <Badge className="rounded-full text-xs gap-1">
                             <BadgeCheck className="h-3 w-3" /> Fee Settlement Done
                           </Badge>
                         )}
-                        {r.takenAt && (
+                        {takenAt && (
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" /> Taken {timeAgo(r.takenAt)}
+                            <Clock className="h-3 w-3" /> Taken {timeAgo(takenAt)}
                           </span>
                         )}
                       </div>
                       <Link
                         to="/request/$id"
-                        params={{ id: r.id }}
+                        params={{ id }}
                         className={`font-semibold leading-tight hover:underline block truncate ${fullySettled ? "line-through text-muted-foreground" : ""}`}
                       >
-                        {r.title}
+                        {title}
                       </Link>
-                      {r.description && (
+                      {description && (
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                          {r.description}
+                          {description}
                         </p>
                       )}
                       <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-accent" />
-                          {r.locationLabel}
+                          {locationLabel}
                         </span>
-                        {r.reward && (
+                        {reward && (
                           <span className="inline-flex items-center gap-1 font-medium text-foreground">
                             <Gift className="h-3 w-3 text-accent" />
-                            {r.reward}
+                            {reward}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="shrink-0 flex flex-col gap-2">
                       <Button asChild size="sm" variant="outline" className="rounded-full">
-                        <Link to="/request/$id" params={{ id: r.id }}>View</Link>
+                        <Link to="/request/$id" params={{ id }}>View</Link>
                       </Button>
+
+                      {/* CHAT TOGGLE BUTTON */}
+                      <Button
+                        size="sm"
+                        variant={isChatOpen ? "secondary" : "outline"}
+                        className="rounded-full gap-1"
+                        onClick={() => setActiveChatTaskId(isChatOpen ? null : id)}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        {isChatOpen ? "Close Chat" : "Chat"}
+                      </Button>
+
                       {!fullySettled && (
                         <Button
                           size="sm"
@@ -210,11 +229,22 @@ function MyTasksPage() {
                       )}
                     </div>
                   </div>
-                  <TaskThread requestId={r.id} currentUserId={user.id} />
-                  {(takerDone || fullySettled) && r.takenBy && (
+
+                  {/* TOGGLED TASKTHREAD ELEMENT */}
+                  {isChatOpen && (
+                    <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                      <TaskThread 
+                        requestId={id} 
+                        currentUserId={user.id} 
+                        requestOwnerId={userId} 
+                      />
+                    </div>
+                  )}
+
+                  {(takerDone || fullySettled) && takenBy && (
                     <PaymentQRUpload
-                      requestId={r.id}
-                      takerId={r.takenBy}
+                      requestId={id}
+                      takerId={takenBy}
                       currentUserId={user.id}
                     />
                   )}
