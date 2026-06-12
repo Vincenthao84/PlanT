@@ -94,6 +94,13 @@ function MyRequestsPage() {
   }
 
   const handleDelete = async (id: string) => {
+    // Locate request object locally to verify assign status before firing query
+    const targetReq = requests?.find((r) => r.id === id);
+    if (targetReq?.takenBy) {
+      toast.error("This request has been won by a bidder and cannot be deleted.");
+      return;
+    }
+
     if (!confirm("Delete this request?")) return;
     try {
       await deleteRequest(id);
@@ -189,6 +196,7 @@ function MyRequestsPage() {
               const fullySettled = isDone && takerDone;
               const canMarkDone = takerDone || !r.takenBy;
               const isChatOpen = activeChatRequestId === r.id;
+              const isAssigned = !!r.takenBy; // Flagged when won by bidder
 
               return (
                 <Card
@@ -201,10 +209,15 @@ function MyRequestsPage() {
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Badge variant="secondary" className="rounded-full text-xs">
                           {t?.label ?? "Request"}
                         </Badge>
+                        {isAssigned && !isDone && (
+                          <Badge variant="amber" className="rounded-full text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                            Assigned / Won
+                          </Badge>
+                        )}
                         {isDone && (
                           <Badge className="rounded-full text-xs gap-1">
                             <CheckCircle2 className="h-3 w-3" /> Done
@@ -255,7 +268,7 @@ function MyRequestsPage() {
                         <Link to="/request/$id" params={{ id: r.id }}>View</Link>
                       </Button>
 
-                      {r.takenBy && (
+                      {isAssigned && (
                         <Button
                           size="sm"
                           variant={isChatOpen ? "secondary" : "outline"}
@@ -267,7 +280,7 @@ function MyRequestsPage() {
                         </Button>
                       )}
 
-                      {!r.takenBy && !isDone && (
+                      {!isAssigned && !isDone && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -297,7 +310,9 @@ function MyRequestsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="rounded-full text-destructive hover:text-destructive"
+                        className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                        title={isAssigned ? "Assigned tasks cannot be deleted" : "Delete Request"}
+                        disabled={isAssigned}
                         onClick={() => handleDelete(r.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -310,6 +325,7 @@ function MyRequestsPage() {
                       <TaskThread
                         requestId={r.id}
                         currentUserId={user.id}
+                        requestOwnerId={r.userId}
                         requestOwnerId={r.userId}
                       />
                     </div>
