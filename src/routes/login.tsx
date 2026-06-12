@@ -155,7 +155,7 @@ function LoginPage() {
           </div>
 
           <div className="mb-6 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs leading-relaxed text-foreground/80">
-            The Platform is now <span className="font-semibold">free to try for 1 month</span>. The owner of this Platform reserves all rights to charge a <span className="font-semibold">Subscription Fee of US$3</span> for usage of 3 months onwards. Each free user can post up to <span className="font-semibold">20 requests</span> and take <span className="font-semibold">15 orders</span> per month only.
+            The Platform is now <span className="font-semibold">free to try for 6 month</span>. The owner of this Platform reserves all rights to charge a <span className="font-semibold">Subscription Fee of US$3</span> for usage of 3 months onwards. Each free user can post up to <span className="font-semibold">20 requests</span> and take <span className="font-semibold">15 orders</span> per month only.
           </div>
 
           <Button
