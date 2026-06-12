@@ -6,19 +6,19 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Gift, Clock, Inbox, CheckCircle2, Handshake, List, Map as MapIcon, User, Layers } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-
-const RequestsMap = lazy(() =>
-  import("@/components/RequestsMap").then((m) => ({ default: m.RequestsMap })),
-);
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
+import { BidDialog } from "@/components/BidDialog";
 import {
   getRequestType,
   fetchAllRequests,
   fetchProfilesByIds,
   type StoredRequest,
 } from "@/lib/request-types";
-import { useAuth } from "@/hooks/use-auth";
-import { toast } from "sonner";
-import { BidDialog } from "@/components/BidDialog";
+
+const RequestsMap = lazy(() =>
+  import("@/components/RequestsMap").then((m) => ({ default: m.RequestsMap })),
+);
 
 export const Route = createFileRoute("/notice-board")({
   head: () => ({
@@ -58,11 +58,9 @@ function NoticeBoardPage() {
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [profiles, setProfiles] = useState<Record<string, { displayName: string | null; avatarUrl: string | null }>>({});
-
-  // State to hold user's geoposition
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-
   const [isLargeScreen, setIsLargeScreen] = useState(false);
+
   useEffect(() => {
     const checkScreen = () => setIsLargeScreen(window.innerWidth >= 1024);
     checkScreen();
@@ -83,7 +81,6 @@ function NoticeBoardPage() {
   useEffect(() => {
     let cancelled = false;
     
-    // 1. Get the user's location coordinates
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -100,14 +97,14 @@ function NoticeBoardPage() {
       );
     }
 
-    // 2. Fetch requests from database
     fetchAllRequests()
       .then(async (rs) => {
         if (!cancelled) setRequests(rs);
         const map = await fetchProfilesByIds(rs.map((r) => r.userId)).catch(() => ({}));
         if (!cancelled) setProfiles(map);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Failed to collect request assets:", err);
         if (!cancelled) setRequests([]);
       });
 
@@ -122,8 +119,6 @@ function NoticeBoardPage() {
 
     let result = [...requests];
 
-    // ONLY apply the dynamic ±1.0 degree bounding box restriction if the user is in "list" or "map" view.
-    // If the viewMode is set to "all", we skip the coordinate checks entirely!
     if (viewMode !== "all") {
       result = result.filter((r: any) => {
         let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
@@ -138,7 +133,6 @@ function NoticeBoardPage() {
         return latDiff <= 1.0 && lngDiff <= 1.0;
       });
     } else {
-      // For "List All", filter out corrupted coordinate structures, but bypass location limits completely.
       result = result.filter((r: any) => {
         let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
         let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
@@ -146,7 +140,6 @@ function NoticeBoardPage() {
       });
     }
 
-    // Execute sorting patterns
     if (sortMode === "reward") {
       return result.sort((a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward));
     }
@@ -196,7 +189,6 @@ function NoticeBoardPage() {
               )}
             </div>
             
-            {/* Added min-w-0 to guarantee content expands inside flex context correctly */}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <Badge variant="secondary" className="rounded-full text-xs">
@@ -213,7 +205,6 @@ function NoticeBoardPage() {
                 </span>
               </div>
               
-              {/* FIXED: Removed 'truncate', added 'break-words', 'whitespace-normal', and responsive 'line-clamp' */}
               <h3 className="font-semibold leading-tight text-base md:text-lg break-words whitespace-normal line-clamp-2 md:line-clamp-none">
                 {r.title}
               </h3>
@@ -324,8 +315,6 @@ function NoticeBoardPage() {
                 Showing {filteredAndSortedRequests.length} {viewMode === "all" ? "global" : "nearby"} request{filteredAndSortedRequests.length === 1 ? "" : "s"}
               </span>
               <div className="flex items-center gap-2 flex-wrap">
-                
-                {/* Updated Toggle Group for view transitions */}
                 <ToggleGroup
                   type="single"
                   size="sm"
@@ -362,9 +351,7 @@ function NoticeBoardPage() {
               </div>
             </div>
 
-            {/* View Switching Layout Modes */}
             {viewMode === "all" ? (
-              // Clean, dedicated full-width feed container for the global "List All" requirement
               <div className="space-y-3 max-w-4xl">
                 {filteredAndSortedRequests.map((r, idx) => renderRequestCard(r, idx))}
               </div>
