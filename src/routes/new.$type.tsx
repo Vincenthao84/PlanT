@@ -13,6 +13,18 @@ import { getRequestType, createRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
+// Static helper declared at the top so it is safely hoisted during the build phase
+function exampleTitle(slug: string): string {
+  switch (slug) {
+    case "snap": return "Photo of the queue at Café Loustic right now";
+    case "knowledge": return "What's the neighborhood like at night?";
+    case "action": return "Save me a seat at the 7pm screening";
+    case "object": return "Pick up a package from the post office";
+    case "rental": return "Rent a parking spot for Saturday";
+    default: return "Describe what you need help with";
+  }
+}
+
 export const Route = createFileRoute("/new/$type")({
   head: ({ params }) => {
     const t = getRequestType(params.type);
@@ -274,15 +286,4 @@ function NewRequestPage() {
       <SiteFooter />
     </div>
   );
-}
-
-function exampleTitle(slug: string): string {
-  switch (slug) {
-    case "snap": return "Photo of the queue at Café Loustic right now";
-    case "knowledge": return "What's the neighborhood like at night?";
-    case "action": return "Save me a seat at the 7pm screening";
-    case "object": return "Pick up a package from the post office";
-    case "rental": return "Rent a parking spot for Saturday";
-    default: return "Describe what you need help with";
-  }
 }
