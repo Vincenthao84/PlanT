@@ -312,11 +312,8 @@ function RequestPage() {
                                   onClick={async () => {
                                     setActingBidId(b.id);
                                     try {
-                                      // FIXED: Passing payload params inside an object container structure
-                                      await acceptBid({
-                                        bidId: b.id,
-                                        requestId: id
-                                      });
+                                      // Correctly passing the clean flat string parameter
+                                      await acceptBid(b.id);
                                       toast.success("Bid accepted — helper assigned.");
                                       const updated = await fetchRequest(id);
                                       setRequest(updated);
