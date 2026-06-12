@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-/
+
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [{ title: "Reset Password — PLAN T" }],
