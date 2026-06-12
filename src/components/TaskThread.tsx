@@ -30,18 +30,34 @@ function timeAgo(iso: string): string {
 export function TaskThread({
   requestId,
   currentUserId,
+  requestOwnerId, // Added requestOwnerId prop to check if current user is requestor
 }: {
   requestId: string;
   currentUserId: string;
+  requestOwnerId?: string; 
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref for automatic scrolling
+
+  // Automatically scrolls the frame to show new incoming chat messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (messages) {
+      scrollToBottom();
+    }
+  }, [messages]);
 
   useEffect(() => {
     let cancelled = false;
+    
+    // Initial data fetch
     supabase
       .from("request_messages")
       .select("*")
@@ -56,6 +72,7 @@ export function TaskThread({
         setMessages((data ?? []) as Message[]);
       });
 
+    // Realtime channel setup
     const channel = supabase
       .channel(`messages-${requestId}`)
       .on(
@@ -67,16 +84,21 @@ export function TaskThread({
           filter: `request_id=eq.${requestId}`,
         },
         (payload) => {
-          setMessages((prev) =>
-            prev ? [...prev, payload.new as Message] : [payload.new as Message],
-          );
+          const newMessage = payload.new as Message;
+          
+          setMessages((prev) => {
+            if (!prev) return [newMessage];
+            // Prevent duplicate message inclusions if local thread updates fast
+            if (prev.some((m) => m.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
         },
       )
       .subscribe();
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [requestId]);
 
@@ -134,10 +156,15 @@ export function TaskThread({
     }
   };
 
+  // Determine user identity role to customize context strings
+  const isRequestor = requestOwnerId ? currentUserId === requestOwnerId : false;
+  const inputPlaceholder = isRequestor ? "Reply to the helper…" : "Reply to the requester…";
+
   return (
     <div className="mt-4 pt-4 border-t border-border/60">
       <h3 className="text-sm font-semibold mb-3">Conversation</h3>
 
+      {/* Main message track */}
       <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
         {messages === null ? (
           <p className="text-xs text-muted-foreground">Loading…</p>
@@ -156,12 +183,12 @@ export function TaskThread({
                 <div
                   className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
                     mine
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
+                      ? "bg-primary text-primary-foreground rounded-tr-none"
+                      : "bg-muted text-foreground rounded-tl-none"
                   }`}
                 >
                   {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
-                  {m.photo_urls.length > 0 && (
+                  {m.photo_urls && m.photo_urls.length > 0 && (
                     <div
                       className={`mt-2 grid gap-1 ${
                         m.photo_urls.length === 1 ? "grid-cols-1" : "grid-cols-2"
@@ -173,7 +200,7 @@ export function TaskThread({
                           href={url}
                           target="_blank"
                           rel="noreferrer"
-                          className="block"
+                          className="block hover:opacity-90 transition-opacity"
                         >
                           <img
                             src={url}
@@ -186,7 +213,7 @@ export function TaskThread({
                     </div>
                   )}
                   <p
-                    className={`mt-1 text-[10px] ${
+                    className={`mt-1 text-[10px] text-right ${
                       mine ? "text-primary-foreground/70" : "text-muted-foreground"
                     }`}
                   >
@@ -197,8 +224,11 @@ export function TaskThread({
             );
           })
         )}
+        {/* Scroll anchor target */}
+        <div ref={messagesEndRef} />
       </div>
 
+      {/* Image Upload Previews */}
       {files.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {files.map((f, i) => (
@@ -214,7 +244,7 @@ export function TaskThread({
               <button
                 type="button"
                 onClick={() => removeFile(i)}
-                className="absolute top-0.5 right-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background/90 text-foreground shadow"
+                className="absolute top-0.5 right-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background/90 text-foreground shadow hover:bg-background"
                 aria-label="Remove photo"
               >
                 <X className="h-3 w-3" />
@@ -224,14 +254,22 @@ export function TaskThread({
         </div>
       )}
 
+      {/* Chat input action bar */}
       <div className="mt-3 flex items-end gap-2">
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Reply to the requester…"
+          placeholder={inputPlaceholder}
           rows={2}
-          className="resize-none"
+          className="resize-none rounded-xl"
           disabled={sending}
+          onKeyDown={(e) => {
+            // CMD/CTRL + Enter allows quick keyboard message submission
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void send();
+            }
+          }}
         />
         <input
           ref={fileInputRef}
@@ -246,7 +284,7 @@ export function TaskThread({
             type="button"
             variant="outline"
             size="icon"
-            className="rounded-full"
+            className="rounded-full shrink-0"
             onClick={() => fileInputRef.current?.click()}
             disabled={sending || files.length >= MAX_PHOTOS}
             aria-label="Attach photo"
@@ -256,7 +294,7 @@ export function TaskThread({
           <Button
             type="button"
             size="icon"
-            className="rounded-full"
+            className="rounded-full shrink-0"
             onClick={send}
             disabled={sending}
             aria-label="Send message"
