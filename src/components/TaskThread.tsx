@@ -30,7 +30,7 @@ function timeAgo(iso: string): string {
 export function TaskThread({
   requestId,
   currentUserId,
-  requestOwnerId, // Added requestOwnerId prop to check if current user is requestor
+  requestOwnerId, // Pass the request's creator ID to handle two-way chat roles
 }: {
   requestId: string;
   currentUserId: string;
@@ -41,9 +41,9 @@ export function TaskThread({
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref for automatic scrolling
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Anchor for auto-scrolling
 
-  // Automatically scrolls the frame to show new incoming chat messages
+  // Smooth scroll to display new messages instantly
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -57,7 +57,7 @@ export function TaskThread({
   useEffect(() => {
     let cancelled = false;
     
-    // Initial data fetch
+    // Fetch historical messages on component mount
     supabase
       .from("request_messages")
       .select("*")
@@ -72,7 +72,7 @@ export function TaskThread({
         setMessages((data ?? []) as Message[]);
       });
 
-    // Realtime channel setup
+    // FIXED REALTIME: Listens directly to inserts on your active request_messages table
     const channel = supabase
       .channel(`messages-${requestId}`)
       .on(
@@ -80,7 +80,7 @@ export function TaskThread({
         {
           event: "INSERT",
           schema: "public",
-          table: "request_messages",
+          table: "request_messages", // Correctly binds to your dedicated table matching image_871ed9.png
           filter: `request_id=eq.${requestId}`,
         },
         (payload) => {
@@ -88,7 +88,7 @@ export function TaskThread({
           
           setMessages((prev) => {
             if (!prev) return [newMessage];
-            // Prevent duplicate message inclusions if local thread updates fast
+            // Prevents double-rendering items that were updated locally
             if (prev.some((m) => m.id === newMessage.id)) return prev;
             return [...prev, newMessage];
           });
@@ -156,7 +156,7 @@ export function TaskThread({
     }
   };
 
-  // Determine user identity role to customize context strings
+  // TWO-WAY CHAT LABELS: Automatically changes placeholder based on who is logged in
   const isRequestor = requestOwnerId ? currentUserId === requestOwnerId : false;
   const inputPlaceholder = isRequestor ? "Reply to the helper…" : "Reply to the requester…";
 
@@ -164,7 +164,6 @@ export function TaskThread({
     <div className="mt-4 pt-4 border-t border-border/60">
       <h3 className="text-sm font-semibold mb-3">Conversation</h3>
 
-      {/* Main message track */}
       <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
         {messages === null ? (
           <p className="text-xs text-muted-foreground">Loading…</p>
@@ -183,8 +182,8 @@ export function TaskThread({
                 <div
                   className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
                     mine
-                      ? "bg-primary text-primary-foreground rounded-tr-none"
-                      : "bg-muted text-foreground rounded-tl-none"
+                      ? "bg-primary text-primary-foreground rounded-tr-none" // Your message on the right
+                      : "bg-muted text-foreground rounded-tl-none" // Their message on the left
                   }`}
                 >
                   {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
@@ -224,11 +223,9 @@ export function TaskThread({
             );
           })
         )}
-        {/* Scroll anchor target */}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Image Upload Previews */}
       {files.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {files.map((f, i) => (
@@ -254,7 +251,6 @@ export function TaskThread({
         </div>
       )}
 
-      {/* Chat input action bar */}
       <div className="mt-3 flex items-end gap-2">
         <Textarea
           value={body}
@@ -264,7 +260,6 @@ export function TaskThread({
           className="resize-none rounded-xl"
           disabled={sending}
           onKeyDown={(e) => {
-            // CMD/CTRL + Enter allows quick keyboard message submission
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               void send();
