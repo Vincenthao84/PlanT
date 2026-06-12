@@ -22,7 +22,6 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { BidDialog } from "@/components/BidDialog";
-import { supabase } from "@/integrations/supabase/client";
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -313,19 +312,8 @@ function RequestPage() {
                                   onClick={async () => {
                                     setActingBidId(b.id);
                                     try {
-                                      // 1. Mark the request bid status to 'accepted'
+                                      // Call the privileged RPC function to complete the acceptance cycle.
                                       await acceptBid(b.id);
-
-                                      // 2. Safely assign the helper ID to the request item manually
-                                      const { error: assignError } = await supabase
-                                        .from("requests")
-                                        .update({
-                                          taken_by: b.helperId,
-                                          taken_at: new Date().toISOString(),
-                                        })
-                                        .eq("id", id);
-
-                                      if (assignError) throw assignError;
 
                                       toast.success("Bid accepted — helper assigned.");
                                       
