@@ -40,20 +40,21 @@ function timeAgo(ts: number): string {
 function MyTasksPage() {
   const { user, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<StoredRequest[] | null>(null);
-  
-  // Tracks which task has its message board active/toggled open
   const [activeChatTaskId, setActiveChatTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+
     fetchMyTasks(user.id)
       .then((rs) => {
         if (!cancelled) setTasks(rs);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Error fetching tasks for view:", err);
         if (!cancelled) setTasks([]);
       });
+
     return () => {
       cancelled = true;
     };
@@ -198,7 +199,6 @@ function MyTasksPage() {
                         <Link to="/request/$id" params={{ id }}>View</Link>
                       </Button>
 
-                      {/* CHAT TOGGLE BUTTON */}
                       <Button
                         size="sm"
                         variant={isChatOpen ? "secondary" : "outline"}
@@ -230,7 +230,6 @@ function MyTasksPage() {
                     </div>
                   </div>
 
-                  {/* TOGGLED TASKTHREAD ELEMENT */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
                       <TaskThread 
