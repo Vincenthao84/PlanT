@@ -162,7 +162,7 @@ function SettlementPage() {
                 onClick={handlePay}
               >
                 <CreditCard className="h-4 w-4" />
-                {paying ? "Processing…" : isRequester ? "Pay now" : "Awaiting requester"}
+                {paying ? "Processing…" : isRequester ? "Pay now (outside this app ased on info & method provided in dialog. In-app pay function will be developed soon)" : "Awaiting requester"}
               </Button>
             )}
           </div>
