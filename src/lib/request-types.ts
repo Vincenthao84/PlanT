@@ -229,9 +229,12 @@ export async function withdrawBid(bidId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function acceptBid(bidId: string): Promise<void> {
-  const { error } = await supabase.rpc("accept_request_bid", { _bid_id: bidId });
+export async function acceptBid(bidId: string): Promise<any> {
+  const { data, error } = await supabase.rpc("accept_request_bid", { 
+    _bid_id: bidId 
+  });
   if (error) throw error;
+  return data;
 }
 
 export async function fetchMyRequests(userId: string): Promise<StoredRequest[]> {
