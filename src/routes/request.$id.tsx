@@ -63,6 +63,15 @@ function RequestPage() {
   const [requestorName, setRequestorName] = useState<string | null>(null);
   const [actingBidId, setActingBidId] = useState<string | null>(null);
 
+  const reloadBids = async () => {
+    try {
+      const list = await listRequestBids(id);
+      setBids(list);
+    } catch {
+      setBids([]);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     fetchRequest(id)
@@ -82,15 +91,6 @@ function RequestPage() {
       cancelled = true;
     };
   }, [id]);
-
-  const reloadBids = async () => {
-    try {
-      const list = await listRequestBids(id);
-      setBids(list);
-    } catch {
-      setBids([]);
-    }
-  };
 
   useEffect(() => {
     if (!user || !request) return;
@@ -132,15 +132,6 @@ function RequestPage() {
   const type = getRequestType(request.type);
   const Icon = type?.icon ?? MapPin;
 
-  // OpenStreetMap embed — no API key required
-  const delta = 0.01;
-  const bbox = [
-    request.lng - delta,
-    request.lat - delta,
-    request.lng + delta,
-    request.lat + delta,
-  ].join("%2C");
-  const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${request.lat}%2C${request.lng}`;
   const fullMapHref = `https://www.openstreetmap.org/?mlat=${request.lat}&mlon=${request.lng}#map=15/${request.lat}/${request.lng}`;
 
   return (
@@ -154,13 +145,9 @@ function RequestPage() {
         <div className="grid lg:grid-cols-[1fr_360px] gap-6">
           {/* Map */}
           <Card className="overflow-hidden p-0" style={{ boxShadow: "var(--shadow-soft)" }}>
-   
-   
-<div className="aspect-[4/3] sm:aspect-[16/10] w-full bg-muted">
-  {request && <RequestsMap requests={[request]} />}
-</div>
-
-
+            <div className="aspect-[4/3] sm:aspect-[16/10] w-full bg-muted">
+              {request && <RequestsMap requests={[request]} />}
+            </div>
             <div className="px-5 py-3 flex items-center justify-between text-sm">
               <span className="inline-flex items-center gap-2 text-muted-foreground">
                 <MapPin className="h-4 w-4 text-accent" />
@@ -325,7 +312,11 @@ function RequestPage() {
                                   onClick={async () => {
                                     setActingBidId(b.id);
                                     try {
-                                      await acceptBid(b.id);
+                                      // FIXED: Passing payload params inside an object container structure
+                                      await acceptBid({
+                                        bidId: b.id,
+                                        requestId: id
+                                      });
                                       toast.success("Bid accepted — helper assigned.");
                                       const updated = await fetchRequest(id);
                                       setRequest(updated);
