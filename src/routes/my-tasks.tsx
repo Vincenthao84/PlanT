@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, BadgeCheck, MessageSquare } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, BadgeCheck, MessageSquare, AlertCircle } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -124,7 +124,7 @@ function MyTasksPage() {
             </Button>
           </Card>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {tasks.map((r) => {
               const t = getRequestType(r.type);
               const Icon = t?.icon ?? MapPin;
@@ -141,7 +141,7 @@ function MyTasksPage() {
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <Badge variant="secondary" className="rounded-full text-xs">
                           {t?.label ?? "Request"}
                         </Badge>
@@ -149,17 +149,17 @@ function MyTasksPage() {
                           <ClipboardList className="h-3 w-3" /> Taken
                         </Badge>
                         {takerDone && !fullySettled && (
-                          <Badge variant="outline" className="rounded-full text-xs gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> Awaiting requester
+                          <Badge variant="outline" className="rounded-full text-xs gap-1 bg-amber-500/5 text-amber-600 border-amber-500/20 dark:text-amber-400">
+                            <Clock className="h-3 w-3" /> Awaiting requester
                           </Badge>
                         )}
                         {fullySettled && (
-                          <Badge variant="outline" className="rounded-full text-xs gap-1">
+                          <Badge variant="outline" className="rounded-full text-xs gap-1 bg-emerald-500/5 text-emerald-600 border-emerald-500/20 dark:text-emerald-400">
                             <CheckCircle2 className="h-3 w-3" /> Done
                           </Badge>
                         )}
                         {feeSettledAt && (
-                          <Badge className="rounded-full text-xs gap-1">
+                          <Badge className="rounded-full text-xs gap-1 bg-primary text-primary-foreground">
                             <BadgeCheck className="h-3 w-3" /> Fee Settlement Done
                           </Badge>
                         )}
@@ -172,7 +172,7 @@ function MyTasksPage() {
                       <Link
                         to="/request/$id"
                         params={{ id }}
-                        className={`font-semibold leading-tight hover:underline block truncate ${fullySettled ? "line-through text-muted-foreground" : ""}`}
+                        className={`font-semibold text-lg leading-tight hover:underline block truncate ${fullySettled ? "line-through text-muted-foreground" : ""}`}
                       >
                         {title}
                       </Link>
@@ -194,7 +194,7 @@ function MyTasksPage() {
                         )}
                       </div>
                     </div>
-                    <div className="shrink-0 flex flex-col gap-2">
+                    <div className="shrink-0 flex flex-col gap-2 justify-start">
                       <Button asChild size="sm" variant="outline" className="rounded-full">
                         <Link to="/request/$id" params={{ id }}>View</Link>
                       </Button>
@@ -213,16 +213,16 @@ function MyTasksPage() {
                         <Button
                           size="sm"
                           variant={takerDone ? "outline" : "default"}
-                          className="rounded-full"
-                          onClick={() => handleToggleComplete(r)}
+                          className="rounded-full gap-1"
+                          onClick={() => void handleToggleComplete(r)}
                         >
                           {takerDone ? (
                             <>
-                              <RotateCcw className="h-4 w-4" /> Reopen
+                              <RotateCcw className="h-3 w-3" /> Reopen Task
                             </>
                           ) : (
                             <>
-                              <Check className="h-4 w-4" /> Complete Order
+                              <Check className="h-3 w-3" /> Complete Order
                             </>
                           )}
                         </Button>
@@ -230,6 +230,7 @@ function MyTasksPage() {
                     </div>
                   </div>
 
+                  {/* Realtime Chat Thread Container */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
                       <TaskThread 
@@ -240,12 +241,19 @@ function MyTasksPage() {
                     </div>
                   )}
 
+                  {/* Payment Settlement Container */}
                   {(takerDone || fullySettled) && takenBy && (
-                    <PaymentQRUpload
-                      requestId={id}
-                      takerId={takenBy}
-                      currentUserId={user.id}
-                    />
+                    <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                      <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5 bg-muted/50 p-2.5 rounded-lg">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>Upload your receipt or payment payout QR code here to finalize settlement details with the requester.</span>
+                      </p>
+                      <PaymentQRUpload
+                        requestId={id}
+                        takerId={takenBy}
+                        currentUserId={user.id}
+                      />
+                    </div>
                   )}
                 </Card>
               );
