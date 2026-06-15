@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin, Clock, Gift, CheckCircle2, XCircle, User } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Gift, CheckCircle2, XCircle, User, X } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import {
   getRequestType,
@@ -62,6 +62,7 @@ function RequestPage() {
   const [bids, setBids] = useState<RequestBid[] | null>(null);
   const [requestorName, setRequestorName] = useState<string | null>(null);
   const [actingBidId, setActingBidId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null); // Image light-box preview state
 
   const reloadBids = async () => {
     try {
@@ -178,6 +179,29 @@ function RequestPage() {
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                   {request.description}
                 </p>
+              )}
+
+              {/* Integrated Photo Gallery Component Layout */}
+              {request.images && request.images.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attached Photos</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                    {request.images.map((url, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setSelectedImage(url)}
+                        className="relative h-20 w-20 rounded-md overflow-hidden border bg-muted shrink-0 snap-start hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-accent"
+                      >
+                        <img
+                          src={url}
+                          alt={`Attachment ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
               <div className="mt-5 space-y-2 text-sm">
@@ -368,6 +392,29 @@ function RequestPage() {
         </div>
       </section>
       <SiteFooter />
+
+      {/* Lightbox Modal Backdrop Overlay View */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-3xl w-full max-h-[85vh] flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="absolute -top-12 right-0 p-2 text-muted-foreground hover:text-foreground transition-colors bg-secondary/50 rounded-full"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img
+              src={selectedImage}
+              alt="Enlarged attachment view"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
