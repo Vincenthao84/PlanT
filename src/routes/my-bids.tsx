@@ -7,7 +7,20 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { MapPin, MessageSquare, Clock, Gavel, ExternalLink } from "lucide-react";
+import { 
+  MapPin, 
+  MessageSquare, 
+  Clock, 
+  ExternalLink,
+  // Your exact PlanT setting icons:
+  Camera,
+  Brain,
+  Hand,
+  Package,
+  Key,
+  MoreHorizontal,
+  HelpCircle
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/my-bids")({
@@ -25,7 +38,28 @@ interface BidWithRequestContext {
     title: string;
     location_label: string;
     user_id: string;
+    type?: string; // Captures your task type slug
   };
+}
+
+// 🛠️ Dynamic Icon Helper utilizing your exact requestTypes configurations
+function getCategoryIcon(typeSlug?: string) {
+  switch (typeSlug?.toLowerCase()) {
+    case "snap":
+      return <Camera className="h-5 w-5" />;
+    case "knowledge":
+      return <Brain className="h-5 w-5" />;
+    case "action":
+      return <Hand className="h-5 w-5" />;
+    case "object":
+      return <Package className="h-5 w-5" />;
+    case "rental":
+      return <Key className="h-5 w-5" />;
+    case "anything":
+      return <MoreHorizontal className="h-5 w-5" />;
+    default:
+      return <HelpCircle className="h-5 w-5" />; // Safeguard fallback icon
+  }
 }
 
 function MyBidsPage() {
@@ -39,13 +73,12 @@ function MyBidsPage() {
 
     async function fetchMyPendingBids() {
       try {
-        // Query bids belonging to the user that are still pending/negotiating
         const { data, error } = await supabase
           .from("request_bids")
           .select(`
             id, amount, note, status, created_at,
-            requests:request_id (id, title, location_label, user_id)
-          `)
+            requests:request_id (id, title, location_label, user_id, type)
+          `) // Selecting 'type' to pull the configuration slugs
           .eq("helper_id", user.id)
           .neq("status", "accepted") 
           .order("created_at", { ascending: false });
@@ -99,8 +132,9 @@ function MyBidsPage() {
                 <Card key={b.id} className="p-5 transition-shadow hover:shadow-md">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex gap-3">
-                      <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
-                        <Gavel className="h-5 w-5" />
+                      {/* Standard PlanT dynamic background accent wrapper matching notice boards */}
+                      <div className="h-10 w-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center shrink-0">
+                        {getCategoryIcon(req.type)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -150,14 +184,13 @@ function MyBidsPage() {
                     </div>
                   </div>
 
-                  {/* Private pre-acceptance chat context workspace */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
                       <TaskThread
                         requestId={req.id}
                         currentUserId={user!.id}
                         requestOwnerId={req.user_id}
-                        bidId={b.id} // Strictly binds thread messages to this bidder's proposal context
+                        bidId={b.id}
                       />
                     </div>
                   )}
