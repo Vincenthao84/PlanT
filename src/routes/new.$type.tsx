@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, MapPin, Loader2, EyeOff } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { Switch } from "@/components/ui/switch";
 import { getRequestType, createRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -77,7 +77,7 @@ function NewRequestPage() {
   const { user, loading: authLoading } = useAuth();
 
   if (!authLoading && !user) {
-    navigate({ to: "/login" });
+    void navigate({ to: "/login" });
   }
 
   if (!type) {
@@ -102,9 +102,12 @@ function NewRequestPage() {
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Updated handler to correctly inject reverse-geocoded string labels asynchronously
+  // Handler to inject reverse-geocoded string labels asynchronously via GPS coordinates
   const useMyLocation = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser.");
+      return;
+    }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -135,12 +138,12 @@ function NewRequestPage() {
     let lat = coords?.lat;
     let lng = coords?.lng;
 
-    // Geocode the typed location with the free OpenStreetMap Nominatim service if coords weren't pinned via GPS
+    // Forward geocode typed input string via OpenStreetMap Nominatim if coords weren't already pinned via GPS
     if ((lat === undefined || lng === undefined) && locationLabel.trim()) {
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(locationLabel)}`,
-          { headers: { "Accept-Language": "en" } },
+          { headers: { "Accept-Language": "en", "User-Agent": "PlanT-Notice-Board-App" } },
         );
         const data = (await res.json()) as Array<{ lat: string; lon: string }>;
         if (data[0]) {
@@ -152,7 +155,7 @@ function NewRequestPage() {
       }
     }
 
-    // Final fallback: city-center default so the map always renders
+    // Default structural backup (Paris Coordinates center point) to ensure maps render seamlessly
     if (lat === undefined || lng === undefined) {
       lat = 48.8566;
       lng = 2.3522;
@@ -169,7 +172,8 @@ function NewRequestPage() {
         reward: reward.trim(),
         isSecret,
       });
-      navigate({ to: "/request/$id", params: { id: created.id } });
+      
+      void navigate({ to: "/request/$id", params: { id: created.id } });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not post request";
       toast.error(msg);
@@ -246,7 +250,7 @@ function NewRequestPage() {
                   Please type in the exact address including name of the street, district and country/region.
                 </p>
                 {coords && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground font-mono">
                     Pinned at {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
                   </p>
                 )}
@@ -264,8 +268,8 @@ function NewRequestPage() {
 
             <div className="flex items-start justify-between gap-4 rounded-xl border p-4">
               <div className="space-y-1">
-                <Label htmlFor="secret" className="flex items-center gap-2">
-                  <EyeOff className="h-4 w-4" /> Secret Request
+                <Label htmlFor="secret" className="flex items-center gap-2 cursor-pointer">
+                  <EyeOff className="h-4 w-4 text-muted-foreground" /> Secret Request
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   Hide your username on the notice board. Helpers will see "Secret Request" instead.
