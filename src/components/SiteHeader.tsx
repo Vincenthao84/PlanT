@@ -8,7 +8,7 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import { Sparkles, LogOut, Menu, User } from "lucide-react"; // Added User icon for visual style
+import { Sparkles, LogOut, Menu, User } from "lucide-react"; 
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,9 @@ const publicNav = [
   { to: "/about", label: "About" },
 ] as const;
 
+// Added /my-bids to the authenticated subnavigation layout array
 const authedExtraNav = [
+  { to: "/my-bids", label: "My Bids" },
   { to: "/my-requests", label: "My Requests" },
   { to: "/my-tasks", label: "My Tasks" },
 ] as const;
@@ -74,7 +76,8 @@ export function SiteHeader() {
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
           {navItems.map((n) => {
-            const highlighted = n.to === "/my-requests" || n.to === "/my-tasks";
+            // Updated to catch all three core transactional application layouts
+            const highlighted = n.to === "/my-bids" || n.to === "/my-requests" || n.to === "/my-tasks";
             if (highlighted) {
               return (
                 <Link
@@ -144,7 +147,7 @@ export function SiteHeader() {
               </SheetHeader>
               <div className="flex flex-col gap-1 px-4 py-4">
                 {navItems.map((n) => {
-                  const highlighted = n.to === "/my-requests" || n.to === "/my-tasks";
+                  const highlighted = n.to === "/my-bids" || n.to === "/my-requests" || n.to === "/my-tasks";
                   return (
                     <SheetClose asChild key={n.to}>
                       <Link
@@ -195,53 +198,28 @@ export function SiteHeader() {
   );
 }
 
-
 export function SiteFooter() {
-
   return (
-
     <footer className="border-t border-border py-10">
-
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-
         <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
-
           <img src="/plant-logo.png" alt="PlanT Logo" className="h-6 w-6 rounded-md object-cover" />
-
           PLAN T
-
         </Link>
-
         <div className="text-center md:text-right">
-
           <p>© {new Date().getFullYear()} PLAN T. A platform for offering & asking for help.</p>
-
           <p className="mt-1 text-xs">Copyright and ideas owned by Zero Point One International Company, Hong Kong.</p>
-
           <p className="mt-2 text-xs flex flex-wrap items-center justify-center md:justify-end gap-x-3">
-
             <Link to="/terms" className="font-medium text-primary hover:underline">
-
               Terms and Conditions
-
             </Link>
-
             <span aria-hidden>·</span>
-
             <Link to="/privacy" className="font-medium text-primary hover:underline">
-
               Privacy Policy
-
             </Link>
-
           </p>
-
         </div>
-
       </div>
-
     </footer>
-
   );
-
 }
