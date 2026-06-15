@@ -7,13 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, MapPin, Loader2, EyeOff } from "lucide-react";
+import { ArrowLeft, MapPin, Loader2, EyeOff, Image as ImageIcon, X } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { getRequestType, createRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// Static helper declared at the top so it is safely hoisted during the build phase
 function exampleTitle(slug: string): string {
   switch (slug) {
     case "snap": return "Photo of the queue at Café Loustic right now";
@@ -47,22 +47,15 @@ export const Route = createFileRoute("/new/$type")({
   component: NewRequestPage,
 });
 
-// Clean, free OpenStreetMap reverse-geocoding helper function for the form layer
 async function fetchAddressFromCoords(lat: number, lng: number): Promise<string> {
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-      {
-        headers: {
-          "User-Agent": "PlanT-Notice-Board-App",
-        },
-      }
+      { headers: { "User-Agent": "PlanT-Notice-Board-App" } }
     );
     const data = await response.json();
     const addr = data.address;
     if (!addr) return "Pinned location";
-    
-    // Cascading fallback match rules to catch the finest hyper-local neighborhood name available
     return addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || addr.city || "Pinned location";
   } catch (error) {
     console.error("Failed to reverse geocode inside form container:", error);
@@ -102,7 +95,10 @@ function NewRequestPage() {
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Handler to inject reverse-geocoded string labels asynchronously via GPS coordinates
+  // 📸 Media State Hooks
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+
   const useMyLocation = () => {
     if (!navigator.geolocation) {
       toast.error("Geolocation is not supported by your browser.");
@@ -113,13 +109,9 @@ function NewRequestPage() {
       async (pos) => {
         const currentLat = pos.coords.latitude;
         const currentLng = pos.coords.longitude;
-        
         setCoords({ lat: currentLat, lng: currentLng });
-        
-        // Fetch real geolocation name structure based on exact coordinates map data
         const calculatedAddress = await fetchAddressFromCoords(currentLat, currentLng);
         setLocationLabel(calculatedAddress);
-        
         setLocating(false);
       },
       () => {
@@ -130,6 +122,19 @@ function NewRequestPage() {
     );
   };
 
+  // Handle local UI file select
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setSelectedFiles((prev) => [...prev, ...filesArray]);
+    }
+  };
+
+  // Remove file from local pending queue
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -138,7 +143,6 @@ function NewRequestPage() {
     let lat = coords?.lat;
     let lng = coords?.lng;
 
-    // Forward geocode typed input string via OpenStreetMap Nominatim if coords weren't already pinned via GPS
     if ((lat === undefined || lng === undefined) && locationLabel.trim()) {
       try {
         const res = await fetch(
@@ -151,17 +155,41 @@ function NewRequestPage() {
           lng = parseFloat(data[0].lon);
         }
       } catch {
-        /* ignore — fall back below */
+        /* ignore */
       }
     }
 
-    // Default structural backup (Paris Coordinates center point) to ensure maps render seamlessly
     if (lat === undefined || lng === undefined) {
       lat = 48.8566;
       lng = 2.3522;
     }
 
     try {
+      const uploadedUrls: string[] = [];
+      
+      // 1. Process files upload to storage before creating database entry
+      if (selectedFiles.length > 0) {
+        setUploadingImages(true);
+        for (const file of selectedFiles) {
+          const fileExt = file.name.split('.').pop();
+          const uniquePath = `${user?.id || 'anonymous'}/${crypto.randomUUID()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('request-attachments')
+            .upload(uniquePath, file);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('request-attachments')
+            .getPublicUrl(uniquePath);
+
+          uploadedUrls.push(publicUrl);
+        }
+        setUploadingImages(false);
+      }
+
+      // 2. Submit structural metadata details along with dynamic image URL attachments
       const created = await createRequest({
         type: type.slug,
         title: title.trim(),
@@ -171,13 +199,16 @@ function NewRequestPage() {
         lng,
         reward: reward.trim(),
         isSecret,
+        photoUrls: uploadedUrls, // Maps clean text array into database public.requests table
       });
       
       void navigate({ to: "/request/$id", params: { id: created.id } });
     } catch (err) {
+      console.error(err);
       const msg = err instanceof Error ? err.message : "Could not post request";
       toast.error(msg);
       setSubmitting(false);
+      setUploadingImages(false);
     }
   };
 
@@ -221,6 +252,44 @@ function NewRequestPage() {
                 placeholder="Add any context that will help nearby helpers fulfill the request."
                 rows={4}
               />
+            </div>
+
+            {/* 📸 NEW ATTACH MEDIA SECTION */}
+            <div className="space-y-2">
+              <Label>Attach Photos Reference (Optional)</Label>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed rounded-xl cursor-pointer hover:bg-muted/50 transition-colors border-border/80">
+                  <div className="flex flex-col items-center justify-center pt-3 text-muted-foreground">
+                    <ImageIcon className="h-5 w-5 mb-1" />
+                    <span className="text-[11px] font-medium">Add Photo</span>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    multiple 
+                    className="hidden" 
+                    onChange={handleFileChange} 
+                  />
+                </label>
+
+                {/* Local Preview thumbnails */}
+                {selectedFiles.map((file, idx) => (
+                  <div key={idx} className="relative w-28 h-24 rounded-xl overflow-hidden border bg-muted group">
+                    <img 
+                      src={URL.createObjectURL(file)} 
+                      alt="preview" 
+                      className="object-cover w-full h-full"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSelectedFile(idx)}
+                      className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </key>
+                ))}
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-5">
@@ -279,9 +348,9 @@ function NewRequestPage() {
             </div>
 
             <div className="flex justify-end pt-2">
-              <Button type="submit" size="lg" className="rounded-full" disabled={submitting}>
-                {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                Post request & view on map
+              <Button type="submit" size="lg" className="rounded-full" disabled={submitting || uploadingImages}>
+                {(submitting || uploadingImages) ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {uploadingImages ? "Uploading Media..." : "Post request & view on map"}
               </Button>
             </div>
           </form>
