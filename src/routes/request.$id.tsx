@@ -36,18 +36,40 @@ function RequestDetailPage() {
     async function fetchRequestDetails() {
       try {
         const { data, error } = await supabase
-          .from("help_requests") // Matches your master data table schema
+          .from("requests") // Verified accurate table hook targeting matching database schema
           .select("*")
           .eq("id", id)
           .single();
 
         if (error) throw error;
-        if (!cancelled) {
-          setRequest(data as StoredRequest);
+        
+        if (!cancelled && data) {
+          // Explicitly map snake_case postgres properties safely into camelCase properties for components
+          const mappedRequest: StoredRequest = {
+            id: data.id,
+            type: data.type,
+            title: data.title,
+            description: data.description,
+            locationLabel: data.location_label || data.locationLabel || "Pinned location",
+            lat: data.lat,
+            lng: data.lng,
+            reward: data.reward,
+            isSecret: data.is_secret || data.isSecret || false,
+            userId: data.user_id || data.userId,
+            takenBy: data.taken_by || data.takenBy,
+            takenAt: data.taken_at || data.takenAt,
+            takerCompletedAt: data.taker_completed_at || data.takerCompletedAt,
+            completedAt: data.completed_at || data.completedAt,
+            feeSettledAt: data.fee_settled_at || data.feeSettledAt,
+            photoUrls: data.photo_urls || data.photoUrls || [],
+            paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
+          };
+          
+          setRequest(mappedRequest);
         }
       } catch (err) {
         console.error("Error pulling down request asset details:", err);
-        toast.error("Could not load request options");
+        toast.error("Could not load request details");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -55,14 +77,15 @@ function RequestDetailPage() {
 
     void fetchRequestDetails();
 
-    // Setup real-time pipeline listeners so if pictures are appended anywhere, the page auto-syncs
+    // Active real-time updates piping logic
     const channel = supabase
       .channel(`request-detail-${id}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "help_requests", filter: `id=eq.${id}` },
-        (payload) => {
-          if (!cancelled) setRequest(payload.new as StoredRequest);
+        { event: "UPDATE", schema: "public", table: "requests", filter: `id=eq.${id}` },
+        () => {
+          // Re-fetch clean dataset state if an unexpected database update executes
+          void fetchRequestDetails();
         }
       )
       .subscribe();
@@ -85,7 +108,7 @@ function RequestDetailPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
         <p className="text-muted-foreground mb-4">Request record not found or has been archived.</p>
-        <Button asChild rounded-full variant="outline">
+        <Button asChild className="rounded-full" variant="outline">
           <Link to="/">Back Home</Link>
         </Button>
       </div>
@@ -94,8 +117,6 @@ function RequestDetailPage() {
 
   const t = getRequestType(request.type);
   const Icon = t?.icon ?? MapPin;
-  
-  // Checking arrays safely to avoid runtime map errors with empty rows
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
 
   return (
@@ -104,7 +125,7 @@ function RequestDetailPage() {
       <section className="max-w-3xl mx-auto px-6 py-12">
         <button
           onClick={() => void navigate({ to: ".." })}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer bg-transparent border-none"
         >
           <ArrowLeft className="h-4 w-4" /> Back to listings
         </button>
@@ -147,17 +168,17 @@ function RequestDetailPage() {
           {/* 🖼️ IMAGE ATTACHMENTS GALLERY LAYER */}
           {hasPhotos && (
             <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <ImageIcon className="h-3.5 w-3.5" /> Attached Media ({request.photoUrls?.length})
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1+">
+                <ImageIcon className="h-3.5 w-3.5" /> Attached Media ({request.photoUrls.length})
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {request.photoUrls?.map((url, i) => (
+                {request.photoUrls.map((url, i) => (
                   <a
-                    key={url + i}
+                    key={`${url}-${i}`}
                     href={url}
                     target="_blank"
                     rel="noreferrer"
-                    className="group relative block aspect-video rounded-xl overflow-hidden border border-border bg-muted hover:opacity-95 transition-all shadow-sm"
+                    className="group relative block aspect-video rounded-xl overflow-hidden border border-border bg-muted hover:opacity-95 transition-all shadow-sm cursor-pointer"
                   >
                     <img
                       src={url}
@@ -182,7 +203,7 @@ function RequestDetailPage() {
             </span>
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              Posted {new Date(request.createdAt).toLocaleDateString()}
+              Posted {request.takenAt ? new Date(request.takenAt).toLocaleDateString() : "Recently"}
             </span>
           </div>
 
@@ -195,10 +216,10 @@ function RequestDetailPage() {
                 requestOwnerId={request.userId}
               />
               
-              {/* Payment view hooks rendering exclusively for active parties once processing finishes */}
+              {/* Payment view hooks rendering exclusively for active parties once completion processing kicks off */}
               {(!!request.takerCompletedAt || !!request.completedAt) && request.takenBy && (
                 <div className="mt-6 pt-6 border-t border-dashed">
-                  <h4 className="text-sm font-semibold mb-2">Settlement & Verification</h4>
+                  <h4 className="text-sm font-semibold mb-3">Settlement & Verification</h4>
                   <PaymentQRUpload
                     requestId={request.id}
                     takerId={request.takenBy}
