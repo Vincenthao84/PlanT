@@ -39,7 +39,7 @@ function MyBidsPage() {
 
     async function fetchMyPendingBids() {
       try {
-        // Pull down all bids placed by user that aren't already won ("accepted")
+        // Query bids belonging to the user that are still pending/negotiating
         const { data, error } = await supabase
           .from("request_bids")
           .select(`
@@ -54,7 +54,7 @@ function MyBidsPage() {
         setBids((data as any) || []);
       } catch (err) {
         console.error("Error loading pending bid rows:", err);
-        toast.error("Could not pull down bid history.");
+        toast.error("Could not load bid negotiation records.");
       } finally {
         setLoading(false);
       }
@@ -77,14 +77,14 @@ function MyBidsPage() {
       <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold tracking-tight mb-2">My Placed Bids</h1>
         <p className="text-muted-foreground text-sm mb-8">
-          Review negotiations, adjust proposals, and chat with Requestors before acceptance.
+          Review negotiations, proposals, and chat with Requestors before acceptance.
         </p>
 
         {bids.length === 0 ? (
           <Card className="p-8 text-center space-y-4 border-dashed">
             <p className="text-muted-foreground text-sm">No active or pending bids found.</p>
             <Button asChild className="rounded-full">
-              <Link to="/">Explore Requests Notice Board</Link>
+              <Link to="/notice-board">Explore Requests Notice Board</Link>
             </Button>
           </Card>
         ) : (
@@ -106,12 +106,12 @@ function MyBidsPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge 
                             variant={b.status === "pending" ? "secondary" : "destructive"} 
-                            className="text-[10px] rounded-full uppercase tracking-wider"
+                            className="text-[10px] rounded-full uppercase tracking-wider px-2 py-0.5"
                           >
                             {b.status}
                           </Badge>
-                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                            Offer: {b.amount}
+                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
+                            Offer: ${b.amount}
                           </span>
                         </div>
                         
@@ -150,14 +150,14 @@ function MyBidsPage() {
                     </div>
                   </div>
 
-                  {/* ISOLATED COMPONENT CONVERSATION LAYER */}
+                  {/* Private pre-acceptance chat context workspace */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
                       <TaskThread
                         requestId={req.id}
                         currentUserId={user!.id}
                         requestOwnerId={req.user_id}
-                        bidId={b.id} // Passing the context block down
+                        bidId={b.id} // Strictly binds thread messages to this bidder's proposal context
                       />
                     </div>
                   )}
