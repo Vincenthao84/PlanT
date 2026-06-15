@@ -40,6 +40,7 @@ export interface StoredRequest {
   takerCompletedAt: number | null;
   feeSettledAt: number | null;
   isSecret: boolean;
+  images: string[]; // Integrated array type configuration
 }
 
 type Row = {
@@ -59,6 +60,7 @@ type Row = {
   taker_completed_at: string | null;
   fee_settled_at: string | null;
   is_secret: boolean;
+  images: string[] | null; // Integrated database mapping definition
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -79,6 +81,7 @@ function rowToRequest(row: Row): StoredRequest {
     takerCompletedAt: row.taker_completed_at ? new Date(row.taker_completed_at).getTime() : null,
     feeSettledAt: row.fee_settled_at ? new Date(row.fee_settled_at).getTime() : null,
     isSecret: row.is_secret ?? false,
+    images: row.images ?? [], // Ensures code can safely map over an empty list fallback
   };
 }
 
@@ -91,6 +94,7 @@ export type NewRequestInput = {
   lng: number;
   reward: string;
   isSecret?: boolean;
+  images?: string[]; // Integrated submission pipeline configuration
 };
 
 export async function createRequest(input: NewRequestInput): Promise<StoredRequest> {
@@ -111,6 +115,7 @@ export async function createRequest(input: NewRequestInput): Promise<StoredReque
       lng: input.lng,
       reward: input.reward,
       is_secret: input.isSecret ?? false,
+      images: input.images ?? [], // Directly pass image arrays down to database row records
     })
     .select()
     .single();
@@ -270,20 +275,28 @@ export type UpdateRequestInput = {
   description: string;
   locationLabel: string;
   reward: string;
+  images?: string[]; // Enable optional update values for editing photos
 };
 
 export async function updateRequest(
   id: string,
   input: UpdateRequestInput,
 ): Promise<StoredRequest> {
+  const updatePayload: Record<string, any> = {
+    title: input.title,
+    description: input.description,
+    location_label: input.locationLabel,
+    reward: input.reward,
+  };
+
+  // Only bind updates to the query record if photos parameter data exists
+  if (input.images !== undefined) {
+    updatePayload.images = input.images;
+  }
+
   const { data, error } = await supabase
     .from("requests")
-    .update({
-      title: input.title,
-      description: input.description,
-      location_label: input.locationLabel,
-      reward: input.reward,
-    })
+    .update(updatePayload)
     .eq("id", id)
     .select()
     .single();
