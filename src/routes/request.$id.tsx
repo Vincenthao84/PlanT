@@ -1,420 +1,222 @@
-import { RequestsMap } from "@/components/RequestsMap";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin, Clock, Gift, CheckCircle2, XCircle, User, X } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import {
-  getRequestType,
-  fetchRequest,
-  deleteRequest,
-  listRequestBids,
-  acceptBid,
-  withdrawBid,
-  fetchProfilesByIds,
-  type StoredRequest,
-  type RequestBid,
-} from "@/lib/request-types";
+import { TaskThread } from "@/components/TaskThread";
+import { PaymentQRUpload } from "@/components/PaymentQRUpload";
+import { getRequestType, type StoredRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
-import { BidDialog } from "@/components/BidDialog";
-
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(ts).toLocaleDateString();
-}
 
 export const Route = createFileRoute("/request/$id")({
-  head: () => ({
+  head: ({ params }) => ({
     meta: [
-      { title: "Your request on the map — PLAN T" },
-      { name: "description", content: "View your posted request and its location on the map." },
+      { title: `Request Details #${params.id.slice(0, 8)} — PLAN T` },
+      { name: "description", content: "View full context, dynamic location information, and image attachments for this request." },
     ],
   }),
-  notFoundComponent: () => (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <p>Request not found.</p>
-        <Link to="/" className="text-primary underline">Post a new request</Link>
-      </div>
-    </div>
-  ),
-  component: RequestPage,
+  component: RequestDetailPage,
 });
 
-function RequestPage() {
+function RequestDetailPage() {
   const { id } = Route.useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [request, setRequest] = useState<StoredRequest | null | undefined>(undefined);
-  const [deleting, setDeleting] = useState(false);
-  const [bids, setBids] = useState<RequestBid[] | null>(null);
-  const [requestorName, setRequestorName] = useState<string | null>(null);
-  const [actingBidId, setActingBidId] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null); // Image light-box preview state
-
-  const reloadBids = async () => {
-    try {
-      const list = await listRequestBids(id);
-      setBids(list);
-    } catch {
-      setBids([]);
-    }
-  };
+  
+  const [request, setRequest] = useState<StoredRequest | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    fetchRequest(id)
-      .then(async (r) => {
-        if (!cancelled) setRequest(r);
-        if (r) {
-          const profiles = await fetchProfilesByIds([r.userId]).catch(
-            () => ({}) as Record<string, { displayName: string | null; avatarUrl: string | null }>,
-          );
-          if (!cancelled) setRequestorName(profiles[r.userId]?.displayName ?? null);
+
+    async function fetchRequestDetails() {
+      try {
+        const { data, error } = await supabase
+          .from("help_requests") // Matches your master data table schema
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) throw error;
+        if (!cancelled) {
+          setRequest(data as StoredRequest);
         }
-      })
-      .catch(() => {
-        if (!cancelled) setRequest(null);
-      });
+      } catch (err) {
+        console.error("Error pulling down request asset details:", err);
+        toast.error("Could not load request options");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void fetchRequestDetails();
+
+    // Setup real-time pipeline listeners so if pictures are appended anywhere, the page auto-syncs
+    const channel = supabase
+      .channel(`request-detail-${id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "help_requests", filter: `id=eq.${id}` },
+        (payload) => {
+          if (!cancelled) setRequest(payload.new as StoredRequest);
+        }
+      )
+      .subscribe();
+
     return () => {
       cancelled = true;
+      void supabase.removeChannel(channel);
     };
   }, [id]);
 
-  useEffect(() => {
-    if (!user || !request) return;
-    void reloadBids();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, request?.id]);
-
-  if (request === undefined) {
+  if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <SiteHeader />
-        <div className="max-w-5xl mx-auto px-6 py-16 text-muted-foreground">Loading…</div>
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
+        Syncing record dependencies…
       </div>
     );
   }
 
-  if (request === null) {
-    throw notFound();
+  if (!request) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
+        <p className="text-muted-foreground mb-4">Request record not found or has been archived.</p>
+        <Button asChild rounded-full variant="outline">
+          <Link to="/">Back Home</Link>
+        </Button>
+      </div>
+    );
   }
 
-  const isOwner = user?.id === request.userId;
-  const myBid = bids?.find((b) => b.helperId === user?.id) ?? null;
-  const isAssigned = !!request.takenBy;
-
-  const handleDelete = async () => {
-    if (!confirm("Delete this request?")) return;
-    setDeleting(true);
-    try {
-      await deleteRequest(request.id);
-      toast.success("Request deleted");
-      navigate({ to: "/notice-board" });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not delete";
-      toast.error(msg);
-      setDeleting(false);
-    }
-  };
-
-  const type = getRequestType(request.type);
-  const Icon = type?.icon ?? MapPin;
-
-  const fullMapHref = `https://www.openstreetmap.org/?mlat=${request.lat}&mlon=${request.lng}#map=15/${request.lat}/${request.lng}`;
+  const t = getRequestType(request.type);
+  const Icon = t?.icon ?? MapPin;
+  
+  // Checking arrays safely to avoid runtime map errors with empty rows
+  const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
-      <section className="max-w-6xl mx-auto px-6 py-10">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" /> Post another request
-        </Link>
+      <section className="max-w-3xl mx-auto px-6 py-12">
+        <button
+          onClick={() => void navigate({ to: ".." })}
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to listings
+        </button>
 
-        <div className="grid lg:grid-cols-[1fr_360px] gap-6">
-          {/* Map */}
-          <Card className="overflow-hidden p-0" style={{ boxShadow: "var(--shadow-soft)" }}>
-            <div className="aspect-[4/3] sm:aspect-[16/10] w-full bg-muted">
-              {request && <RequestsMap requests={[request]} />}
-            </div>
-            <div className="px-5 py-3 flex items-center justify-between text-sm">
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <MapPin className="h-4 w-4 text-accent" />
-                {request.locationLabel}
-              </span>
-              <a
-                href={fullMapHref}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary hover:underline font-medium"
-              >
-                Open in maps
-              </a>
-            </div>
-          </Card>
-
-          {/* Details */}
-          <div className="space-y-4">
-            <Card className="p-6" style={{ boxShadow: "var(--shadow-soft)" }}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <Badge variant="secondary" className="rounded-full">{type?.label ?? "Request"}</Badge>
+        <Card className="p-6 sm:p-8 space-y-6" style={{ boxShadow: "var(--shadow-soft)" }}>
+          {/* Header Metadata block */}
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <Icon className="h-6 w-6" />
               </div>
-              <h1 className="text-2xl font-bold tracking-tight leading-tight">{request.title}</h1>
-              {request.description && (
-                <p className="mt-3 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {request.description}
-                </p>
-              )}
-
-              {/* Integrated Photo Gallery Component Layout */}
-              {request.images && request.images.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attached Photos</label>
-                  <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
-                    {request.images.map((url, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => setSelectedImage(url)}
-                        className="relative h-20 w-20 rounded-md overflow-hidden border bg-muted shrink-0 snap-start hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-accent"
-                      >
-                        <img
-                          src={url}
-                          alt={`Attachment ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="secondary" className="rounded-full text-xs">
+                    {t?.label ?? "Request"}
+                  </Badge>
+                  {request.isSecret && (
+                    <Badge variant="outline" className="rounded-full text-xs bg-muted/40">Anonymous</Badge>
+                  )}
                 </div>
-              )}
-
-              <div className="mt-5 space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  Posted {timeAgo(request.createdAt)}
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  by {request.isSecret && user?.id !== request.userId
-                    ? "Secret Request"
-                    : (requestorName ?? "Anonymous")}
-                </div>
-                {request.reward && (
-                  <div className="flex items-center gap-2 text-foreground">
-                    <Gift className="h-4 w-4 text-accent" />
-                    Suggested: <span className="font-semibold">{request.reward}</span>
-                  </div>
-                )}
+                <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
               </div>
-            </Card>
+            </div>
 
-            <Card className="p-5 bg-secondary/40 border-dashed">
-              {isOwner ? (
-                <p className="text-sm text-muted-foreground">
-                  Your request is visible to nearby helpers. Review their bids below and pick one.
-                </p>
-              ) : isAssigned ? (
-                <p className="text-sm text-muted-foreground">
-                  This request has already been assigned to a helper.
-                </p>
-              ) : myBid ? (
-                <p className="text-sm text-muted-foreground">
-                  You bid <span className="font-semibold text-foreground">{myBid.amount}</span> — status:{" "}
-                  <span className="font-medium capitalize">{myBid.status}</span>. The requestor will pick one.
-                </p>
-              ) : user ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Place your bid — set your own price for taking this on.
-                  </p>
-                  <BidDialog
-                    requestId={request.id}
-                    suggestedReward={request.reward}
-                    onPlaced={reloadBids}
-                    trigger={
-                      <Button className="w-full rounded-full">Place a bid</Button>
-                    }
-                  />
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Sign in to place a bid on this request.
-                </p>
-              )}
-              <Button asChild className="mt-4 w-full rounded-full" variant="outline">
-                <Link to="/">Post another request</Link>
-              </Button>
-              {isOwner && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="mt-2 w-full rounded-full text-destructive hover:text-destructive"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete request
-                </Button>
-              )}
-            </Card>
-
-            {(isOwner || myBid) && (
-              <Card className="p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
-                <h2 className="text-lg font-semibold mb-3">
-                  Bids {bids ? `(${bids.length})` : ""}
-                </h2>
-                {bids === null ? (
-                  <p className="text-sm text-muted-foreground">Loading bids…</p>
-                ) : bids.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No bids yet.</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {bids.map((b) => {
-                      const mine = b.helperId === user?.id;
-                      return (
-                        <li
-                          key={b.id}
-                          className="rounded-lg border p-3 flex flex-col gap-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="font-medium truncate">
-                                {b.helperDisplayName ?? "Helper"}
-                                {mine && (
-                                  <span className="ml-2 text-xs text-muted-foreground">
-                                    (you)
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {timeAgo(b.createdAt)}
-                              </p>
-                            </div>
-                            <Badge
-                              variant={
-                                b.status === "accepted"
-                                  ? "default"
-                                  : b.status === "rejected"
-                                    ? "secondary"
-                                    : "outline"
-                              }
-                              className="rounded-full capitalize"
-                            >
-                              {b.status}
-                            </Badge>
-                          </div>
-                          <div className="text-sm font-semibold">{b.amount}</div>
-                          {b.note && (
-                            <p className="text-sm text-muted-foreground whitespace-pre-line">
-                              {b.note}
-                            </p>
-                          )}
-                          <div className="flex gap-2 pt-1">
-                            {isOwner &&
-                              !isAssigned &&
-                              b.status === "pending" && (
-                                <Button
-                                  size="sm"
-                                  className="rounded-full"
-                                  disabled={actingBidId === b.id}
-                                  onClick={async () => {
-                                    setActingBidId(b.id);
-                                    try {
-                                      // Call the privileged RPC function to complete the acceptance cycle.
-                                      await acceptBid(b.id);
-
-                                      toast.success("Bid accepted — helper assigned.");
-                                      
-                                      const updated = await fetchRequest(id);
-                                      setRequest(updated);
-                                      await reloadBids();
-                                    } catch (err) {
-                                      toast.error(
-                                        err instanceof Error ? err.message : "Could not accept",
-                                      );
-                                    } finally {
-                                      setActingBidId(null);
-                                    }
-                                  }}
-                                >
-                                  <CheckCircle2 className="h-4 w-4" /> Accept this bid
-                                </Button>
-                              )}
-                            {mine && b.status === "pending" && !isAssigned && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="rounded-full text-destructive hover:text-destructive"
-                                disabled={actingBidId === b.id}
-                                onClick={async () => {
-                                  setActingBidId(b.id);
-                                  try {
-                                    await withdrawBid(b.id);
-                                    toast.success("Bid withdrawn");
-                                    await reloadBids();
-                                  } catch (err) {
-                                    toast.error(
-                                      err instanceof Error ? err.message : "Could not withdraw",
-                                    );
-                                  } finally {
-                                    setActingBidId(null);
-                                  }
-                                }}
-                              >
-                                <XCircle className="h-4 w-4" /> Withdraw
-                              </Button>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </Card>
+            {request.reward && (
+              <div className="bg-accent/10 text-accent px-4 py-2 rounded-2xl flex items-center gap-1.5 font-semibold text-sm">
+                <Gift className="h-4 w-4" />
+                {request.reward}
+              </div>
             )}
           </div>
-        </div>
+
+          {/* Description details body block */}
+          {request.description && (
+            <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words border-l-2 border-muted pl-4 py-1">
+              {request.description}
+            </div>
+          )}
+
+          {/* 🖼️ IMAGE ATTACHMENTS GALLERY LAYER */}
+          {hasPhotos && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <ImageIcon className="h-3.5 w-3.5" /> Attached Media ({request.photoUrls?.length})
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {request.photoUrls?.map((url, i) => (
+                  <a
+                    key={url + i}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group relative block aspect-video rounded-xl overflow-hidden border border-border bg-muted hover:opacity-95 transition-all shadow-sm"
+                  >
+                    <img
+                      src={url}
+                      alt={`Attachment reference ${i + 1}`}
+                      className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <ExternalLink className="h-4 w-4 text-white" />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Location & Time details metadata strip */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5 text-accent" />
+              {request.locationLabel}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              Posted {new Date(request.createdAt).toLocaleDateString()}
+            </span>
+          </div>
+
+          {/* 💬 INTEGRATED CONVERSATION & COMMUNICATIONS MATRIX */}
+          {user && (user.id === request.userId || user.id === request.takenBy) ? (
+            <div className="pt-6 border-t border-border">
+              <TaskThread
+                requestId={request.id}
+                currentUserId={user.id}
+                requestOwnerId={request.userId}
+              />
+              
+              {/* Payment view hooks rendering exclusively for active parties once processing finishes */}
+              {(!!request.takerCompletedAt || !!request.completedAt) && request.takenBy && (
+                <div className="mt-6 pt-6 border-t border-dashed">
+                  <h4 className="text-sm font-semibold mb-2">Settlement & Verification</h4>
+                  <PaymentQRUpload
+                    requestId={request.id}
+                    takerId={request.takenBy}
+                    currentUserId={user.id}
+                  />
+                </div>
+              )}
+            </div>
+          ) : user && !request.takenBy ? (
+            <div className="pt-4 flex justify-end">
+              <Button className="rounded-full px-6">
+                Claim & Accept Task
+              </Button>
+            </div>
+          ) : null}
+        </Card>
       </section>
       <SiteFooter />
-
-      {/* Lightbox Modal Backdrop Overlay View */}
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div className="relative max-w-3xl w-full max-h-[85vh] flex items-center justify-center">
-            <button
-              type="button"
-              onClick={() => setSelectedImage(null)}
-              className="absolute -top-12 right-0 p-2 text-muted-foreground hover:text-foreground transition-colors bg-secondary/50 rounded-full"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <img
-              src={selectedImage}
-              alt="Enlarged attachment view"
-              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-xl"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
