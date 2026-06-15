@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Button } from "@/components/ui/card";
+import { Button } from "@/components/ui/button"; // Points to button ui component
 import { Input } from "@/components/ui/input";
 import { Send, Image as ImageIcon, Loader2, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
