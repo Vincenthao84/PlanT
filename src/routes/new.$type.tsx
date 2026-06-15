@@ -36,14 +36,6 @@ export const Route = createFileRoute("/new/$type")({
       ],
     };
   },
-  notFoundComponent: () => (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <p>Unknown request type.</p>
-        <Link to="/" className="text-primary underline">Back to request types</Link>
-      </div>
-    </div>
-  ),
   component: NewRequestPage,
 });
 
@@ -95,7 +87,7 @@ function NewRequestPage() {
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // 📸 Media State Hooks
+  // 📸 Media Storage Hooks
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
 
@@ -122,7 +114,6 @@ function NewRequestPage() {
     );
   };
 
-  // Handle local UI file select
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
@@ -130,7 +121,6 @@ function NewRequestPage() {
     }
   };
 
-  // Remove file from local pending queue
   const removeSelectedFile = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
@@ -167,7 +157,7 @@ function NewRequestPage() {
     try {
       const uploadedUrls: string[] = [];
       
-      // 1. Process files upload to storage before creating database entry
+      // Upload execution targets the structural 'request-attachments' bucket configured in your Supabase storage engine
       if (selectedFiles.length > 0) {
         setUploadingImages(true);
         for (const file of selectedFiles) {
@@ -189,7 +179,7 @@ function NewRequestPage() {
         setUploadingImages(false);
       }
 
-      // 2. Submit structural metadata details along with dynamic image URL attachments
+      // Passes the output arrays to your input interface rules
       const created = await createRequest({
         type: type.slug,
         title: title.trim(),
@@ -199,7 +189,7 @@ function NewRequestPage() {
         lng,
         reward: reward.trim(),
         isSecret,
-        photoUrls: uploadedUrls, // Maps clean text array into database public.requests table
+        images: uploadedUrls, // Updated from photoUrls to match input config property mapping!
       });
       
       void navigate({ to: "/request/$id", params: { id: created.id } });
@@ -254,7 +244,7 @@ function NewRequestPage() {
               />
             </div>
 
-            {/* 📸 NEW ATTACH MEDIA SECTION */}
+            {/* 📸 INSERTED IMAGE ATTACHMENT BOX BLOCK */}
             <div className="space-y-2">
               <Label>Attach Photos Reference (Optional)</Label>
               <div className="flex items-center gap-3 flex-wrap">
@@ -272,12 +262,12 @@ function NewRequestPage() {
                   />
                 </label>
 
-                {/* Local Preview thumbnails */}
+                {/* Local preview arrays rendering mapping container */}
                 {selectedFiles.map((file, idx) => (
-                  <div key={idx} className="relative w-28 h-24 rounded-xl overflow-hidden border bg-muted group">
+                  <div key={idx} className="relative w-28 h-24 rounded-xl overflow-hidden border bg-muted group animate-in fade-in zoom-in-95 duration-150">
                     <img 
                       src={URL.createObjectURL(file)} 
-                      alt="preview" 
+                      alt="Local Upload Preview Thumbnail" 
                       className="object-cover w-full h-full"
                     />
                     <button
@@ -287,7 +277,7 @@ function NewRequestPage() {
                     >
                       <X className="h-3 w-3" />
                     </button>
-                  </key>
+                  </div>
                 ))}
               </div>
             </div>
