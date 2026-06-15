@@ -1,511 +1,136 @@
-import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, Trash2, Check, RotateCcw, CheckCircle2, Pencil, MessageSquare } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { RateTaker } from "@/components/RateTaker";
-import { PaymentQRUpload } from "@/components/PaymentQRUpload";
-import { TaskThread } from "@/components/TaskThread"; 
-import {
-  getRequestType,
-  fetchMyRequests,
-  deleteRequest,
-  markRequestDone,
-  reopenRequest,
-  markFeeSettled,
-  updateRequest,
-  getMyMonthlyUsage,
-  type MonthlyUsage,
-  type StoredRequest,
-} from "@/lib/request-types";
+import { TaskThread } from "@/components/TaskThread";
+import { fetchMyRequests, type StoredRequest, getRequestType } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
-import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { MapPin, MessageSquare, Clock, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/my-requests")({
-  head: () => ({
-    meta: [
-      { title: "My requests — PLAN T" },
-      { name: "description", content: "View and manage the help requests you've posted." },
-    ],
-  }),
   component: MyRequestsPage,
 });
 
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 function MyRequestsPage() {
   const { user, loading: authLoading } = useAuth();
-  const [requests, setRequests] = useState<StoredRequest[] | null>(null);
-  const [editing, setEditing] = useState<StoredRequest | null>(null);
-  const [usage, setUsage] = useState<MonthlyUsage | null>(null);
-  const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const [requests, setRequests] = useState<StoredRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    let cancelled = false;
-    fetchMyRequests(user.id)
-      .then((rs) => {
-        if (!cancelled) setRequests(rs);
-      })
-      .catch(() => {
-        if (!cancelled) setRequests([]);
-      });
-    getMyMonthlyUsage(user.id)
-      .then((u) => {
-        if (!cancelled) setUsage(u);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    
+    async function loadData() {
+      try {
+        const data = await fetchMyRequests(user.id);
+        setRequests(data);
+      } catch (err) {
+        console.error("Failed to load user records:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    void loadData();
   }, [user]);
 
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
-        Loading…
+      <div className="min-h-screen flex items-center justify-center bg-background text-sm text-muted-foreground">
+        Loading your posted records…
       </div>
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  const handleDelete = async (id: string) => {
-    // Locate request object locally to verify assign status before firing query
-    const targetReq = requests?.find((r) => r.id === id);
-    if (targetReq?.takenBy) {
-      toast.error("This request has been won by a bidder and cannot be deleted.");
-      return;
-    }
-
-    if (!confirm("Delete this request?")) return;
-    try {
-      await deleteRequest(id);
-      setRequests((prev) => (prev ? prev.filter((r) => r.id !== id) : prev));
-      toast.success("Request deleted");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not delete";
-      toast.error(msg);
-    }
-  };
-
-  const handleToggleDone = async (r: StoredRequest) => {
-    if (!r.completedAt && !r.takerCompletedAt && r.takenBy) {
-      toast.error("Wait for the task taker to complete the order first.");
-      return;
-    }
-    try {
-      const updated = r.completedAt
-        ? await reopenRequest(r.id)
-        : await markRequestDone(r.id);
-      setRequests((prev) =>
-        prev ? prev.map((x) => (x.id === r.id ? updated : x)) : prev,
-      );
-      toast.success(updated.completedAt ? "Marked as done" : "Reopened");
-      if (updated.completedAt && updated.takerCompletedAt) {
-        navigate({ to: "/settlement/$id", params: { id: updated.id } });
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not update";
-      toast.error(msg);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       <SiteHeader />
-      <section className="max-w-4xl mx-auto px-6 py-12">
-        <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-          <div>
-            <Badge variant="secondary" className="rounded-full mb-3">My requests</Badge>
-            <h1 className="text-4xl font-bold tracking-tight">Requests you've posted</h1>
-            <p className="text-muted-foreground mt-2">
-              All the help requests posted from your account.
-            </p>
-          </div>
-          <Button asChild className="rounded-full">
-            <Link to="/">Post a new request</Link>
-          </Button>
-        </div>
+      <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
+        <h1 className="text-3xl font-bold tracking-tight mb-2">My Requests</h1>
+        <p className="text-muted-foreground text-sm mb-8">Track status updates and review chat matrices for issues you posted.</p>
 
-        {usage && (
-          <Card className="p-4 mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" style={{ boxShadow: "var(--shadow-soft)" }}>
-            <div>
-              <span className="text-muted-foreground">This month — Requests posted: </span>
-              <span className="font-semibold">
-                {usage.posted} / {usage.isPaid ? "∞" : usage.postLimit}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Orders taken: </span>
-              <span className="font-semibold">
-                {usage.taken} / {usage.isPaid ? "∞" : usage.takeLimit}
-              </span>
-            </div>
-            <Badge variant={usage.isPaid ? "default" : "secondary"} className="rounded-full ml-auto">
-              {usage.isPaid ? "Paid plan" : "Free plan"}
-            </Badge>
-          </Card>
-        )}
-
-        {requests === null ? (
-          <p className="text-muted-foreground">Loading…</p>
-        ) : requests.length === 0 ? (
-          <Card className="p-12 text-center" style={{ boxShadow: "var(--shadow-soft)" }}>
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
-              <Inbox className="h-7 w-7" />
-            </div>
-            <h2 className="text-xl font-semibold">No requests yet</h2>
-            <p className="text-muted-foreground mt-2 mb-6">
-              You haven't posted anything. Pick a request type to get started.
-            </p>
-            <Button asChild className="rounded-full">
-              <Link to="/">Make a request</Link>
+        {requests.length === 0 ? (
+          <Card className="p-8 text-center space-y-4 border-dashed">
+            <p className="text-muted-foreground text-sm">You haven't posted any help requests yet.</p>
+            <Button asChild rounded-full>
+              <Link to="/">Create Your First Request</Link>
             </Button>
           </Card>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {requests.map((r) => {
-              const t = getRequestType(r.type);
-              const Icon = t?.icon ?? MapPin;
-              const isDone = !!r.completedAt;
-              const takerDone = !!r.takerCompletedAt;
-              const fullySettled = isDone && takerDone;
-              const canMarkDone = takerDone || !r.takenBy;
-              const isChatOpen = activeChatRequestId === r.id;
-              const isAssigned = !!r.takenBy; // Flagged when won by bidder
+              const typeMeta = getRequestType(r.type);
+              const Icon = typeMeta?.icon || MapPin;
+              const isChatOpen = activeChatId === r.id;
 
               return (
-                <Card
-                  key={r.id}
-                  className="p-5"
-                  style={{ boxShadow: "var(--shadow-soft)" }}
-                >
-                  <div className="flex gap-4">
-                    <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <Badge variant="secondary" className="rounded-full text-xs">
-                          {t?.label ?? "Request"}
-                        </Badge>
-                        {isAssigned && !isDone && (
-                          <Badge variant="amber" className="rounded-full text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                            Assigned / Won
-                          </Badge>
-                        )}
-                        {isDone && (
-                          <Badge className="rounded-full text-xs gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> Done
-                          </Badge>
-                        )}
-                        {!isDone && takerDone && (
-                          <Badge variant="outline" className="rounded-full text-xs gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> Taker completed — confirm to settle
-                          </Badge>
-                        )}
-                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" /> {timeAgo(r.createdAt)}
-                        </span>
-                        {isDone && r.completedAt && (
-                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                            <CheckCircle2 className="h-3 w-3" /> Completed {timeAgo(r.completedAt)}
-                          </span>
-                        )}
+                <Card key={r.id} className="p-5 transition-shadow hover:shadow-md">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex gap-3">
+                      <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
+                        <Icon className="h-5 w-5" />
                       </div>
-                      <Link
-                        to="/request/$id"
-                        params={{ id: r.id }}
-                        className={`font-semibold leading-tight hover:underline block truncate ${isDone ? "line-through text-muted-foreground" : ""}`}
-                      >
-                        {r.title}
-                      </Link>
-                      {r.description && (
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                          {r.description}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="secondary" className="text-[11px] rounded-full">
+                            {typeMeta?.label || "Request"}
+                          </Badge>
+                          {r.takenBy ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-none rounded-full text-[11px]">
+                              Assigned
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
+                              Open Board
+                            </Badge>
+                          )}
+                        </div>
+                        <h3 className="font-semibold text-base mt-1 tracking-tight">{r.title}</h3>
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-accent" /> {r.locationLabel}
                         </p>
-                      )}
-                      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-accent" />
-                          {r.locationLabel}
-                        </span>
-                        {r.reward && (
-                          <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                            <Gift className="h-3 w-3 text-accent" />
-                            {r.reward}
-                          </span>
-                        )}
                       </div>
                     </div>
-                    
-                    <div className="shrink-0 flex flex-col gap-2">
-                      <Button asChild size="sm" variant="outline" className="rounded-full">
-                        <Link to="/request/$id" params={{ id: r.id }}>View</Link>
-                      </Button>
 
-                      {isAssigned && (
+                    <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+                      {r.takenBy && (
                         <Button
-                          size="sm"
                           variant={isChatOpen ? "secondary" : "outline"}
-                          className="rounded-full gap-1"
-                          onClick={() => setActiveChatRequestId(isChatOpen ? null : r.id)}
-                        >
-                          <MessageSquare className="h-4 w-4" /> 
-                          {isChatOpen ? "Close Chat" : "Chat"}
-                        </Button>
-                      )}
-
-                      {!isAssigned && !isDone && (
-                        <Button
                           size="sm"
-                          variant="outline"
-                          className="rounded-full"
-                          onClick={() => setEditing(r)}
+                          className="rounded-xl h-9"
+                          onClick={() => setActiveChatId(isChatOpen ? null : r.id)}
                         >
-                          <Pencil className="h-4 w-4" /> Edit
+                          <MessageSquare className="h-4 w-4 mr-1.5" />
+                          Chat
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant={isDone ? "outline" : "default"}
-                        className="rounded-full"
-                        disabled={!isDone && !canMarkDone}
-                        onClick={() => handleToggleDone(r)}
-                      >
-                        {isDone ? (
-                          <>
-                            <RotateCcw className="h-4 w-4" /> Reopen
-                          </>
-                        ) : (
-                          <>
-                            <Check className="h-4 w-4" /> Done
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
-                        title={isAssigned ? "Assigned tasks cannot be deleted" : "Delete Request"}
-                        disabled={isAssigned}
-                        onClick={() => handleDelete(r.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
+                      <Button asChild size="sm" variant="ghost" className="rounded-xl h-9">
+                        <Link to="/request/$id" params={{ id: r.id }}>
+                          Details <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                        </Link>
                       </Button>
                     </div>
                   </div>
 
+                  {/* Chat interface dropdown layer block */}
                   {isChatOpen && (
-                    <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                    <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
+                      {/* Fixed: duplicate property parameter removed completely */}
                       <TaskThread
                         requestId={r.id}
-                        currentUserId={user.id}
-                        requestOwnerId={r.userId}
+                        currentUserId={user!.id}
                         requestOwnerId={r.userId}
                       />
                     </div>
-                  )}
-
-                  {fullySettled && r.takenBy && (
-                    <RateTaker
-                      requestId={r.id}
-                      requesterId={r.userId}
-                      takerId={r.takenBy}
-                    />
-                  )}
-                  {r.takenBy && (r.takerCompletedAt || fullySettled) && (
-                    <PaymentQRUpload
-                      requestId={r.id}
-                      takerId={r.takenBy}
-                      currentUserId={user.id}
-                    />
-                  )}
-                  {r.takenBy && r.takerCompletedAt && (
-                    <FeeSettlementButton
-                      request={r}
-                      onSettled={(updated) =>
-                        setRequests((prev) =>
-                          prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev,
-                        )
-                      }
-                    />
                   )}
                 </Card>
               );
             })}
           </div>
         )}
-      </section>
-
-      <EditRequestDialog
-        request={editing}
-        onClose={() => setEditing(null)}
-        onSaved={(updated) =>
-          setRequests((prev) =>
-            prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev,
-          )
-        }
-      />
+      </main>
       <SiteFooter />
-    </div>
-  );
-}
-
-function EditRequestDialog({
-  request,
-  onClose,
-  onSaved,
-}: {
-  request: StoredRequest | null;
-  onClose: () => void;
-  onSaved: (r: StoredRequest) => void;
-}) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [locationLabel, setLocationLabel] = useState("");
-  const [reward, setReward] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (request) {
-      setTitle(request.title);
-      setDescription(request.description);
-      setLocationLabel(request.locationLabel);
-      setReward(request.reward);
-    }
-  }, [request]);
-
-  const handleSave = async () => {
-    if (!request) return;
-    if (!title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
-    setSaving(true);
-    try {
-      const updated = await updateRequest(request.id, {
-        title: title.trim(),
-        description: description.trim(),
-        locationLabel: locationLabel.trim() || "Pinned location",
-        reward: reward.trim(),
-      });
-      onSaved(updated);
-      toast.success("Request updated");
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={!!request} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit request</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="edit-title">Title</Label>
-            <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-desc">Details</Label>
-            <Textarea
-              id="edit-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-loc">Location</Label>
-            <Input
-              id="edit-loc"
-              value={locationLabel}
-              onChange={(e) => setLocationLabel(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-reward">Reward</Label>
-            <Input id="edit-reward" value={reward} onChange={(e) => setReward(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" className="rounded-full" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button className="rounded-full" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save changes"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function FeeSettlementButton({
-  request,
-  onSettled,
-}: {
-  request: StoredRequest;
-  onSettled: (r: StoredRequest) => void;
-}) {
-  const [saving, setSaving] = useState(false);
-  const settled = !!request.feeSettledAt;
-
-  const handleClick = async () => {
-    if (settled) return;
-    setSaving(true);
-    try {
-      const updated = await markFeeSettled(request.id);
-      onSettled(updated);
-      toast.success("Fee Settlement Done");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="mt-4 pt-4 border-t border-border/60">
-      <Button
-        size="sm"
-        variant={settled ? "outline" : "default"}
-        className="rounded-full"
-        disabled={settled || saving}
-        onClick={handleClick}
-      >
-        <CheckCircle2 className="h-4 w-4" />
-        {settled ? "Fee Settlement Done" : saving ? "Saving…" : "Fee Settlement Done"}
-      </Button>
     </div>
   );
 }
