@@ -218,6 +218,26 @@ function NoticeBoardPage() {
                   {r.description}
                 </p>
               )}
+
+              {/* Integrated Horizontal Micro Thumbnail Stream Preview Component */}
+              {r.images && r.images.length > 0 && (
+                <div className="flex gap-1.5 mt-2 overflow-x-hidden">
+                  {r.images.slice(0, 5).map((url, imgIdx) => (
+                    <div 
+                      key={imgIdx} 
+                      className="h-10 w-10 rounded border bg-muted overflow-hidden shrink-0"
+                    >
+                      <img 
+                        src={url} 
+                        alt="Attachment thumbnail" 
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
                 <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
                   <MapPin className="h-3 w-3 text-accent shrink-0" />
