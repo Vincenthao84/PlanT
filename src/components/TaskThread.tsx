@@ -1,23 +1,44 @@
-import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Paperclip, Send, X, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MapPin, Gift, Clock, Briefcase, MessageSquare, CheckCircle2, AlertCircle } from "lucide-react";
+import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { TaskThread } from "@/components/TaskThread";
+import { PaymentQRUpload } from "@/components/PaymentQRUpload";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import supabase from "@/integrations/supabase/client"; // Fallback to your configured path if different
 
-type Message = {
+// Define structural representation for requests taken by the user
+type AssignedTask = {
   id: string;
-  request_id: string;
-  author_id: string;
-  body: string;
-  photo_urls: string[];
-  created_at: string;
+  title: string;
+  description: string | null;
+  locationLabel: string;
+  reward: string | null;
+  type: string;
+  userId: string; // The creator/requester of the task
+  takenBy: string | null;
+  createdAt: number;
+  completedAt: number | null;
+  takerCompletedAt: number | null;
+  feeSettledAt: number | null;
 };
 
-const MAX_PHOTOS = 5;
+export const Route = createFileRoute("/my-tasks")({
+  head: () => ({
+    meta: [
+      { title: "My accepted tasks — PLAN T" },
+      { name: "description", content: "Track and update tasks you are performing for others." },
+    ],
+  }),
+  component: MyTasksPage,
+});
 
-function timeAgo(iso: string): string {
-  const ts = new Date(iso).getTime();
+function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return "just now";
   const m = Math.floor(s / 60);
@@ -27,281 +48,291 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function TaskThread({
-  requestId,
-  currentUserId,
-  requestOwnerId, // Pass the request's creator ID to handle two-way chat roles
-}: {
-  requestId: string;
-  currentUserId: string;
-  requestOwnerId?: string; 
-}) {
-  const [messages, setMessages] = useState<Message[] | null>(null);
-  const [body, setBody] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const [sending, setSending] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Anchor for auto-scrolling
+function MyTasksPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [tasks, setTasks] = useState<AssignedTask[] | null>(null);
+  const [activeChatTaskId, setActiveChatTaskId] = useState<string | null>(null);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
-  // Smooth scroll to display new messages instantly
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    if (messages) {
-      scrollToBottom();
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    let cancelled = false;
-    
-    // Fetch historical messages on component mount
-    supabase
-      .from("request_messages")
-      .select("*")
-      .eq("request_id", requestId)
-      .order("created_at", { ascending: true })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          setMessages([]);
-          return;
-        }
-        setMessages((data ?? []) as Message[]);
-      });
-
-    // FIXED REALTIME: Listens directly to inserts on your active request_messages table
-    const channel = supabase
-      .channel(`messages-${requestId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "request_messages", // Correctly binds to your dedicated table matching image_871ed9.png
-          filter: `request_id=eq.${requestId}`,
-        },
-        (payload) => {
-          const newMessage = payload.new as Message;
-          
-          setMessages((prev) => {
-            if (!prev) return [newMessage];
-            // Prevents double-rendering items that were updated locally
-            if (prev.some((m) => m.id === newMessage.id)) return prev;
-            return [...prev, newMessage];
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      cancelled = true;
-      void supabase.removeChannel(channel);
-    };
-  }, [requestId]);
-
-  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []);
-    const next = [...files, ...picked].slice(0, MAX_PHOTOS);
-    if (files.length + picked.length > MAX_PHOTOS) {
-      toast.error(`Max ${MAX_PHOTOS} photos per message`);
-    }
-    setFiles(next);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const removeFile = (idx: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  const send = async () => {
-    const text = body.trim();
-    if (!text && files.length === 0) {
-      toast.error("Type a message or attach a photo");
-      return;
-    }
-    setSending(true);
+  const fetchMyTasks = async (userId: string) => {
     try {
-      const photoUrls: string[] = [];
-      for (const file of files) {
-        const ext = file.name.split(".").pop() || "jpg";
-        const path = `${currentUserId}/${requestId}/${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 8)}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("task-photos")
-          .upload(path, file, { contentType: file.type, upsert: false });
-        if (upErr) throw upErr;
-        const { data: pub } = supabase.storage.from("task-photos").getPublicUrl(path);
-        photoUrls.push(pub.publicUrl);
-      }
+      // Fetching records from your local storage/database schema where user is the worker
+      const { data, error } = await supabase
+        .from("help_requests") // Assumes your master schema name, replace if using standard API helpers
+        .select("*")
+        .eq("takenBy", userId)
+        .order("createdAt", { ascending: false });
 
-      const { error: insErr } = await supabase.from("request_messages").insert({
-        request_id: requestId,
-        author_id: currentUserId,
-        body: text,
-        photo_urls: photoUrls,
-      });
-      if (insErr) throw insErr;
-
-      setBody("");
-      setFiles([]);
+      if (error) throw error;
+      setTasks((data || []) as AssignedTask[]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not send";
-      toast.error(msg);
-    } finally {
-      setSending(false);
+      toast.error("Failed to sync your accepted tasks");
+      setTasks([]);
     }
   };
 
-  // TWO-WAY CHAT LABELS: Automatically changes placeholder based on who is logged in
-  const isRequestor = requestOwnerId ? currentUserId === requestOwnerId : false;
-  const inputPlaceholder = isRequestor ? "Reply to the helper…" : "Reply to the requester…";
+  useEffect(() => {
+    if (user?.id) {
+      fetchMyTasks(user.id);
+    }
+  }, [user]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
+        Loading…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  const handleMarkTakerDone = async (taskId: string) => {
+    setUpdatingTaskId(taskId);
+    try {
+      const { data, error } = await supabase
+        .from("help_requests")
+        .update({ 
+          takerCompletedAt: Date.now() 
+        })
+        .eq("id", taskId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTasks((prev) =>
+        prev ? prev.map((t) => (t.id === taskId ? { ...t, takerCompletedAt: data.takerCompletedAt } : t)) : prev
+      );
+      toast.success("Task execution submitted! Awaiting owner confirmation.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update state");
+    } finally {
+      setUpdatingTaskId(null);
+    }
+  };
+
+  const activeTasks = tasks?.filter((t) => !t.completedAt) || [];
+  const completedTasks = tasks?.filter((t) => !!t.completedAt) || [];
 
   return (
-    <div className="mt-4 pt-4 border-t border-border/60">
-      <h3 className="text-sm font-semibold mb-3">Conversation</h3>
-
-      <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-        {messages === null ? (
-          <p className="text-xs text-muted-foreground">Loading…</p>
-        ) : messages.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            No messages yet. Send the first update.
+    <div className="min-h-screen bg-background text-foreground">
+      <SiteHeader />
+      <section className="max-w-4xl mx-auto px-6 py-12">
+        <div className="mb-8">
+          <Badge variant="secondary" className="rounded-full mb-3">Worker Dashboard</Badge>
+          <h1 className="text-4xl font-bold tracking-tight">Tasks you accepted</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage fulfillment, submit proof collections, and communicate with requesters.
           </p>
+        </div>
+
+        {tasks === null ? (
+          <p className="text-muted-foreground">Loading tasks…</p>
+        ) : tasks.length === 0 ? (
+          <Card className="p-12 text-center" style={{ boxShadow: "var(--shadow-soft)" }}>
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
+              <Briefcase className="h-7 w-7" />
+            </div>
+            <h2 className="text-xl font-semibold">No tasks assigned yet</h2>
+            <p className="text-muted-foreground mt-2 mb-6">
+              You haven't won or claimed any open listings from the bulletin board.
+            </p>
+            <Button asChild className="rounded-full">
+              <Link to="/">Browse Open Requests</Link>
+            </Button>
+          </Card>
         ) : (
-          messages.map((m) => {
-            const mine = m.author_id === currentUserId;
-            return (
-              <div
-                key={m.id}
-                className={`flex ${mine ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                    mine
-                      ? "bg-primary text-primary-foreground rounded-tr-none" // Your message on the right
-                      : "bg-muted text-foreground rounded-tl-none" // Their message on the left
-                  }`}
-                >
-                  {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
-                  {m.photo_urls && m.photo_urls.length > 0 && (
-                    <div
-                      className={`mt-2 grid gap-1 ${
-                        m.photo_urls.length === 1 ? "grid-cols-1" : "grid-cols-2"
-                      }`}
-                    >
-                      {m.photo_urls.map((url, i) => (
-                        <a
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block hover:opacity-90 transition-opacity"
-                        >
-                          <img
-                            src={url}
-                            alt="attachment"
-                            loading="lazy"
-                            className="rounded-lg w-full h-32 object-cover"
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                  <p
-                    className={`mt-1 text-[10px] text-right ${
-                      mine ? "text-primary-foreground/70" : "text-muted-foreground"
-                    }`}
-                  >
-                    {timeAgo(m.created_at)}
-                  </p>
-                </div>
-              </div>
-            );
-          })
+          <Tabs defaultValue="active" className="w-full">
+            <TabsList className="mb-6">
+              <TabsTrigger value="active" className="relative">
+                Active Shifts
+                {activeTasks.length > 0 && (
+                  <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-primary text-primary-foreground rounded-full">
+                    {activeTasks.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="completed">Archive History</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="active" className="space-y-4">
+              {activeTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">No active work items on your plate right now.</p>
+              ) : (
+                activeTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    currentUserId={user.id}
+                    isChatOpen={activeChatTaskId === task.id}
+                    onToggleChat={() => setActiveChatTaskId(activeChatTaskId === task.id ? null : task.id)}
+                    onMarkDone={handleMarkTakerDone}
+                    isUpdating={updatingTaskId === task.id}
+                  />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="completed" className="space-y-4">
+              {completedTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">No completed tasks history discovered.</p>
+              ) : (
+                completedTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    currentUserId={user.id}
+                    isChatOpen={activeChatTaskId === task.id}
+                    onToggleChat={() => setActiveChatTaskId(activeChatTaskId === task.id ? null : task.id)}
+                    onMarkDone={handleMarkTakerDone}
+                    isUpdating={false}
+                  />
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
         )}
-        <div ref={messagesEndRef} />
+      </section>
+      <SiteFooter />
+    </div>
+  );
+}
+
+// Internal reusable card layout context for clean architecture
+function TaskCard({
+  task,
+  currentUserId,
+  isChatOpen,
+  onToggleChat,
+  onMarkDone,
+  isUpdating,
+}: {
+  task: AssignedTask;
+  currentUserId: string;
+  isChatOpen: boolean;
+  onToggleChat: () => void;
+  onMarkDone: (id: string) => void;
+  isUpdating: boolean;
+}) {
+  const isTakerDone = !!task.takerCompletedAt;
+  const isOwnerConfirmed = !!task.completedAt;
+
+  return (
+    <Card className="p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
+      <div className="flex gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <Badge variant="outline" className="rounded-full text-xs capitalized">
+              {task.type}
+            </Badge>
+            
+            {!isTakerDone && (
+              <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 rounded-full text-xs">
+                In Progress
+              </Badge>
+            )}
+
+            {isTakerDone && !isOwnerConfirmed && (
+              <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 rounded-full text-xs gap-1">
+                <Clock className="h-3 w-3" /> Sent to confirmation
+              </Badge>
+            )}
+
+            {isOwnerConfirmed && (
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 rounded-full text-xs gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Fully Confirmed
+              </Badge>
+            )}
+
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" /> accepted {timeAgo(task.createdAt)}
+            </span>
+          </div>
+
+          <Link
+            to="/request/$id"
+            params={{ id: task.id }}
+            className="font-semibold text-lg leading-tight hover:underline block truncate"
+          >
+            {task.title}
+          </Link>
+          
+          {task.description && (
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+              {task.description}
+            </p>
+          )}
+
+          <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3 text-accent" />
+              {task.locationLabel}
+            </span>
+            {task.reward && (
+              <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                <Gift className="h-3 w-3 text-accent" />
+                {task.reward}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 flex flex-col gap-2 justify-start">
+          <Button asChild size="sm" variant="outline" className="rounded-full">
+            <Link to="/request/$id" params={{ id: task.id }}>View Detail</Link>
+          </Button>
+
+          <Button
+            size="sm"
+            variant={isChatOpen ? "secondary" : "outline"}
+            className="rounded-full gap-1"
+            onClick={onToggleChat}
+          >
+            <MessageSquare className="h-4 w-4" />
+            {isChatOpen ? "Close Chat" : "Chat"}
+          </Button>
+
+          {!isTakerDone && (
+            <Button
+              size="sm"
+              className="rounded-full"
+              disabled={isUpdating}
+              onClick={() => onMarkDone(task.id)}
+            >
+              Mark Done
+            </Button>
+          )}
+        </div>
       </div>
 
-      {files.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {files.map((f, i) => (
-            <div
-              key={i}
-              className="relative h-16 w-16 rounded-lg overflow-hidden border border-border"
-            >
-              <img
-                src={URL.createObjectURL(f)}
-                alt={f.name}
-                className="h-full w-full object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => removeFile(i)}
-                className="absolute top-0.5 right-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background/90 text-foreground shadow hover:bg-background"
-                aria-label="Remove photo"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+      {/* Embedded Real-time Thread view */}
+      {isChatOpen && (
+        <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+          <TaskThread
+            requestId={task.id}
+            currentUserId={currentUserId}
+            requestOwnerId={task.userId} // The customer's ID
+          />
         </div>
       )}
 
-      <div className="mt-3 flex items-end gap-2">
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={inputPlaceholder}
-          rows={2}
-          className="resize-none rounded-xl"
-          disabled={sending}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={onPickFiles}
-        />
-        <div className="flex flex-col gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="rounded-full shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending || files.length >= MAX_PHOTOS}
-            aria-label="Attach photo"
-          >
-            <Paperclip className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            className="rounded-full shrink-0"
-            onClick={send}
-            disabled={sending}
-            aria-label="Send message"
-          >
-            {sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
+      {/* Payment handling components exposed for helpers */}
+      {isTakerDone && (
+        <div className="mt-4 pt-4 border-t border-muted-foreground/20">
+          <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3 text-amber-500" />
+            Ensure your payout instructions/QR codes are attached below to secure quick settlement.
+          </p>
+          <PaymentQRUpload
+            requestId={task.id}
+            takerId={currentUserId}
+            currentUserId={currentUserId}
+          />
         </div>
-      </div>
-    </div>
+      )}
+    </Card>
   );
 }
