@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink, Send } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -11,8 +11,9 @@ import { getRequestType, type StoredRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
-// Extend your standard local interface mapping configuration to capture created_at
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
 }
@@ -34,6 +35,12 @@ function RequestDetailPage() {
   
   const [request, setRequest] = useState<ExtendedStoredRequest | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // 🛠️ Bidding Negotiation state parameters
+  const [bidAmount, setBidAmount] = useState("");
+  const [bidNote, setBidNote] = useState("");
+  const [submittingBid, setSubmittingBid] = useState(false);
+  const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +74,7 @@ function RequestDetailPage() {
             feeSettledAt: data.fee_settled_at || data.feeSettledAt,
             photoUrls: data.photo_urls || data.photoUrls || [],
             paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
-            createdAt: data.created_at, // ✅ Captured the baseline post creation timestamp safely
+            createdAt: data.created_at,
           };
           
           setRequest(mappedRequest);
@@ -80,7 +87,27 @@ function RequestDetailPage() {
       }
     }
 
+    // 🛠️ Checks whether this helper has already placed an active bid on this request
+    async function checkExistingBid() {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from("request_bids")
+          .select("id")
+          .eq("request_id", id)
+          .eq("helper_id", user.id)
+          .maybeSingle();
+        
+        if (data && !cancelled) {
+          setHasAlreadyBid(true);
+        }
+      } catch (err) {
+        console.error("Error evaluating historical bid check:", err);
+      }
+    }
+
     void fetchRequestDetails();
+    void checkExistingBid();
 
     const channel = supabase
       .channel(`request-detail-${id}`)
@@ -97,7 +124,41 @@ function RequestDetailPage() {
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [id]);
+  }, [id, user]);
+
+  // 🛠️ Submit dynamic bid details handling negotiation pipeline 
+  async function handlePlaceBid(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !request) return;
+
+    if (!bidAmount || isNaN(Number(bidAmount)) || Number(bidAmount) <= 0) {
+      toast.error("Please enter a valid bid amount.");
+      return;
+    }
+
+    setSubmittingBid(true);
+    try {
+      const { error } = await supabase
+        .from("request_bids")
+        .insert({
+          request_id: request.id,
+          helper_id: user.id,
+          amount: parseFloat(bidAmount),
+          note: bidNote.trim(),
+          status: "pending"
+        });
+
+      if (error) throw error;
+
+      toast.success("Your negotiation bid has been placed successfully!");
+      setHasAlreadyBid(true);
+    } catch (err: any) {
+      console.error("Error processing insertion into database:", err);
+      toast.error(err.message || "Failed to log offer.");
+    } finally {
+      setSubmittingBid(false);
+    }
+  }
 
   if (authLoading || loading) {
     return (
@@ -122,11 +183,15 @@ function RequestDetailPage() {
   const Icon = t?.icon ?? MapPin;
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
 
+  // Render maps context safely using coordinates embedded in standard OpenStreetMap configurations
+  const mapEmbedUrl = request.lat && request.lng
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
+    : null;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
       <section className="max-w-3xl mx-auto px-6 py-12">
-        {/* ✅ FIX 2: Explicitly navigate back to the Notice Board route instead of relative '..' to avoid 404s */}
         <button
           onClick={() => void navigate({ to: "/notice-board" })}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer bg-transparent border-none"
@@ -167,6 +232,28 @@ function RequestDetailPage() {
             </div>
           )}
 
+          {/* 🗺️ REINTEGRATED MAP MODULE LAYER */}
+          {mapEmbedUrl && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" /> Task Geolocation
+              </h3>
+              <div className="w-full h-48 rounded-xl overflow-hidden border border-border relative bg-muted shadow-sm">
+                <iframe
+                  title="Task Location Map"
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  scrolling="no"
+                  marginHeight={0}
+                  marginWidth={0}
+                  src={mapEmbedUrl}
+                  className="absolute inset-0 grayscale dark:invert dark:contrast-75"
+                />
+              </div>
+            </div>
+          )}
+
           {hasPhotos && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -203,11 +290,11 @@ function RequestDetailPage() {
             </span>
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              {/* ✅ FIX 1: Point to the accurate post creation value (createdAt) instead of the action timestamp (takenAt) */}
               Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"}
             </span>
           </div>
 
+          {/* 💬 COMMUNICATIONS MATRIX & ACTIVE DISCUSSION CONTEXTS */}
           {user && (user.id === request.userId || user.id === request.takenBy) ? (
             <div className="pt-6 border-t border-border">
               <TaskThread
@@ -228,12 +315,72 @@ function RequestDetailPage() {
               )}
             </div>
           ) : user && !request.takenBy ? (
-            <div className="pt-4 flex justify-end">
-              <Button className="rounded-full px-6">
-                Claim & Accept Task
-              </Button>
+            <div className="pt-6 border-t border-border">
+              {hasAlreadyBid ? (
+                <div className="bg-muted/60 p-4 rounded-xl text-center text-sm text-muted-foreground italic border">
+                  You have placed an offer for this request. Check your dashboard profile under "My Placed Bids" to track status or message the requestor.
+                </div>
+              ) : (
+                /* 🛠️ PLACING A NEGOTIATION BID LAYOUT MODULE FORM */
+                <form onSubmit={handlePlaceBid} className="space-y-4">
+                  <div className="bg-accent/5 p-4 rounded-2xl border border-accent/10">
+                    <h3 className="text-sm font-bold tracking-tight mb-1 text-foreground">Propose a Helper Bid</h3>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      Negotiate your pricing and details before acceptance.
+                    </p>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                          Your Required Payment ($)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="e.g. 25"
+                          value={bidAmount}
+                          onChange={(e) => setBidAmount(e.target.value)}
+                          className="rounded-xl h-10 max-w-[200px]"
+                          disabled={submittingBid}
+                          required
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                          Introduction or Service Note (Optional)
+                        </label>
+                        <Textarea
+                          placeholder="Explain why you are a good match for this request..."
+                          value={bidNote}
+                          onChange={(e) => setBidNote(e.target.value)}
+                          className="rounded-xl min-h-[80px] resize-none"
+                          disabled={submittingBid}
+                          maxLength={300}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <Button 
+                      type="submit" 
+                      className="rounded-full px-6 gap-2"
+                      disabled={submittingBid}
+                    >
+                      <Send className="h-4 w-4" />
+                      {submittingBid ? "Submitting Offer..." : "Submit Proposal Bid"}
+                    </Button>
+                  </div>
+                </form>
+              )}
             </div>
-          ) : null}
+          ) : (
+            <div className="pt-4 text-center">
+              <p className="text-xs text-muted-foreground">
+                Please log in to submit a configuration bid or interact with this notice card.
+              </p>
+            </div>
+          )}
         </Card>
       </section>
       <SiteFooter />
