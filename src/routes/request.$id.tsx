@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink, Send, Camera, X, Loader2, MessageSquare } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
@@ -180,7 +180,6 @@ function RequestDetailPage() {
   useEffect(() => {
     if (!user || !request) return;
 
-    // Check authorization: Must be owner, or have been assigned, or placed a bid
     const isAuthorizedChatter = user.id === request.userId || user.id === request.takenBy || hasAlreadyBid;
     if (!isAuthorizedChatter) {
       setChatLoading(false);
@@ -189,20 +188,18 @@ function RequestDetailPage() {
 
     const fetchChatMessages = async () => {
       try {
+        // FIXED: Streamlined selection string and stripped problematic .order() configuration syntax
         const { data, error } = await supabase
           .from("request_messages")
-          .select(`
-            id, request_id, author_id, body, photo_urls, created_at,
-            profiles:author_id (display_name, avatar_url)
-          `)
+          .select("id, request_id, author_id, body, photo_urls, created_at, profiles:author_id(display_name, avatar_url)")
           .eq("request_id", request.id)
-          .order("created_at", { ascending: true });
+          .order("created_at");
 
         if (error) throw error;
         setChatMessages(data as any[] || []);
       } catch (err) {
         console.error("Error loading messages database stream:", err);
-      } {
+      } finally {
         setChatLoading(false);
         setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       }
@@ -237,7 +234,6 @@ function RequestDetailPage() {
       void supabase.removeChannel(chatChannel);
     };
   }, [request, user, hasAlreadyBid]);
-
 
   // 📸 Action Handler: Uploading Images inside Chat Thread
   async function handleChatPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
