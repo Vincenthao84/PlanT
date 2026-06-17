@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,11 +45,12 @@ interface ChatMessage {
   };
 }
 
-// ✅ FIXED: Loose parameters bypass TanStack layout router engine cache blocks to resolve 404 screens
-export const Route = createFileRoute("/request/$id" as any)({
+// ✅ FIXED FOR PRODUCTION BUILD: Reinstated clean string literal path pattern matching.
+// This addresses the compilation errors shown in your build log.
+export const Route = createFileRoute("/request/$id")({
   head: ({ params }) => ({
     meta: [
-      { title: `Request Details #${(params as any).id?.slice(0, 8)} — PLAN T` },
+      { title: `Request Details #${params.id?.slice(0, 8)} — PLAN T` },
       { name: "description", content: "View full context, dynamic location information, and image attachments for this request." },
     ],
   }),
@@ -57,8 +58,8 @@ export const Route = createFileRoute("/request/$id" as any)({
 });
 
 function RequestDetailPage() {
-  // ✅ FIXED: Loose strict state mapping preserves parameters gracefully 
-  const { id } = useParams({ strict: false });
+  // ✅ FIXED PARAMETER ACCESS: Safely extract ID parameter fields directly using TanStack Route hooks
+  const { id } = Route.useParams();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -88,7 +89,7 @@ function RequestDetailPage() {
   const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
 
-  // 1. Initial Job Spec Profile Data Hydration Layer
+  // 1. Fetch Primary Request Assets & Metadata Layout
   useEffect(() => {
     let cancelled = false;
 
@@ -128,7 +129,6 @@ function RequestDetailPage() {
 
           const requestOwnerId = data.user_id || data.userId;
           
-          // Determine visibility constraints: Owners see all bids; helpers see only their own submission.
           let query = supabase.from("request_bids").select(`
             id, 
             helper_id, 
@@ -139,6 +139,7 @@ function RequestDetailPage() {
             profiles (display_name, avatar_url)
           `).eq("request_id", data.id);
 
+          // If the viewer is not the task creator, restrict list retrieval to their own bid record
           if (user && requestOwnerId !== user.id) {
             query = query.eq("helper_id", user.id);
           }
@@ -172,7 +173,6 @@ function RequestDetailPage() {
         
         if (data && !cancelled) {
           setHasAlreadyBid(true);
-          // Auto-expand the helper's individual bid stream workspace container
           setSelectedBidId(data.id);
         }
       } catch (err) {
@@ -198,7 +198,7 @@ function RequestDetailPage() {
     };
   }, [id, user]);
 
-  // 2. 💬 Isolated Sandbox Conversation Pipeline Realtime Sync Engine
+  // 2. 💬 Isolated Chat Window Fetch & Live Subscription
   useEffect(() => {
     if (!user || !request || !selectedBidId) {
       setChatMessages([]);
@@ -228,7 +228,7 @@ function RequestDetailPage() {
         if (error) throw error;
         setChatMessages(data as any[] || []);
       } catch (err) {
-        console.error("Error loading explicit sandbox chat stream:", err);
+        console.error("Error loading messages database stream:", err);
       } finally {
         setChatLoading(false);
         setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -238,15 +238,10 @@ function RequestDetailPage() {
     void fetchChatMessages();
 
     const chatChannel = supabase
-      .channel(`chat-sandbox-${selectedBidId}`)
+      .channel(`chat-room-sandbox-${selectedBidId}`)
       .on(
         "postgres_changes",
-        { 
-          event: "INSERT", 
-          schema: "public", 
-          table: "request_messages", 
-          filter: `request_id=eq.${request.id}` 
-        },
+        { event: "INSERT", schema: "public", table: "request_messages", filter: `request_id=eq.${request.id}` },
         async (payload) => {
           if (payload.new.bid_id !== selectedBidId) return;
 
@@ -377,7 +372,6 @@ function RequestDetailPage() {
     }
   }
 
-  // Submit Bid Proposal Listing
   async function handlePlaceBid(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !request) return;
@@ -412,7 +406,6 @@ function RequestDetailPage() {
     }
   }
 
-  // Permanent Assignment Sequence
   async function handleAcceptBid(bid: BidRecord) {
     if (!user || !request || assigningBidId) return;
     setAssigningBidId(bid.id);
@@ -562,7 +555,7 @@ function RequestDetailPage() {
             <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"}</span>
           </div>
 
-          {/* 👥 RIGHT ACCORDION CHANNEL: MULTI-BIDDER PRIVATE CHAT CHANNELS */}
+          {/* 👥 ACCORDION WORKSPACE: PRIVATE CHAT CHANNELS */}
           {user && (isOwner || hasAlreadyBid) && (
             <div className="space-y-3 pt-4 border-t border-border">
               <label className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
@@ -585,7 +578,7 @@ function RequestDetailPage() {
                           isSelected ? "ring-1 ring-primary/20 border-primary/30" : "hover:border-border/80"
                         }`}
                       >
-                        {/* Summary Header Accordion Trigger */}
+                        {/* Summary Header Accordion Toggle */}
                         <div 
                           onClick={() => setSelectedBidId(isSelected ? null : b.id)}
                           className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
@@ -610,11 +603,11 @@ function RequestDetailPage() {
                           </div>
                         </div>
 
-                        {/* Collapsible Sandbox Space */}
+                        {/* Collapsible Workspace View Panel */}
                         {isSelected && (
                           <div className="p-3 border-t bg-muted/5 space-y-4">
                             
-                            {/* 🌟 ACTION BAR: CONTROL ASSIGNMENT BUTTON */}
+                            {/* 🌟 CHOSEN ACTION ASSIGNMENT BUTTON */}
                             {isOwner && !request.takenBy && b.status === "pending" && (
                               <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-2">
                                 <div className="text-[11px]">
@@ -648,7 +641,7 @@ function RequestDetailPage() {
                               </div>
                             )}
 
-                            {/* 🌟 ISOLATED NEGOTIATION THREAD CHAT STREAM */}
+                            {/* 🌟 ISOLATED PRIVATE CHAT PIPELINE BLOCK */}
                             <div className="space-y-2">
                               <div className="px-1 border-b pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Private Sandbox Conversation
@@ -695,7 +688,7 @@ function RequestDetailPage() {
                                   )}
                                 </ScrollArea>
 
-                                {/* Message Dispatch Console Footer */}
+                                {/* Chat Submission Panel */}
                                 <form 
                                   onSubmit={(e) => { e.stopPropagation(); void handleSendChatMessage(e); }} 
                                   className="p-1.5 bg-background border-t space-y-1"
