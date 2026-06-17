@@ -6,7 +6,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,11 +37,11 @@ export function BidDialog({
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
 
-  // 🚨 CRITICAL FIX: Completely captures and kills all click/pointer tracking behavior 
-  // before the parent elements (like card wrapper links) can react.
-  const handleStop = (e: React.MouseEvent | React.PointerEvent) => {
+  // 🚨 Stops parent container card link redirects from intercepting interaction clicks
+  const handleOpenModal = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setOpen(true);
   };
 
   // 📸 Handle Photo Upload Matrix (Max 5)
@@ -60,7 +59,6 @@ export function BidDialog({
     const newUrls: string[] = [...uploadedUrls];
 
     try {
-      // Get current authenticated user session data safely
       const { data: sessionData } = await supabase.auth.getSession();
       const currentUserId = sessionData?.session?.user?.id || "guest";
 
@@ -71,7 +69,7 @@ export function BidDialog({
         const filePath = `bid-attachments/${requestId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("request-photos") // Adjust to match your real image bucket slug
+          .from("request-photos")
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
@@ -92,7 +90,6 @@ export function BidDialog({
     }
   }
 
-  // Clear single upload instance
   function removePhoto(e: React.MouseEvent, indexToRemove: number) {
     e.stopPropagation();
     setUploadedUrls((prev) => prev.filter((_, idx) => idx !== indexToRemove));
@@ -109,15 +106,14 @@ export function BidDialog({
 
     setSaving(true);
     try {
-      // 🛠️ Passing array values down to your storage target via standard Supabase insertions
       const { error } = await supabase
         .from("request_bids")
         .insert({
           request_id: requestId,
-          amount: parseFloat(amount.replace(/[^0-9.]/g, "")), // Cleans out '$' symbol formats if typed
+          amount: parseFloat(amount.replace(/[^0-9.]/g, "")),
           note: note.trim(),
           status: "pending",
-          photo_urls: uploadedUrls // ✅ Links photos array safely
+          photo_urls: uploadedUrls
         });
 
       if (error) throw error;
@@ -125,7 +121,7 @@ export function BidDialog({
       toast.success("Bid placed. The requestor will review and pick one.");
       setOpen(false);
       setNote("");
-      setUploadedUrls([]); // Reset file arrays
+      setUploadedUrls([]);
       onPlaced?.();
     } catch (err: any) {
       console.error("Bid insertion crash details:", err);
@@ -136,110 +132,107 @@ export function BidDialog({
   };
 
   return (
-    // Explicit pointer/click capture wrapping around components
-    <Dialog open={open} onOpenChange={(isOpen) => setOpen(isOpen)}>
-      <DialogTrigger asChild onClick={handleStop} onPointerDown={handleStop}>
+    <>
+      {/* Handrolled button element intercepting navigation capture bounds natively */}
+      <div onClick={handleOpenModal} className="inline-block">
         {trigger ?? (
           <Button size="sm" className="rounded-full">
-            <Handshake className="h-4 w-4" /> Place bid
+            <Handshake className="h-4 w-4 mr-1" /> Place bid
           </Button>
         )}
-      </DialogTrigger>
-      
-      <DialogContent onClick={handleStop} onPointerDown={handleStop}>
-        <DialogHeader>
-          <DialogTitle>Place your bid</DialogTitle>
-          <DialogDescription>
-            Tell the requestor what you'd charge to take this on. They'll review all bids and pick one.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="bid-amount">Your price</Label>
-            <Input
-              id="bid-amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={suggestedReward || "e.g. $25"}
-              autoFocus
-            />
-            {suggestedReward && (
-              <p className="text-xs text-muted-foreground">
-                Requestor suggested: <span className="font-medium">{suggestedReward}</span>
-              </p>
-            )}
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="bid-note">Note (optional)</Label>
-            <Textarea
-              id="bid-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="When you can do it, any questions, why you're a good fit…"
-              rows={3}
-            />
-          </div>
+      </div>
 
-          {/* 📸 ADDED: MULTI-IMAGE UPLOADER INTERFACE */}
-          <div className="space-y-2">
-            <Label>Bid Attachments ({uploadedUrls.length}/5 max)</Label>
-            
-            {/* Thumbnail Preview Area */}
-            {uploadedUrls.length > 0 && (
-              <div className="grid grid-cols-5 gap-2 pt-1">
-                {uploadedUrls.map((url, idx) => (
-                  <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border bg-muted">
-                    <img src={url} alt="Reference preview" className="object-cover w-full h-full" />
-                    <button
-                      type="button"
-                      onClick={(e) => removePhoto(e, idx)}
-                      className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-black/90 text-white rounded-full p-0.5 border-none transition-colors cursor-pointer"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Place your bid</DialogTitle>
+            <DialogDescription>
+              Tell the requestor what you'd charge to take this on. They'll review all bids and pick one.
+            </DialogDescription>
+          </DialogHeader>
 
-            {/* Hidden Input Upload Button */}
-            {uploadedUrls.length < 5 && (
-              <div>
-                <label 
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/60 transition-colors shadow-sm cursor-pointer mt-1"
-                >
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handlePhotoUpload}
-                    disabled={uploadingPhotos || saving}
-                  />
-                  {uploadingPhotos ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  ) : (
-                    <Camera className="h-3.5 w-3.5 text-accent" />
-                  )}
-                  {uploadingPhotos ? "Uploading files..." : "Upload Photos"}
-                </label>
-              </div>
-            )}
-          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="bid-amount">Your price</Label>
+              <Input
+                id="bid-amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder={suggestedReward || "e.g. $25"}
+                autoFocus
+              />
+              {suggestedReward && (
+                <p className="text-xs text-muted-foreground">
+                  Requestor suggested: <span className="font-medium">{suggestedReward}</span>
+                </p>
+              )}
+            </div>
 
-          <DialogFooter className="pt-2">
-            <Button type="button" variant="ghost" onClick={(e) => { handleStop(e); setOpen(false); }}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving || uploadingPhotos}>
-              {saving ? "Sending…" : "Send bid"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <div className="space-y-2">
+              <Label htmlFor="bid-note">Note (optional)</Label>
+              <Textarea
+                id="bid-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="When you can do it, any questions, why you're a good fit…"
+                rows={3}
+              />
+            </div>
+
+            {/* 📸 PHOTOS PREVIEW & UPLOAD MATRIX */}
+            <div className="space-y-2">
+              <Label>Bid Attachments ({uploadedUrls.length}/5 max)</Label>
+              
+              {uploadedUrls.length > 0 && (
+                <div className="grid grid-cols-5 gap-2 pt-1">
+                  {uploadedUrls.map((url, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border bg-muted">
+                      <img src={url} alt="Reference preview" className="object-cover w-full h-full" />
+                      <button
+                        type="button"
+                        onClick={(e) => removePhoto(e, idx)}
+                        className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-black/90 text-white rounded-full p-0.5 border-none transition-colors cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {uploadedUrls.length < 5 && (
+                <div>
+                  <label className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/60 transition-colors shadow-sm cursor-pointer mt-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                      disabled={uploadingPhotos || saving}
+                    />
+                    {uploadingPhotos ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5 text-accent" />
+                    )}
+                    {uploadingPhotos ? "Uploading..." : "Upload Photos"}
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving || uploadingPhotos}>
+                {saving ? "Sending…" : "Send bid"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
