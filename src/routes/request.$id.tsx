@@ -126,7 +126,7 @@ function RequestDetailPage() {
     };
   }, [id, user]);
 
-  // 🛠️ Submit dynamic bid details handling negotiation pipeline 
+  // 🛠 ] Submit dynamic bid details handling negotiation pipeline 
   async function handlePlaceBid(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !request) return;
@@ -232,7 +232,7 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* 🗺️ REINTEGRATED MAP MODULE LAYER */}
+          {/* 🗺️ COLOR MAP MODULE LAYER */}
           {mapEmbedUrl && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -248,7 +248,7 @@ function RequestDetailPage() {
                   marginHeight={0}
                   marginWidth={0}
                   src={mapEmbedUrl}
-                  className="absolute inset-0 grayscale dark:invert dark:contrast-75"
+                  className="absolute inset-0"
                 />
               </div>
             </div>
