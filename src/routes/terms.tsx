@@ -27,7 +27,7 @@ function TermsPage() {
 
           <section>
             <h2 className="text-2xl font-semibold mt-6 mb-2">2. Eligibility</h2>
-            <p>You must be at least 18 years old to create an account. By using the Platform, you represent and warrant that you have the legal capacity to enter into a binding agreement.</p>
+            <p>You must be at least 18 years old or other minimum ages allowed by the law of your country to create an account. By using the Platform, you represent and warrant that you have the legal capacity to enter into a binding agreement.</p>
           </section>
 
           <section>
@@ -45,7 +45,7 @@ function TermsPage() {
 
           <section>
             <h2 className="text-2xl font-semibold mt-6 mb-2">4. Transactions</h2>
-            <p>PlanT acts as a venue to allow users to offer, sell, and buy goods. We are not a party to the actual transaction between requesters / buyers and order takers / service providers / sellers. We do not guarantee the quality, safety, or legality of the items advertised.</p>
+            <p>PlanT acts as a venue to allow users to offer, sell, and buy goods or services. We are not a party to the actual transaction between requesters / buyers and order takers / service providers / sellers. We do not guarantee the quality, safety, or legality of the items or services advertised. We do not bear any liability on the quality of goods or services provided by the users or any action, speech, mistake, negligence, tort, omission or misrepresentation made by them.</p>
           </section>
 
           <section>
