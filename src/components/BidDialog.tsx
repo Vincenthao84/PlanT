@@ -38,14 +38,14 @@ export function BidDialog({
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
 
-  // 🚨 Stops parent container card link redirects from intercepting interaction clicks
+  // Stops parent container card link redirects from intercepting interaction clicks
   const handleOpenModal = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setOpen(true);
   };
 
-  // 📸 Handle Photo Upload Matrix (Max 5)
+  // Handle Photo Upload Matrix (Max 5)
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     e.stopPropagation();
     const files = e.target.files;
@@ -107,24 +107,8 @@ export function BidDialog({
 
     setSaving(true);
     try {
-      // 1. Clean out '$' symbols or extra formatting strings if typed
-      const cleanAmount = amount.replace(/[^0-9.]/g, "");
-
-      // 2. Fire native helper so everything syncs instantly for the Requestor
-      await placeBid(requestId, cleanAmount.trim(), note.trim());
-
-      // 3. Append our uploaded array URLs to the newly created record row
-      const { data: sessionData } = await supabase.auth.getSession();
-      const currentUserId = sessionData?.session?.user?.id;
-
-      if (currentUserId && uploadedUrls.length > 0) {
-        await supabase
-          .from("request_bids")
-          .update({ photo_urls: uploadedUrls })
-          .eq("request_id", requestId)
-          .eq("helper_id", currentUserId)
-          .eq("status", "pending");
-      }
+      // ✅ Now cleanly accepts the array directly inside one query invocation parameter mapping
+      await placeBid(requestId, amount.trim(), note.trim(), uploadedUrls);
 
       toast.success("Bid placed. The requestor will review and pick one.");
       setOpen(false);
@@ -141,7 +125,6 @@ export function BidDialog({
 
   return (
     <>
-      {/* Handrolled button element intercepting navigation capture bounds natively */}
       <div onClick={handleOpenModal} className="inline-block">
         {trigger ?? (
           <Button size="sm" className="rounded-full">
