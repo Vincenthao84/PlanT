@@ -12,7 +12,6 @@ import {
   MessageSquare, 
   Clock, 
   ExternalLink,
-  // Your exact PlanT setting icons:
   Camera,
   Brain,
   Hand,
@@ -38,11 +37,10 @@ interface BidWithRequestContext {
     title: string;
     location_label: string;
     user_id: string;
-    type?: string; // Captures your task type slug
+    type?: string; 
   };
 }
 
-// 🛠️ Dynamic Icon Helper utilizing your exact requestTypes configurations
 function getCategoryIcon(typeSlug?: string) {
   switch (typeSlug?.toLowerCase()) {
     case "snap":
@@ -58,7 +56,7 @@ function getCategoryIcon(typeSlug?: string) {
     case "anything":
       return <MoreHorizontal className="h-5 w-5" />;
     default:
-      return <HelpCircle className="h-5 w-5" />; // Safeguard fallback icon
+      return <HelpCircle className="h-5 w-5" />; 
   }
 }
 
@@ -78,7 +76,7 @@ function MyBidsPage() {
           .select(`
             id, amount, note, status, created_at,
             requests:request_id (id, title, location_label, user_id, type)
-          `) // Selecting 'type' to pull the configuration slugs
+          `) 
           .eq("helper_id", user.id)
           .neq("status", "accepted") 
           .order("created_at", { ascending: false });
@@ -132,7 +130,6 @@ function MyBidsPage() {
                 <Card key={b.id} className="p-5 transition-shadow hover:shadow-md">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex gap-3">
-                      {/* Standard PlanT dynamic background accent wrapper matching notice boards */}
                       <div className="h-10 w-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center shrink-0">
                         {getCategoryIcon(req.type)}
                       </div>
@@ -153,7 +150,7 @@ function MyBidsPage() {
                         
                         {b.note && (
                           <p className="text-xs text-muted-foreground bg-muted/40 p-2 rounded-lg my-1.5 italic">
-                            " {b.note} "
+                            "{b.note}"
                           </p>
                         )}
                         
@@ -173,7 +170,7 @@ function MyBidsPage() {
                         onClick={() => setActiveChatId(isChatOpen ? null : b.id)}
                       >
                         <MessageSquare className="h-4 w-4 mr-1.5" />
-                        Chat Requestor
+                        {isChatOpen ? "Close Chat" : "Chat Requestor"}
                       </Button>
                       
                       <Button asChild size="sm" variant="ghost" className="rounded-xl h-9">
@@ -186,6 +183,7 @@ function MyBidsPage() {
 
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
+                      {/* 🛠️ Safe prop passing: Mapping both bidId and camelCase bidId properties explicitly */}
                       <TaskThread
                         requestId={req.id}
                         currentUserId={user!.id}
