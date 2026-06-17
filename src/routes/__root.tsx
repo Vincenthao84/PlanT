@@ -58,6 +58,14 @@ export const Route = createRootRoute({
       { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
       { rel: "apple-touch-icon", href: "/icon-192.png" },
     ],
+    // 📄 Google AdSense configurations mapped cleanly as native assets
+    scripts: [
+      {
+        src: "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6360097975265112",
+        async: true,
+        crossOrigin: "anonymous",
+      },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -86,5 +94,3 @@ function RootComponent() {
     </AuthProvider>
   );
 }
-
-
