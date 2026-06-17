@@ -118,15 +118,20 @@ function RequestDetailPage() {
           
           setRequest(mappedRequest);
 
-          // Fetch incoming layout bids if owner
-          if (user && (data.user_id === user.id || data.userId === user.id)) {
-            const { data: bidsData } = await supabase
+          // Fix: Consolidate casing schemas securely to evaluate the request owner identity
+          const requestOwnerId = data.user_id || data.userId;
+          if (user && requestOwnerId === user.id) {
+            const { data: bidsData, error: bidsError } = await supabase
               .from("request_bids")
               .select(`
                 id, helper_id, amount, note, status, photo_urls,
                 profiles:helper_id (display_name, avatar_url)
               `)
               .eq("request_id", data.id);
+            
+            if (bidsError) {
+              console.error("Error fetching bids data stream:", bidsError);
+            }
             
             if (bidsData && !cancelled) {
               setBids(bidsData as any[]);
@@ -188,7 +193,6 @@ function RequestDetailPage() {
 
     const fetchChatMessages = async () => {
       try {
-        // FIXED: Streamlined selection string and stripped problematic .order() configuration syntax
         const { data, error } = await supabase
           .from("request_messages")
           .select("id, request_id, author_id, body, photo_urls, created_at, profiles:author_id(display_name, avatar_url)")
