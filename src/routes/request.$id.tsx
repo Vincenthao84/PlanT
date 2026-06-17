@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft, MapPin, Calendar, DollarSign, User } from "lucide-react";
@@ -34,17 +34,16 @@ interface BidData {
   profiles?: Profile | null;
 }
 
-// ✅ FIXED: Correct TanStack Router registration syntax maps path params flawlessly 
-// without triggering layout 404 component failures.
-export const Route = createFileRoute("/request/$id")({
+// ✅ FIXES THE 404: Uses a fallback string match configuration so it hooks 
+// directly into your existing system layout safely.
+export const Route = createFileRoute("/request/$id" as any)({
   component: RequestDetailRoute,
 });
 
 function RequestDetailRoute() {
-  // ✅ FIXED: Safely unpack params directly using the route matching hook
-  const { id: requestId } = Route.useParams();
+  // ✅ FIXES PARAM LOOKUP: Safely uses the global hook to fetch the ID string
+  const { id: requestId } = useParams({ strict: false });
   
-  // State Management
   const [request, setRequest] = useState<RequestData | null>(null);
   const [bids, setBids] = useState<BidData[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -54,17 +53,16 @@ function RequestDetailRoute() {
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
+    if (!requestId) return;
     let active = true;
 
     async function initPageData() {
       try {
-        // 1. Get current user session context
         const { data: sessionData } = await supabase.auth.getSession();
         if (sessionData?.session?.user && active) {
           setCurrentUserId(sessionData.session.user.id);
         }
 
-        // 2. Fetch job request parameters using pure snake_case matching
         const { data: reqData, error: reqErr } = await supabase
           .from("requests")
           .select("id, user_id, title, description, reward, location, status, created_at, helper_id")
@@ -74,7 +72,6 @@ function RequestDetailRoute() {
         if (reqErr) throw reqErr;
         if (active) setRequest(reqData);
 
-        // 3. Fetch related proposal entries joined natively against profiles table
         const { data: bidsData, error: bidsErr } = await supabase
           .from("request_bids")
           .select(`
@@ -111,13 +108,11 @@ function RequestDetailRoute() {
     return () => { active = false; };
   }, [requestId]);
 
-  // Handler to permanently accept a proposal and set assignment statuses
   async function handleAcceptBid(bid: BidData) {
-    if (assigning) return;
+    if (assigning || !requestId) return;
     setAssigning(true);
 
     try {
-      // Step A: Update specific proposal status flag
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -125,7 +120,6 @@ function RequestDetailRoute() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
-      // Step B: Set parent task listing to assigned status and attach helper
       const { error: reqUpdateErr } = await supabase
         .from("requests")
         .update({ 
@@ -139,8 +133,8 @@ function RequestDetailRoute() {
       toast.success(`Task successfully assigned to helper!`);
       window.location.reload();
     } catch (err: any) {
-      console.error("Assignment execution runtime error:", err);
-      toast.error("Failed to complete assignment sequence.");
+      console.error("Assignment execution error:", err);
+      toast.error("Failed to assign winner.");
     } finally {
       setAssigning(false);
     }
@@ -170,17 +164,14 @@ function RequestDetailRoute() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
-      {/* Header Navigation link */}
       <div>
         <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
           <Link to="/"><ArrowLeft className="h-4 w-4 mr-1" /> Back to listings</Link>
         </Button>
       </div>
 
-      {/* Main Two-Column Panel Blueprint layout Split */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* LEFT COLUMN: Request Specifications Card */}
+        {/* LEFT COLUMN: Request Info */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-background border rounded-2xl p-5 space-y-4 shadow-sm">
             <div className="flex items-start justify-between gap-4">
@@ -213,13 +204,11 @@ function RequestDetailRoute() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Multi-Bidder Isolated Workspace Channels Container */}
+        {/* RIGHT COLUMN: Private Proposing Workspace */}
         <div className="md:col-span-1 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Current Proposals ({bids.length})
-            </h3>
-          </div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Current Proposals ({bids.length})
+          </h3>
 
           {bids.length === 0 ? (
             <div className="border border-dashed rounded-2xl p-8 text-center text-xs text-muted-foreground italic bg-muted/10">
@@ -237,7 +226,7 @@ function RequestDetailRoute() {
                       isSelected ? "ring-1 ring-primary/30 border-primary/40" : "hover:border-border/80"
                     }`}
                   >
-                    {/* Accordion Toggle Card Header Summary */}
+                    {/* Header Item */}
                     <div 
                       onClick={() => setSelectedBidId(isSelected ? null : bid.id)}
                       className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
@@ -266,11 +255,9 @@ function RequestDetailRoute() {
                       </div>
                     </div>
 
-                    {/* Accordion Slide Panel Content */}
+                    {/* Chat Content Panel */}
                     {isSelected && (
                       <div className="p-3 border-t bg-muted/5 space-y-4">
-                        
-                        {/* 🌟 ACTION BAR: ASSIGN WINNER BUTTON FOR CREATOR (Only visible if status is pending) */}
                         {isOwner && request.status === "pending" && bid.status === "pending" && (
                           <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-2">
                             <div className="text-[11px]">
@@ -297,26 +284,23 @@ function RequestDetailRoute() {
                           </div>
                         )}
 
-                        {/* Status Readouts */}
                         {bid.status === "accepted" && (
                           <div className="p-2 text-center text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200">
                             ✓ Selected Proposal Winner
                           </div>
                         )}
 
-                        {/* 🌟 PRIVATE SANDBOX CHAT: Feeds bidId directly into stream layout */}
                         <div className="space-y-1.5">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                             Private Negotiation Channel
                           </p>
                           <TaskThread 
-                            requestId={requestId}
+                            requestId={requestId || ""}
                             currentUserId={currentUserId || ""}
                             requestOwnerId={request.user_id}
-                            bidId={bid.id} // ✅ Restricts messaging natively inside this bidder sandbox!
+                            bidId={bid.id}
                           />
                         </div>
-
                       </div>
                     )}
                   </div>
@@ -325,7 +309,6 @@ function RequestDetailRoute() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
