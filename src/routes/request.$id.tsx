@@ -12,6 +12,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Extend your standard local interface mapping configuration to capture created_at
+interface ExtendedStoredRequest extends StoredRequest {
+  createdAt?: string; 
+}
+
 export const Route = createFileRoute("/request/$id")({
   head: ({ params }) => ({
     meta: [
@@ -27,7 +32,7 @@ function RequestDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   
-  const [request, setRequest] = useState<StoredRequest | null>(null);
+  const [request, setRequest] = useState<ExtendedStoredRequest | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,7 +41,7 @@ function RequestDetailPage() {
     async function fetchRequestDetails() {
       try {
         const { data, error } = await supabase
-          .from("requests") // Verified accurate table hook targeting matching database schema
+          .from("requests")
           .select("*")
           .eq("id", id)
           .single();
@@ -44,8 +49,7 @@ function RequestDetailPage() {
         if (error) throw error;
         
         if (!cancelled && data) {
-          // Explicitly map snake_case postgres properties safely into camelCase properties for components
-          const mappedRequest: StoredRequest = {
+          const mappedRequest: ExtendedStoredRequest = {
             id: data.id,
             type: data.type,
             title: data.title,
@@ -63,6 +67,7 @@ function RequestDetailPage() {
             feeSettledAt: data.fee_settled_at || data.feeSettledAt,
             photoUrls: data.photo_urls || data.photoUrls || [],
             paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
+            createdAt: data.created_at, // ✅ Captured the baseline post creation timestamp safely
           };
           
           setRequest(mappedRequest);
@@ -77,14 +82,12 @@ function RequestDetailPage() {
 
     void fetchRequestDetails();
 
-    // Active real-time updates piping logic
     const channel = supabase
       .channel(`request-detail-${id}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "requests", filter: `id=eq.${id}` },
         () => {
-          // Re-fetch clean dataset state if an unexpected database update executes
           void fetchRequestDetails();
         }
       )
@@ -123,15 +126,15 @@ function RequestDetailPage() {
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
       <section className="max-w-3xl mx-auto px-6 py-12">
+        {/* ✅ FIX 2: Explicitly navigate back to the Notice Board route instead of relative '..' to avoid 404s */}
         <button
-          onClick={() => void navigate({ to: ".." })}
+          onClick={() => void navigate({ to: "/notice-board" })}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer bg-transparent border-none"
         >
           <ArrowLeft className="h-4 w-4" /> Back to listings
         </button>
 
         <Card className="p-6 sm:p-8 space-y-6" style={{ boxShadow: "var(--shadow-soft)" }}>
-          {/* Header Metadata block */}
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -158,17 +161,15 @@ function RequestDetailPage() {
             )}
           </div>
 
-          {/* Description details body block */}
           {request.description && (
             <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words border-l-2 border-muted pl-4 py-1">
               {request.description}
             </div>
           )}
 
-          {/* 🖼️ IMAGE ATTACHMENTS GALLERY LAYER */}
           {hasPhotos && (
             <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1+">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                 <ImageIcon className="h-3.5 w-3.5" /> Attached Media ({request.photoUrls.length})
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -195,7 +196,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Location & Time details metadata strip */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
             <span className="inline-flex items-center gap-1">
               <MapPin className="h-3.5 w-3.5 text-accent" />
@@ -203,11 +203,11 @@ function RequestDetailPage() {
             </span>
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              Posted {request.takenAt ? new Date(request.takenAt).toLocaleDateString() : "Recently"}
+              {/* ✅ FIX 1: Point to the accurate post creation value (createdAt) instead of the action timestamp (takenAt) */}
+              Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"}
             </span>
           </div>
 
-          {/* 💬 INTEGRATED CONVERSATION & COMMUNICATIONS MATRIX */}
           {user && (user.id === request.userId || user.id === request.takenBy) ? (
             <div className="pt-6 border-t border-border">
               <TaskThread
@@ -216,7 +216,6 @@ function RequestDetailPage() {
                 requestOwnerId={request.userId}
               />
               
-              {/* Payment view hooks rendering exclusively for active parties once completion processing kicks off */}
               {(!!request.takerCompletedAt || !!request.completedAt) && request.takenBy && (
                 <div className="mt-6 pt-6 border-t border-dashed">
                   <h4 className="text-sm font-semibold mb-3">Settlement & Verification</h4>
