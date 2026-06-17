@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft, MapPin, Calendar, DollarSign, User } from "lucide-react";
@@ -34,8 +34,15 @@ interface BidData {
   profiles?: Profile | null;
 }
 
-export default function RequestDetailRoute() {
-  const { id: requestId } = useParams({ from: "/request/$id" });
+// ✅ FIXED: Correct TanStack Router registration syntax maps path params flawlessly 
+// without triggering layout 404 component failures.
+export const Route = createFileRoute("/request/$id")({
+  component: RequestDetailRoute,
+});
+
+function RequestDetailRoute() {
+  // ✅ FIXED: Safely unpack params directly using the route matching hook
+  const { id: requestId } = Route.useParams();
   
   // State Management
   const [request, setRequest] = useState<RequestData | null>(null);
