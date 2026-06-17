@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink, Send, Camera, X, Loader2 } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink, Send, Camera, X, Loader2, MessageSquare } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { TaskThread } from "@/components/TaskThread";
+import { RequestChat } from "@/components/RequestChat"; // 💬 Swapped out TaskThread for the Live Photo-Supported Chat
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,6 +16,19 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
+}
+
+interface BidRecord {
+  id: string;
+  helper_id: string;
+  amount: number;
+  note: string;
+  status: string;
+  photo_urls: string[];
+  profiles?: {
+    display_name: string | null;
+    avatar_url: string | null;
+  };
 }
 
 export const Route = createFileRoute("/request/$id")({
@@ -41,6 +54,10 @@ function RequestDetailPage() {
   const [bidNote, setBidNote] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
   const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
+  
+  // 👥 Bids list state for the Request Owner
+  const [bids, setBids] = useState<BidRecord[]>([]);
+  const [selectedBidderId, setSelectedBidderId] = useState<string | null>(null);
 
   // 📸 Single Page Photo Attachment States
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
@@ -82,6 +99,25 @@ function RequestDetailPage() {
           };
           
           setRequest(mappedRequest);
+
+          // 🔍 Fetch incoming bids only if the current user owns this request entry post
+          if (user && (data.user_id === user.id || data.userId === user.id)) {
+            const { data: bidsData } = await supabase
+              .from("request_bids")
+              .select(`
+                id, helper_id, amount, note, status, photo_urls,
+                profiles:helper_id (display_name, avatar_url)
+              `)
+              .eq("request_id", data.id);
+            
+            if (bidsData && !cancelled) {
+              setBids(bidsData as any[]);
+              if (bidsData.length > 0) {
+                // Default view viewport into the first conversation link
+                setSelectedBidderId(bidsData[0].helper_id);
+              }
+            }
+          }
         }
       } catch (err) {
         console.error("Error pulling down request asset details:", err);
@@ -193,7 +229,7 @@ function RequestDetailPage() {
           amount: parseFloat(bidAmount),
           note: bidNote.trim(),
           status: "pending",
-          photo_urls: uploadedUrls // ✅ Photo array pushed successfully
+          photo_urls: uploadedUrls
         });
 
       if (error) throw error;
@@ -230,6 +266,7 @@ function RequestDetailPage() {
   const t = getRequestType(request.type);
   const Icon = t?.icon ?? MapPin;
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
+  const isOwner = user && user.id === request.userId;
 
   const mapEmbedUrl = request.lat && request.lng
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
@@ -340,13 +377,41 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {user && (user.id === request.userId || user.id === request.takenBy) ? (
-            <div className="pt-6 border-t border-border">
-              <TaskThread
-                requestId={request.id}
-                currentUserId={user.id}
-                requestOwnerId={request.userId}
-              />
+          {/* 💬 PRIVACY CONVERSATION AND CAMERA HANDLERS REGION */}
+          {user && (isOwner || user.id === request.takenBy || hasAlreadyBid) ? (
+            <div className="pt-6 border-t border-border space-y-6">
+              
+              {/* If user is the OWNER of the task, display layout filters for selecting specific bidders */}
+              {isOwner && bids.length > 0 && !request.takenBy && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-primary" /> Incoming Active Proposals ({bids.length})
+                  </label>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {bids.map((b) => (
+                      <Button
+                        key={b.id}
+                        type="button"
+                        variant={selectedBidderId === b.helper_id ? "default" : "outline"}
+                        size="sm"
+                        className="rounded-xl text-xs shrink-0"
+                        onClick={() => setSelectedBidderId(b.helper_id)}
+                      >
+                        {b.profiles?.display_name || "Helper"} (${b.amount})
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Render Chat Component Stream Interface if channels match up */}
+              {((isOwner && selectedBidderId) || !isOwner) && (
+                <RequestChat 
+                  requestId={request.id}
+                  requestorId={request.userId}
+                  bidderId={isOwner ? (selectedBidderId as string) : user.id}
+                />
+              )}
               
               {(!!request.takerCompletedAt || !!request.completedAt) && request.takenBy && (
                 <div className="mt-6 pt-6 border-t border-dashed">
@@ -361,105 +426,99 @@ function RequestDetailPage() {
             </div>
           ) : user && !request.takenBy ? (
             <div className="pt-6 border-t border-border">
-              {hasAlreadyBid ? (
-                <div className="bg-muted/60 p-4 rounded-xl text-center text-sm text-muted-foreground italic border">
-                  You have placed an offer for this request. Check your dashboard profile under "My Placed Bids" to track status or message the requestor.
-                </div>
-              ) : (
-                <form onSubmit={handlePlaceBid} className="space-y-4">
-                  <div className="bg-accent/5 p-4 rounded-2xl border border-accent/10">
-                    <h3 className="text-sm font-bold tracking-tight mb-1 text-foreground">Propose a Helper Bid</h3>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Negotiate your pricing and details before acceptance.
-                    </p>
+              <form onSubmit={handlePlaceBid} className="space-y-4">
+                <div className="bg-accent/5 p-4 rounded-2xl border border-accent/10">
+                  <h3 className="text-sm font-bold tracking-tight mb-1 text-foreground">Propose a Helper Bid</h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Negotiate your pricing and details before acceptance.
+                  </p>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                        Your Required Payment ($)
+                      </label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 25"
+                        value={bidAmount}
+                        onChange={(e) => setBidAmount(e.target.value)}
+                        className="rounded-xl h-10 max-w-[200px]"
+                        disabled={submittingBid}
+                        required
+                      />
+                    </div>
                     
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                          Your Required Payment ($)
-                        </label>
-                        <Input
-                          type="number"
-                          placeholder="e.g. 25"
-                          value={bidAmount}
-                          onChange={(e) => setBidAmount(e.target.value)}
-                          className="rounded-xl h-10 max-w-[200px]"
-                          disabled={submittingBid}
-                          required
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                        Introduction or Service Note (Optional)
+                      </label>
+                      <Textarea
+                        placeholder="Explain why you are a good match for this request..."
+                        value={bidNote}
+                        onChange={(e) => setBidNote(e.target.value)}
+                        className="rounded-xl min-h-[80px] resize-none"
+                        disabled={submittingBid}
+                        maxLength={300}
+                      />
+                    </div>
+
+                    {/* 📸 SINGLE PAGE FORM 5-PHOTOS CAPABILITY LAYER */}
+                    <div className="space-y-2 pt-1">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Bid Reference Attachments ({uploadedUrls.length}/5 max)
+                      </label>
                       
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                          Introduction or Service Note (Optional)
-                        </label>
-                        <Textarea
-                          placeholder="Explain why you are a good match for this request..."
-                          value={bidNote}
-                          onChange={(e) => setBidNote(e.target.value)}
-                          className="rounded-xl min-h-[80px] resize-none"
-                          disabled={submittingBid}
-                          maxLength={300}
-                        />
-                      </div>
+                      {uploadedUrls.length > 0 && (
+                        <div className="grid grid-cols-5 gap-2 pb-1">
+                          {uploadedUrls.map((url, idx) => (
+                            <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border bg-muted">
+                              <img src={url} alt="Attachment thumbnail preview" className="object-cover w-full h-full" />
+                              <button
+                                type="button"
+                                onClick={() => removePhoto(idx)}
+                                className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-black/90 text-white rounded-full p-0.5 border-none transition-colors"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      {/* 📸 ADDED: SINGLE PAGE FORM 5-PHOTOS CAPABILITY LAYER */}
-                      <div className="space-y-2 pt-1">
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          Bid Reference Attachments ({uploadedUrls.length}/5 max)
+                      {uploadedUrls.length < 5 && (
+                        <label className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/50 transition-colors shadow-sm cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={handlePhotoUpload}
+                            disabled={uploadingPhotos || submittingBid}
+                          />
+                          {uploadingPhotos ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                          ) : (
+                            <Camera className="h-3.5 w-3.5 text-accent" />
+                          )}
+                          {uploadingPhotos ? "Uploading files..." : "Upload Photos"}
                         </label>
-                        
-                        {uploadedUrls.length > 0 && (
-                          <div className="grid grid-cols-5 gap-2 pb-1">
-                            {uploadedUrls.map((url, idx) => (
-                              <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border bg-muted">
-                                <img src={url} alt="Attachment thumbnail preview" className="object-cover w-full h-full" />
-                                <button
-                                  type="button"
-                                  onClick={() => removePhoto(idx)}
-                                  className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-black/90 text-white rounded-full p-0.5 border-none transition-colors"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {uploadedUrls.length < 5 && (
-                          <label className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/50 transition-colors shadow-sm cursor-pointer">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              onChange={handlePhotoUpload}
-                              disabled={uploadingPhotos || submittingBid}
-                            />
-                            {uploadingPhotos ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                            ) : (
-                              <Camera className="h-3.5 w-3.5 text-accent" />
-                            )}
-                            {uploadingPhotos ? "Uploading files..." : "Upload Photos"}
-                          </label>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
-                  
-                  <div className="flex justify-end">
-                    <Button 
-                      type="submit" 
-                      className="rounded-full px-6 gap-2"
-                      disabled={submittingBid || uploadingPhotos}
-                    >
-                      <Send className="h-4 w-4" />
-                      {submittingBid ? "Submitting Offer..." : "Submit Proposal Bid"}
-                    </Button>
-                  </div>
-                </form>
-              )}
+                </div>
+                
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    className="rounded-full px-6 gap-2"
+                    disabled={submittingBid || uploadingPhotos}
+                  >
+                    <Send className="h-4 w-4" />
+                    {submittingBid ? "Submitting Offer..." : "Submit Proposal Bid"}
+                  </Button>
+                </div>
+              </form>
             </div>
           ) : (
             <div className="pt-4 text-center">
