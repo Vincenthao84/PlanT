@@ -15,8 +15,8 @@ interface TaskThreadProps {
 interface Message {
   id: string;
   request_id: string;
-  author_id: string; // ✅ Matches your database column
-  body: string;      // ✅ Matches your database column
+  author_id: string; 
+  body: string;      
   created_at: string;
   bid_id?: string | null;
 }
@@ -42,7 +42,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
     async function fetchMessages() {
       try {
         let query = supabase
-          .from("request_messages") // ✅ Matches your real table name
+          .from("request_messages") 
           .select("*")
           .eq("request_id", requestId)
           .order("created_at", { ascending: true });
@@ -66,7 +66,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
 
     void fetchMessages();
 
-    // Set up clean real-time subscription
+    // ✅ FIXED: Removed the hardcoded string filter argument to bypass database UUID parsing crashes
     const channel = supabase
       .channel(`task-chat-${requestId}-${bidId || 'global'}`)
       .on(
@@ -74,13 +74,13 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
         { 
           event: "INSERT", 
           schema: "public", 
-          table: "request_messages", // ✅ Matches your real table name
-          filter: `request_id=eq.${requestId}`
+          table: "request_messages" 
         },
         (payload) => {
           const msg = payload.new as Message;
           
-          // Separate bid specific conversations from global ones
+          // ✅ FIXED: Safely filter rows locally to separate conversations without breaking your stream connection
+          if (msg.request_id !== requestId) return;
           if (bidId && msg.bid_id !== bidId) return;
           if (!bidId && msg.bid_id) return;
           
@@ -109,8 +109,8 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
     try {
       const payload: Record<string, any> = {
         request_id: requestId,
-        author_id: currentUserId, // ✅ Matches your schema name
-        body: textToSend,          // ✅ Matches your schema name
+        author_id: currentUserId, 
+        body: textToSend,          
       };
 
       if (bidId) {
@@ -118,7 +118,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
       }
 
       const { error } = await supabase
-        .from("request_messages") // ✅ Matches your table name
+        .from("request_messages") 
         .insert(payload);
 
       if (error) throw error;
@@ -148,7 +148,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
           </div>
         ) : (
           messages.map((msg) => {
-            const isMe = msg.author_id === currentUserId; // ✅ Using author_id
+            const isMe = msg.author_id === currentUserId; 
             return (
               <div
                 key={msg.id}
@@ -163,7 +163,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
                       : "bg-muted border text-foreground rounded-tl-none"
                   }`}
                 >
-                  {msg.body} {/* ✅ Using body */}
+                  {msg.body} 
                 </div>
                 <span className="text-[9px] text-muted-foreground mt-0.5 px-1">
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
