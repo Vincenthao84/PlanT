@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink, Send } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink, Send, Camera, X, Loader2 } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -41,6 +41,10 @@ function RequestDetailPage() {
   const [bidNote, setBidNote] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
   const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
+
+  // 📸 Single Page Photo Attachment States
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +91,6 @@ function RequestDetailPage() {
       }
     }
 
-    // 🛠️ Checks whether this helper has already placed an active bid on this request
     async function checkExistingBid() {
       if (!user) return;
       try {
@@ -126,7 +129,51 @@ function RequestDetailPage() {
     };
   }, [id, user]);
 
-  // 🛠 ] Submit dynamic bid details handling negotiation pipeline 
+  // 📸 Handle Photo Uploads for inline Form (Max 5)
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (uploadedUrls.length + files.length > 5) {
+      toast.error("You can only upload up to 5 reference photos.");
+      return;
+    }
+
+    setUploadingPhotos(true);
+    const newUrls: string[] = [...uploadedUrls];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${user?.id || 'uid'}-${Date.now()}-${i}.${fileExt}`;
+        const filePath = `bid-attachments/${id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("request-photos")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("request-photos")
+          .getPublicUrl(filePath);
+
+        newUrls.push(publicUrl);
+      }
+      setUploadedUrls(newUrls);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to upload photos.");
+    } finally {
+      setUploadingPhotos(false);
+    }
+  }
+
+  const removePhoto = (idxToRemove: number) => {
+    setUploadedUrls((prev) => prev.filter((_, idx) => idx !== idxToRemove));
+  };
+
   async function handlePlaceBid(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !request) return;
@@ -145,7 +192,8 @@ function RequestDetailPage() {
           helper_id: user.id,
           amount: parseFloat(bidAmount),
           note: bidNote.trim(),
-          status: "pending"
+          status: "pending",
+          photo_urls: uploadedUrls // ✅ Photo array pushed successfully
         });
 
       if (error) throw error;
@@ -183,7 +231,6 @@ function RequestDetailPage() {
   const Icon = t?.icon ?? MapPin;
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
 
-  // Render maps context safely using coordinates embedded in standard OpenStreetMap configurations
   const mapEmbedUrl = request.lat && request.lng
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
     : null;
@@ -232,7 +279,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* 🗺️ COLOR MAP MODULE LAYER */}
           {mapEmbedUrl && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -294,7 +340,6 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {/* 💬 COMMUNICATIONS MATRIX & ACTIVE DISCUSSION CONTEXTS */}
           {user && (user.id === request.userId || user.id === request.takenBy) ? (
             <div className="pt-6 border-t border-border">
               <TaskThread
@@ -321,7 +366,6 @@ function RequestDetailPage() {
                   You have placed an offer for this request. Check your dashboard profile under "My Placed Bids" to track status or message the requestor.
                 </div>
               ) : (
-                /* 🛠️ PLACING A NEGOTIATION BID LAYOUT MODULE FORM */
                 <form onSubmit={handlePlaceBid} className="space-y-4">
                   <div className="bg-accent/5 p-4 rounded-2xl border border-accent/10">
                     <h3 className="text-sm font-bold tracking-tight mb-1 text-foreground">Propose a Helper Bid</h3>
@@ -358,6 +402,49 @@ function RequestDetailPage() {
                           maxLength={300}
                         />
                       </div>
+
+                      {/* 📸 ADDED: SINGLE PAGE FORM 5-PHOTOS CAPABILITY LAYER */}
+                      <div className="space-y-2 pt-1">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Bid Reference Attachments ({uploadedUrls.length}/5 max)
+                        </label>
+                        
+                        {uploadedUrls.length > 0 && (
+                          <div className="grid grid-cols-5 gap-2 pb-1">
+                            {uploadedUrls.map((url, idx) => (
+                              <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border bg-muted">
+                                <img src={url} alt="Attachment thumbnail preview" className="object-cover w-full h-full" />
+                                <button
+                                  type="button"
+                                  onClick={() => removePhoto(idx)}
+                                  className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-black/90 text-white rounded-full p-0.5 border-none transition-colors"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {uploadedUrls.length < 5 && (
+                          <label className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/50 transition-colors shadow-sm cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={handlePhotoUpload}
+                              disabled={uploadingPhotos || submittingBid}
+                            />
+                            {uploadingPhotos ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            ) : (
+                              <Camera className="h-3.5 w-3.5 text-accent" />
+                            )}
+                            {uploadingPhotos ? "Uploading files..." : "Upload Photos"}
+                          </label>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
@@ -365,7 +452,7 @@ function RequestDetailPage() {
                     <Button 
                       type="submit" 
                       className="rounded-full px-6 gap-2"
-                      disabled={submittingBid}
+                      disabled={submittingBid || uploadingPhotos}
                     >
                       <Send className="h-4 w-4" />
                       {submittingBid ? "Submitting Offer..." : "Submit Proposal Bid"}
