@@ -45,8 +45,6 @@ interface ChatMessage {
   };
 }
 
-// ✅ FIXED FOR PRODUCTION BUILD: Reinstated clean string literal path pattern matching.
-// This addresses the compilation errors shown in your build log.
 export const Route = createFileRoute("/request/$id")({
   head: ({ params }) => ({
     meta: [
@@ -58,7 +56,6 @@ export const Route = createFileRoute("/request/$id")({
 });
 
 function RequestDetailPage() {
-  // ✅ FIXED PARAMETER ACCESS: Safely extract ID parameter fields directly using TanStack Route hooks
   const { id } = Route.useParams();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -67,7 +64,6 @@ function RequestDetailPage() {
   const [request, setRequest] = useState<ExtendedStoredRequest | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // 👥 Bidding & Management States
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
@@ -75,21 +71,17 @@ function RequestDetailPage() {
   const [bids, setBids] = useState<BidRecord[]>([]);
   const [assigningBidId, setAssigningBidId] = useState<string | null>(null);
 
-  // 💬 Accordion Panel Workspace Channel State Tracking
   const [selectedBidId, setSelectedBidId] = useState<string | null>(null);
 
-  // 💬 Live Internal Chat States
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [newMsgText, setNewMsgText] = useState("");
   const [chatPhotos, setChatPhotos] = useState<string[]>([]);
   const [uploadingChatPhotos, setUploadingChatPhotos] = useState(false);
 
-  // 📸 Bid Attachment Photos State
   const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
 
-  // 1. Fetch Primary Request Assets & Metadata Layout
   useEffect(() => {
     let cancelled = false;
 
@@ -139,7 +131,6 @@ function RequestDetailPage() {
             profiles (display_name, avatar_url)
           `).eq("request_id", data.id);
 
-          // If the viewer is not the task creator, restrict list retrieval to their own bid record
           if (user && requestOwnerId !== user.id) {
             query = query.eq("helper_id", user.id);
           }
@@ -198,7 +189,6 @@ function RequestDetailPage() {
     };
   }, [id, user]);
 
-  // 2. 💬 Isolated Chat Window Fetch & Live Subscription
   useEffect(() => {
     if (!user || !request || !selectedBidId) {
       setChatMessages([]);
@@ -267,7 +257,6 @@ function RequestDetailPage() {
     };
   }, [request, user, selectedBidId]);
 
-  // 📸 Action Handler: Uploading Images inside Chat Thread
   async function handleChatPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -308,7 +297,6 @@ function RequestDetailPage() {
     }
   }
 
-  // 📸 Action Handler: Uploading Images for Initial Proposals
   async function handleBidPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -349,7 +337,6 @@ function RequestDetailPage() {
     }
   }
 
-  // ✉️ Send message action
   async function handleSendChatMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!newMsgText.trim() && chatPhotos.length === 0) return;
@@ -406,11 +393,13 @@ function RequestDetailPage() {
     }
   }
 
+  // ✅ FIXED FOR PRODUCTION: Corrected query schema keywords to use strict database snake_case keys.
   async function handleAcceptBid(bid: BidRecord) {
     if (!user || !request || assigningBidId) return;
     setAssigningBidId(bid.id);
 
     try {
+      // 1. Update the target bid record status row to accepted
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -418,6 +407,7 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
+      // 2. Update parent request notice with the chosen winner using strict snake_case column layout properties
       const { error: reqUpdateErr } = await supabase
         .from("requests")
         .update({ 
@@ -555,7 +545,6 @@ function RequestDetailPage() {
             <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"}</span>
           </div>
 
-          {/* 👥 ACCORDION WORKSPACE: PRIVATE CHAT CHANNELS */}
           {user && (isOwner || hasAlreadyBid) && (
             <div className="space-y-3 pt-4 border-t border-border">
               <label className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
@@ -578,7 +567,6 @@ function RequestDetailPage() {
                           isSelected ? "ring-1 ring-primary/20 border-primary/30" : "hover:border-border/80"
                         }`}
                       >
-                        {/* Summary Header Accordion Toggle */}
                         <div 
                           onClick={() => setSelectedBidId(isSelected ? null : b.id)}
                           className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
@@ -603,11 +591,9 @@ function RequestDetailPage() {
                           </div>
                         </div>
 
-                        {/* Collapsible Workspace View Panel */}
                         {isSelected && (
                           <div className="p-3 border-t bg-muted/5 space-y-4">
                             
-                            {/* 🌟 CHOSEN ACTION ASSIGNMENT BUTTON */}
                             {isOwner && !request.takenBy && b.status === "pending" && (
                               <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-2">
                                 <div className="text-[11px]">
@@ -634,14 +620,12 @@ function RequestDetailPage() {
                               </div>
                             )}
 
-                            {/* Status Readouts */}
                             {b.status === "accepted" && (
                               <div className="p-2 text-center text-[11px] font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200">
                                 ✓ Chosen Contract Proposal Winner
                               </div>
                             )}
 
-                            {/* 🌟 ISOLATED PRIVATE CHAT PIPELINE BLOCK */}
                             <div className="space-y-2">
                               <div className="px-1 border-b pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Private Sandbox Conversation
@@ -688,7 +672,6 @@ function RequestDetailPage() {
                                   )}
                                 </ScrollArea>
 
-                                {/* Chat Submission Panel */}
                                 <form 
                                   onSubmit={(e) => { e.stopPropagation(); void handleSendChatMessage(e); }} 
                                   className="p-1.5 bg-background border-t space-y-1"
@@ -745,7 +728,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Verification Settlement Section */}
           {user && request.takenBy && (isOwner || user.id === request.takenBy) && (!!request.takerCompletedAt || !!request.completedAt) && (
             <div className="mt-4 pt-4 border-t border-dashed">
               <h4 className="text-xs font-semibold mb-2">Settlement & Verification</h4>
@@ -753,7 +735,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* 📬 PROPOSAL SUBMISSION SUBFORM */}
           {user && !isOwner && !request.takenBy && !hasAlreadyBid && (
             <div className="pt-6 border-t border-border">
               <form onSubmit={handlePlaceBid} className="space-y-4">
