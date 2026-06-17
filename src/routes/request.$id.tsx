@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, ExternalLink, Send, Camera, X, Loader2, MessageSquare } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { RequestChat } from "@/components/RequestChat"; // 💬 Swapped out TaskThread for the Live Photo-Supported Chat
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +12,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+
+// 💡 Note: If you want to use your BidDialog component here, 
+// you can safely import it like this:
+// import { BidDialog } from "@/components/BidDialog";
 
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
@@ -113,7 +116,6 @@ function RequestDetailPage() {
             if (bidsData && !cancelled) {
               setBids(bidsData as any[]);
               if (bidsData.length > 0) {
-                // Default view viewport into the first conversation link
                 setSelectedBidderId(bidsData[0].helper_id);
               }
             }
@@ -377,40 +379,31 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {/* 💬 PRIVACY CONVERSATION AND CAMERA HANDLERS REGION */}
+          {/* 💬 PROPOSALS AND SETTLEMENT INTERFACE */}
           {user && (isOwner || user.id === request.takenBy || hasAlreadyBid) ? (
             <div className="pt-6 border-t border-border space-y-6">
               
-              {/* If user is the OWNER of the task, display layout filters for selecting specific bidders */}
               {isOwner && bids.length > 0 && !request.takenBy && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
-                    <MessageSquare className="w-3.5 h-3.5 text-primary" /> Incoming Active Proposals ({bids.length})
+                    <MessageSquare className="w-3.5 h-3.5 text-primary" /> Received Proposals ({bids.length})
                   </label>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
+                  
+                  <div className="space-y-2">
                     {bids.map((b) => (
-                      <Button
-                        key={b.id}
-                        type="button"
-                        variant={selectedBidderId === b.helper_id ? "default" : "outline"}
-                        size="sm"
-                        className="rounded-xl text-xs shrink-0"
-                        onClick={() => setSelectedBidderId(b.helper_id)}
-                      >
-                        {b.profiles?.display_name || "Helper"} (${b.amount})
-                      </Button>
+                      <div key={b.id} className="p-4 border rounded-xl flex items-center justify-between gap-4 bg-muted/20">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {b.profiles?.display_name || "Helper Offer"} — <span className="text-accent">${b.amount}</span>
+                          </p>
+                          {b.note && <p className="text-xs text-muted-foreground mt-0.5">{b.note}</p>}
+                        </div>
+                        
+                        {/* 💡 You can render your BidDialog trigger button here if you want the owner to accept or review it */}
+                      </div>
                     ))}
                   </div>
                 </div>
-              )}
-
-              {/* Render Chat Component Stream Interface if channels match up */}
-              {((isOwner && selectedBidderId) || !isOwner) && (
-                <RequestChat 
-                  requestId={request.id}
-                  requestorId={request.userId}
-                  bidderId={isOwner ? (selectedBidderId as string) : user.id}
-                />
               )}
               
               {(!!request.takerCompletedAt || !!request.completedAt) && request.takenBy && (
@@ -463,7 +456,7 @@ function RequestDetailPage() {
                       />
                     </div>
 
-                    {/* 📸 SINGLE PAGE FORM 5-PHOTOS CAPABILITY LAYER */}
+                    {/* 📸 Photos Layer */}
                     <div className="space-y-2 pt-1">
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Bid Reference Attachments ({uploadedUrls.length}/5 max)
