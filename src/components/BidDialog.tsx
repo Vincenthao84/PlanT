@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Handshake, Camera, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { placeBid } from "@/lib/request-types";
 import { toast } from "sonner";
 
 interface BidDialogProps {
@@ -106,17 +107,24 @@ export function BidDialog({
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("request_bids")
-        .insert({
-          request_id: requestId,
-          amount: parseFloat(amount.replace(/[^0-9.]/g, "")),
-          note: note.trim(),
-          status: "pending",
-          photo_urls: uploadedUrls
-        });
+      // 1. Clean out '$' symbols or extra formatting strings if typed
+      const cleanAmount = amount.replace(/[^0-9.]/g, "");
 
-      if (error) throw error;
+      // 2. Fire native helper so everything syncs instantly for the Requestor
+      await placeBid(requestId, cleanAmount.trim(), note.trim());
+
+      // 3. Append our uploaded array URLs to the newly created record row
+      const { data: sessionData } = await supabase.auth.getSession();
+      const currentUserId = sessionData?.session?.user?.id;
+
+      if (currentUserId && uploadedUrls.length > 0) {
+        await supabase
+          .from("request_bids")
+          .update({ photo_urls: uploadedUrls })
+          .eq("request_id", requestId)
+          .eq("helper_id", currentUserId)
+          .eq("status", "pending");
+      }
 
       toast.success("Bid placed. The requestor will review and pick one.");
       setOpen(false);
@@ -124,8 +132,8 @@ export function BidDialog({
       setUploadedUrls([]);
       onPlaced?.();
     } catch (err: any) {
-      console.error("Bid insertion crash details:", err);
-      toast.error(err.message || "Could not place bid");
+      console.error("Bid submission failure details:", err);
+      toast.error(err instanceof Error ? err.message : "Could not place bid");
     } finally {
       setSaving(false);
     }
