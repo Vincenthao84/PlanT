@@ -40,7 +40,7 @@ export interface StoredRequest {
   takerCompletedAt: number | null;
   feeSettledAt: number | null;
   isSecret: boolean;
-  images: string[]; // Integrated array type configuration
+  images: string[];
 }
 
 type Row = {
@@ -60,7 +60,7 @@ type Row = {
   taker_completed_at: string | null;
   fee_settled_at: string | null;
   is_secret: boolean;
-  images: string[] | null; // Integrated database mapping definition
+  images: string[] | null;
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -81,7 +81,7 @@ function rowToRequest(row: Row): StoredRequest {
     takerCompletedAt: row.taker_completed_at ? new Date(row.taker_completed_at).getTime() : null,
     feeSettledAt: row.fee_settled_at ? new Date(row.fee_settled_at).getTime() : null,
     isSecret: row.is_secret ?? false,
-    images: row.images ?? [], // Ensures code can safely map over an empty list fallback
+    images: row.images ?? [],
   };
 }
 
@@ -94,7 +94,7 @@ export type NewRequestInput = {
   lng: number;
   reward: string;
   isSecret?: boolean;
-  images?: string[]; // Integrated submission pipeline configuration
+  images?: string[];
 };
 
 export async function createRequest(input: NewRequestInput): Promise<StoredRequest> {
@@ -115,7 +115,7 @@ export async function createRequest(input: NewRequestInput): Promise<StoredReque
       lng: input.lng,
       reward: input.reward,
       is_secret: input.isSecret ?? false,
-      images: input.images ?? [], // Directly pass image arrays down to database row records
+      images: input.images ?? [],
     })
     .select()
     .single();
@@ -175,6 +175,7 @@ export interface RequestBid {
   createdAt: number;
   helperDisplayName: string | null;
   helperAvatarUrl: string | null;
+  photoUrls?: string[]; // ✅ Added array type mapping support to the interface
 }
 
 export async function listRequestBids(requestId: string): Promise<RequestBid[]> {
@@ -182,7 +183,7 @@ export async function listRequestBids(requestId: string): Promise<RequestBid[]> 
     _request_id: requestId,
   });
   if (error) throw error;
-  type Row = {
+  type BidRow = {
     id: string;
     request_id: string;
     helper_id: string;
@@ -192,8 +193,9 @@ export async function listRequestBids(requestId: string): Promise<RequestBid[]> 
     created_at: string;
     helper_display_name: string | null;
     helper_avatar_url: string | null;
+    photo_urls?: string[] | null; // ✅ Target database projection mapping
   };
-  return ((data ?? []) as Row[]).map((r) => ({
+  return ((data ?? []) as BidRow[]).map((r) => ({
     id: r.id,
     requestId: r.request_id,
     helperId: r.helper_id,
@@ -203,24 +205,30 @@ export async function listRequestBids(requestId: string): Promise<RequestBid[]> 
     createdAt: new Date(r.created_at).getTime(),
     helperDisplayName: r.helper_display_name,
     helperAvatarUrl: r.helper_avatar_url,
+    photoUrls: r.photo_urls ?? [], // ✅ Falls back to empty list array natively
   }));
 }
 
+// ✅ Updated to accept `photoUrls` parameter directly during generation execution
 export async function placeBid(
   requestId: string,
   amount: string,
   note: string,
+  photoUrls: string[] = []
 ): Promise<void> {
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr) throw userErr;
   const user = userData.user;
   if (!user) throw new Error("You must be signed in to place a bid.");
+  
   const { error } = await supabase.from("request_bids").insert({
     request_id: requestId,
     helper_id: user.id,
     amount,
     note,
+    photo_urls: photoUrls // ✅ Injected natively into submission insert payload
   });
+  
   if (error) {
     if (error.code === "23505") {
       throw new Error("You have already placed a bid on this request.");
@@ -275,7 +283,7 @@ export type UpdateRequestInput = {
   description: string;
   locationLabel: string;
   reward: string;
-  images?: string[]; // Enable optional update values for editing photos
+  images?: string[];
 };
 
 export async function updateRequest(
@@ -289,7 +297,6 @@ export async function updateRequest(
     reward: input.reward,
   };
 
-  // Only bind updates to the query record if photos parameter data exists
   if (input.images !== undefined) {
     updatePayload.images = input.images;
   }
