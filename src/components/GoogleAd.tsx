@@ -28,7 +28,7 @@ export function GoogleAd({
       <ins
         className="adsbygoogle"
         style={{ display: "block" }}
-        data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" // 👈 Replace with your actual Publisher ID
+        data-ad-client="ca-pub-6360097975265112" // 👈 Replace with your actual Publisher ID
         data-ad-slot={slot}
         data-ad-format={format}
         data-full-width-responsive={responsive}
