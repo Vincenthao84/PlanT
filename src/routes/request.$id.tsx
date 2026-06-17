@@ -118,14 +118,19 @@ function RequestDetailPage() {
           
           setRequest(mappedRequest);
 
-          // Fix: Consolidate casing schemas securely to evaluate the request owner identity
           const requestOwnerId = data.user_id || data.userId;
           if (user && requestOwnerId === user.id) {
+            // FIXED: Removed structural alias column syntax to clear PostgREST 400 errors
             const { data: bidsData, error: bidsError } = await supabase
               .from("request_bids")
               .select(`
-                id, helper_id, amount, note, status, photo_urls,
-                profiles:helper_id (display_name, avatar_url)
+                id, 
+                helper_id, 
+                amount, 
+                note, 
+                status, 
+                photo_urls,
+                profiles (display_name, avatar_url)
               `)
               .eq("request_id", data.id);
             
@@ -193,9 +198,18 @@ function RequestDetailPage() {
 
     const fetchChatMessages = async () => {
       try {
+        // FIXED: Cleaned up join formatting structure to properly pull down profiles relation array
         const { data, error } = await supabase
           .from("request_messages")
-          .select("id, request_id, author_id, body, photo_urls, created_at, profiles:author_id(display_name, avatar_url)")
+          .select(`
+            id, 
+            request_id, 
+            author_id, 
+            body, 
+            photo_urls, 
+            created_at, 
+            profiles (display_name, avatar_url)
+          `)
           .eq("request_id", request.id)
           .order("created_at");
 
