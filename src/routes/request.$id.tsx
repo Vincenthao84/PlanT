@@ -6,7 +6,6 @@ import { Loader2, ArrowLeft, MapPin, Calendar, DollarSign, User } from "lucide-r
 import { TaskThread } from "@/components/TaskThread";
 import { toast } from "sonner";
 
-// TypeScript Interfaces based on your Database Schemas
 interface Profile {
   display_name: string | null;
   avatar_url: string | null;
@@ -32,13 +31,13 @@ interface BidData {
   note: string | null;
   status: string;
   photo_urls: string[] | null;
-  profiles?: Profile | null; // Populated via clean Supabase join lookup
+  profiles?: Profile | null;
 }
 
 export default function RequestDetailRoute() {
   const { id: requestId } = useParams({ from: "/request/$id" });
   
-  // State Management 
+  // State Management
   const [request, setRequest] = useState<RequestData | null>(null);
   const [bids, setBids] = useState<BidData[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -52,13 +51,13 @@ export default function RequestDetailRoute() {
 
     async function initPageData() {
       try {
-        // 1. Fetch current authenticated session user profile context
+        // 1. Get current user session context
         const { data: sessionData } = await supabase.auth.getSession();
         if (sessionData?.session?.user && active) {
           setCurrentUserId(sessionData.session.user.id);
         }
 
-        // 2. Fetch primary job request configuration parameters
+        // 2. Fetch job request parameters using pure snake_case matching
         const { data: reqData, error: reqErr } = await supabase
           .from("requests")
           .select("id, user_id, title, description, reward, location, status, created_at, helper_id")
@@ -68,7 +67,7 @@ export default function RequestDetailRoute() {
         if (reqErr) throw reqErr;
         if (active) setRequest(reqData);
 
-        // 3. Fetch active competitive bids linked to this job posting
+        // 3. Fetch related proposal entries joined natively against profiles table
         const { data: bidsData, error: bidsErr } = await supabase
           .from("request_bids")
           .select(`
@@ -80,13 +79,12 @@ export default function RequestDetailRoute() {
             status, 
             photo_urls,
             profiles (display_name, avatar_url)
-          `) // ✅ Clean relational table lookup mapping targeting snake_case schemas
+          `)
           .eq("request_id", requestId)
           .order("created_at", { ascending: false });
 
         if (bidsErr) throw bidsErr;
         
-        // Safely map data back into typed components array matching Profile interface
         if (active) {
           const formattedBids = (bidsData || []).map((b: any) => ({
             ...b,
@@ -95,7 +93,7 @@ export default function RequestDetailRoute() {
           setBids(formattedBids);
         }
       } catch (err: any) {
-        console.error("Critical dashboard state hydration failure:", err);
+        console.error("Critical hydration failure:", err);
         toast.error("Could not fetch request details.");
       } finally {
         if (active) setLoading(false);
@@ -106,13 +104,13 @@ export default function RequestDetailRoute() {
     return () => { active = false; };
   }, [requestId]);
 
-  // Handler to permanently allocate jobs to top candidates
+  // Handler to permanently accept a proposal and set assignment statuses
   async function handleAcceptBid(bid: BidData) {
     if (assigning) return;
     setAssigning(true);
 
     try {
-      // Step A: Update target proposal parameter column status
+      // Step A: Update specific proposal status flag
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -120,7 +118,7 @@ export default function RequestDetailRoute() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
-      // Step B: Set parent task status parameters to 'assigned' and link the helper's ID
+      // Step B: Set parent task listing to assigned status and attach helper
       const { error: reqUpdateErr } = await supabase
         .from("requests")
         .update({ 
@@ -132,11 +130,9 @@ export default function RequestDetailRoute() {
       if (reqUpdateErr) throw reqUpdateErr;
 
       toast.success(`Task successfully assigned to helper!`);
-      
-      // Force reload UI configuration states seamlessly
       window.location.reload();
     } catch (err: any) {
-      console.error("Order processing state resolution error context:", err);
+      console.error("Assignment execution runtime error:", err);
       toast.error("Failed to complete assignment sequence.");
     } finally {
       setAssigning(false);
@@ -167,17 +163,17 @@ export default function RequestDetailRoute() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
-      {/* Back Navigation Header */}
+      {/* Header Navigation link */}
       <div>
         <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
           <Link to="/"><ArrowLeft className="h-4 w-4 mr-1" /> Back to listings</Link>
         </Button>
       </div>
 
-      {/* Main Split Interface Viewport Grid */}
+      {/* Main Two-Column Panel Blueprint layout Split */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* LEFT COLUMN: Request Specifications Overview Card */}
+        {/* LEFT COLUMN: Request Specifications Card */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-background border rounded-2xl p-5 space-y-4 shadow-sm">
             <div className="flex items-start justify-between gap-4">
@@ -210,7 +206,7 @@ export default function RequestDetailRoute() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Private Proposing Workspace Accordion List Layer */}
+        {/* RIGHT COLUMN: Multi-Bidder Isolated Workspace Channels Container */}
         <div className="md:col-span-1 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -234,7 +230,7 @@ export default function RequestDetailRoute() {
                       isSelected ? "ring-1 ring-primary/30 border-primary/40" : "hover:border-border/80"
                     }`}
                   >
-                    {/* Accordion Toggle Summary Box Header */}
+                    {/* Accordion Toggle Card Header Summary */}
                     <div 
                       onClick={() => setSelectedBidId(isSelected ? null : bid.id)}
                       className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
@@ -263,11 +259,11 @@ export default function RequestDetailRoute() {
                       </div>
                     </div>
 
-                    {/* Extended Hidden Content Workspace */}
+                    {/* Accordion Slide Panel Content */}
                     {isSelected && (
                       <div className="p-3 border-t bg-muted/5 space-y-4">
                         
-                        {/* 🌟 CONDITIONAL ACTION BAR: ACCEPT OFFER BUTTON */}
+                        {/* 🌟 ACTION BAR: ASSIGN WINNER BUTTON FOR CREATOR (Only visible if status is pending) */}
                         {isOwner && request.status === "pending" && bid.status === "pending" && (
                           <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-2">
                             <div className="text-[11px]">
@@ -294,14 +290,14 @@ export default function RequestDetailRoute() {
                           </div>
                         )}
 
-                        {/* Status Readouts For Active Selection States */}
+                        {/* Status Readouts */}
                         {bid.status === "accepted" && (
                           <div className="p-2 text-center text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200">
-                            ✓ This proposal was selected as the winner
+                            ✓ Selected Proposal Winner
                           </div>
                         )}
 
-                        {/* 🌟 SEPARATED CHAT STREAM INTERFACE VIEW */}
+                        {/* 🌟 PRIVATE SANDBOX CHAT: Feeds bidId directly into stream layout */}
                         <div className="space-y-1.5">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                             Private Negotiation Channel
@@ -310,7 +306,7 @@ export default function RequestDetailRoute() {
                             requestId={requestId}
                             currentUserId={currentUserId || ""}
                             requestOwnerId={request.user_id}
-                            bidId={bid.id} // ✅ Scopes data pipeline natively inside bid sandbox rows!
+                            bidId={bid.id} // ✅ Restricts messaging natively inside this bidder sandbox!
                           />
                         </div>
 
