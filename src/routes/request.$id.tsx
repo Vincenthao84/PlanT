@@ -67,7 +67,7 @@ function RequestDetailPage() {
   const [request, setRequest] = useState<ExtendedStoredRequest | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Bid actions
+  // Bid states
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
@@ -78,7 +78,7 @@ function RequestDetailPage() {
   const [assigningBidId, setAssigningBidId] = useState<string | null>(null);
   const [selectedBidId, setSelectedBidId] = useState<string | null>(null);
   
-  // Request management & State closures
+  // Request operations state indicators
   const [isEditingRequest, setIsEditingRequest] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -88,7 +88,7 @@ function RequestDetailPage() {
   const [settlingFee, setSettlingFee] = useState(false);
   const [receivingFee, setReceivingFee] = useState(false);
 
-  // Chat parameters
+  // Communication / Chat parameters
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [newMsgText, setNewMsgText] = useState("");
@@ -98,7 +98,7 @@ function RequestDetailPage() {
   const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
   
-  // Mutual Rating Module States
+  // Mutual Rating Module Configurations
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [ratingInput, setRatingInput] = useState(5);
   const [commentInput, setCommentInput] = useState("");
@@ -137,7 +137,7 @@ function RequestDetailPage() {
           takerCompletedAt: data.taker_completed_at || data.takerCompletedAt,
           completedAt: data.completed_at || data.completedAt,
           feeSettledAt: data.fee_settled_at || data.feeSettledAt,
-          feeReceivedAt: data.fee_received_at || null,
+          feeReceivedAt: data.fee_received_at || data.feeReceivedAt || null,
           photoUrls: data.photo_urls || data.photoUrls || [],
           paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
           createdAt: data.created_at,
@@ -148,7 +148,7 @@ function RequestDetailPage() {
 
         const requestOwnerId = data.user_id || data.userId;
         
-        // Fetch Bids
+        // Populate system proposals
         let query = supabase
           .from("request_bids")
           .select("id, helper_id, amount, note, status, photo_urls")
@@ -188,12 +188,16 @@ function RequestDetailPage() {
           }
         }
 
-        // Fetch Reviews relative to this request instance
-        const { data: reviewData } = await supabase
-          .from("request_reviews")
-          .select("id, reviewer_id, reviewee_id, rating, comment")
-          .eq("request_id", data.id);
-        if (reviewData) setReviews(reviewData);
+        // Fetch Reviews dynamically safely with try/catch fallback blocks
+        try {
+          const { data: reviewData } = await supabase
+            .from("request_reviews")
+            .select("id, reviewer_id, reviewee_id, rating, comment")
+            .eq("request_id", data.id);
+          if (reviewData) setReviews(reviewData);
+        } catch (e) {
+          console.warn("Reviews matrix table not initialized completely yet.", e);
+        }
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
@@ -707,7 +711,7 @@ function RequestDetailPage() {
 
         <Card className="p-6 sm:p-8 space-y-6" style={{ boxShadow: "var(--shadow-soft)" }}>
           
-          {/* Top Admin / Edit bar for Owner */}
+          {/* Top Admin Options */}
           {isOwner && !request.takenBy && (
             <div className="flex justify-end gap-2 border-b border-border/40 pb-3">
               <Button 
@@ -797,7 +801,7 @@ function RequestDetailPage() {
             <div className="bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
               <div>
                 <p className="text-xs font-bold text-green-800 dark:text-green-400 uppercase tracking-wider">Helper Completed Task</p>
-                <p className="text-xs text-muted-foreground mt-0.5">The assigned companion has completed the task objectives. Please evaluate and verify completion.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">The assigned helper has finished operations. Please review and acknowledge completion.</p>
               </div>
               <Button 
                 size="sm" 
@@ -811,12 +815,12 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Requester Post-Verification Settlement Banner */}
+          {/* Requester Settlement Banner */}
           {isOwner && request.completedAt && !request.feeSettledAt && (
             <div className="bg-blue-50 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
               <div>
                 <p className="text-xs font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider">Completion Verified</p>
-                <p className="text-xs text-muted-foreground mt-0.5">You've verified completion. Please finalize payment to your helper if you haven't done so already.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">You have approved completion. Please proceed to pay your helper to close the loop.</p>
               </div>
               <Button 
                 size="sm" 
@@ -830,12 +834,12 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Helper Confirm Receipt Module (Won Bidder Action) */}
+          {/* Helper Confirm Receipt Banner */}
           {isAssignedHelper && request.feeSettledAt && !request.feeReceivedAt && (
             <div className="bg-purple-50 border border-purple-200 dark:bg-purple-950/20 dark:border-purple-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
               <div>
-                <p className="text-xs font-bold text-purple-800 dark:text-purple-400 uppercase tracking-wider">Payment Dispatched by Requester</p>
-                <p className="text-xs text-muted-foreground mt-0.5">The owner has logged their payment delivery. Please confirm once funds are received on your end.</p>
+                <p className="text-xs font-bold text-purple-800 dark:text-purple-400 uppercase tracking-wider">Payment Sent by Requester</p>
+                <p className="text-xs text-muted-foreground mt-0.5">The requester has submitted payment. Click the button below as soon as funds clear in your wallet.</p>
               </div>
               <Button 
                 size="sm" 
@@ -852,7 +856,7 @@ function RequestDetailPage() {
           {mapEmbedUrl && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" /> Task Geolocation
+                <MapPin className="h-3.5 w-3.5" /> Task Location
               </h3>
               <div className="w-full h-48 rounded-xl overflow-hidden border border-border relative bg-muted shadow-sm">
                 <iframe
@@ -899,7 +903,7 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {/* Mutual Rating & Review Mechanism block */}
+          {/* Mutual Rating & Review Form Block */}
           {request.completedAt && (isOwner || isAssignedHelper) && (
             <div className="space-y-4 pt-4 border-t border-border">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -908,7 +912,7 @@ function RequestDetailPage() {
               
               {mySubmittedReview ? (
                 <div className="p-3 bg-muted/40 rounded-xl text-xs space-y-1">
-                  <p className="font-semibold text-muted-foreground">You have already submitted feedback:</p>
+                  <p className="font-semibold text-muted-foreground">Feedback submitted successfully:</p>
                   <div className="flex gap-0.5 text-amber-500">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star key={i} className={`h-3 w-3 ${i < mySubmittedReview.rating ? "fill-current" : "text-muted"}`} />
