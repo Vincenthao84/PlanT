@@ -721,7 +721,9 @@ function RequestDetailPage() {
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
   const isOwner = user && user.id === request.userId;
   const isAssignedHelper = user && user.id === request.takenBy;
-  const authorLabel = request.isSecret ? "Secret Request" : (ownerProfile?.display_name || "Anonymous");
+  const authorLabel = request.isSecret 
+  ? "Secret Request" 
+  : (ownerProfile?.display_name || `User_${request.userId?.slice(0, 5)}`);
 
   // Filter reviews array to isolate the specific user row context without reviewer_id
   const mySubmittedReview = reviews.find(r => {
