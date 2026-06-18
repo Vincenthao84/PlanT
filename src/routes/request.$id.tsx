@@ -382,7 +382,7 @@ function RequestDetailPage() {
       });
 
       if (error) throw error;
-      setNewMsgText("");
+      newMsgText("");
       setChatPhotos([]);
     } catch (err: any) {
       toast.error(err.message || "Could not dispatch message.");
@@ -427,37 +427,36 @@ function RequestDetailPage() {
     setAssigningBidId(bid.id);
 
     try {
-      // 1. Update the request_bids table status
-      const { error: bidUpdateErr } = await supabase
-        .from("request_bids")
-        .update({ status: "accepted" })
-        .eq("id", bid.id);
+      // Execute the single secure atomic RPC block instead of raw multi-table updates
+      const { data, error } = await supabase.rpc("accept_bid", {
+        _bid_id: bid.id,
+      });
 
-      if (bidUpdateErr) {
-        if (bidUpdateErr.code === "23505") {
+      if (error) {
+        if (error.code === "23505") {
           toast.error("This helper cannot be assigned; they currently have another active running task!");
           return;
         }
-        throw bidUpdateErr;
+        throw error;
       }
 
-      // 2. FIXED: Update the requests table columns in the database
-      const { error: reqUpdateErr } = await supabase
-        .from("requests")
-        .update({ 
-          taken_by: bid.helper_id, 
-          taken_at: new Date().toISOString() 
-        })
-        .eq("id", request.id);
-
-      if (reqUpdateErr) throw reqUpdateErr;
-
-      // 3. Update local state
+      // Synchronize client interface context gracefully
       setBids((prev) =>
-        prev.map((b) => (b.id === bid.id ? { ...b, status: "accepted" } : b))
+        prev.map((b) =>
+          b.id === bid.id
+            ? { ...b, status: "accepted" }
+            : b.status === "pending"
+              ? { ...b, status: "rejected" } // Reflect alternative rejections immediately
+              : b
+        )
       );
+
       if (request) {
-        setRequest({ ...request, takenBy: bid.helper_id, takenAt: new Date().toISOString() });
+        setRequest({
+          ...request,
+          takenBy: bid.helper_id,
+          takenAt: new Date().toISOString(),
+        });
       }
 
       toast.success(`Task officially assigned to helper!`);
@@ -620,8 +619,8 @@ function RequestDetailPage() {
                         <div className="text-right">
                           <span className="text-xs font-bold text-accent">${b.amount}</span>
                           <span className={`block text-[10px] uppercase font-bold tracking-wider mt-0.5 ${
-                            b.status === "accepted" ? "text-green-600" : "text-amber-500"
-                          }`}>
+                            b.status === "accepted" ? "text-green-600" : b.status === "rejected" ? "text-red-500" : "text-amber-500"
+                          }` tracking-wider mt-0.5}>
                             {b.status}
                           </span>
                         </div>
@@ -791,7 +790,7 @@ function RequestDetailPage() {
                           <button
                             type="button"
                             onClick={() => setUploadedBidUrls(p => p.filter((_, i) => i !== idx))}
-                            className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5"
+                            className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5 scale-90"
                           >
                             <X className="h-2 w-2" />
                           </button>
@@ -801,7 +800,7 @@ function RequestDetailPage() {
                   )}
 
                   {uploadedBidUrls.length < 5 && (
-                    <label className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/50 transition-colors shadow-sm cursor-pointer">
+                    <label className="inline-flex items-center gap-1.5 text-xs text-accent hover:text-accent/90 font-medium cursor-pointer bg-accent/5 hover:bg-accent/10 px-3 py-1.5 border border-dashed border-accent/30 rounded-xl transition-all">
                       <input type="file" accept="image/*" multiple className="hidden" onChange={handleBidPhotoUpload} disabled={uploadingBidPhotos} />
                       {uploadingBidPhotos ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
