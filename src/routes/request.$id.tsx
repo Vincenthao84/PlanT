@@ -160,15 +160,15 @@ function RequestDetailPage() {
         if (realUID) {
           const { data: profData } = await supabase
             .from("profiles")
-            .select("display_name, avatar_url, average_rating")
+            .select("*")
             .eq("id", realUID)
             .maybeSingle();
             
           if (profData) {
             setOwnerProfile({
-              display_name: profData.display_name,
-              avatar_url: profData.avatar_url,
-              average_rating: (profData as any).average_rating || 0
+              display_name: profData.display_name || profData.displayName || null,
+              avatar_url: profData.avatar_url || profData.avatarUrl || null,
+              average_rating: Number((profData as any).average_rating || (profData as any).averageRating || 0)
             });
           }
         }
@@ -190,7 +190,7 @@ function RequestDetailPage() {
           for (const b of bidsData) {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("display_name")
+              .select("*")
               .eq("id", b.helper_id)
               .maybeSingle();
 
@@ -201,7 +201,7 @@ function RequestDetailPage() {
               note: b.note || "",
               status: b.status,
               photo_urls: b.photo_urls || [],
-              helper_name: profile?.display_name || `Helper_${b.helper_id.slice(0, 5)}`
+              helper_name: profile ? (profile.display_name || profile.displayName || `Helper_${b.helper_id.slice(0, 5)}`) : `Helper_${b.helper_id.slice(0, 5)}`
             });
           }
           setBids(enrichedBids);
@@ -212,7 +212,6 @@ function RequestDetailPage() {
           }
         }
 
-        // Fetch all ratings for this request
         try {
           const { data: reviewData } = await supabase
             .from("request_ratings")
@@ -298,7 +297,7 @@ function RequestDetailPage() {
           for (const msg of data) {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("display_name")
+              .select("*")
               .eq("id", msg.author_id)
               .maybeSingle();
 
@@ -310,7 +309,7 @@ function RequestDetailPage() {
               body: msg.body,
               photo_urls: msg.photo_urls || [],
               created_at: msg.created_at,
-              author_name: profile?.display_name || "User"
+              author_name: profile ? (profile.display_name || profile.displayName || "User") : "User"
             });
           }
           setChatMessages(enrichedMessages);
@@ -335,7 +334,7 @@ function RequestDetailPage() {
 
           const { data: profile } = await supabase
             .from("profiles")
-            .select("display_name")
+            .select("*")
             .eq("id", payload.new.author_id)
             .maybeSingle();
 
@@ -347,7 +346,7 @@ function RequestDetailPage() {
             body: payload.new.body,
             photo_urls: payload.new.photo_urls || [],
             created_at: payload.new.created_at,
-            author_name: profile?.display_name || "User"
+            author_name: profile ? (profile.display_name || profile.displayName || "User") : "User"
           };
 
           setChatMessages((prev) => [...prev, completeMsg]);
@@ -822,7 +821,7 @@ function RequestDetailPage() {
                       {!request.isSecret && ownerProfile && (
                         <>
                           <span className="text-muted/60">•</span>
-                          <StarRating rating={ownerProfile.average_rating} />
+                          <StarRating rating={ownerProfile.average_rating || 0} />
                         </>
                       )}
                     </div>
