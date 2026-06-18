@@ -44,8 +44,7 @@ interface ChatMessage {
 interface ReviewRecord {
   id: string;
   reviewer_id: string;
-  reviewee_id: string;
-  rating: number;
+  stars: number;
   comment: string;
 }
 
@@ -211,19 +210,20 @@ function RequestDetailPage() {
           }
         }
 
+        // Mutual option B fetch adjustments matching dual-row paradigm
         try {
           const { data: reviewData } = await supabase
             .from("request_ratings")
-            .select("id, reviewer_id, reviewee_id, rating, comment")
+            .select("id, reviewer_id, stars, comment")
             .eq("request_id", data.id);
           if (reviewData) setReviews(reviewData);
         } catch (e) {
-          console.warn("Could not load from request_ratings table:", e);
+          console.warn("Could not load mutual records from request_ratings:", e);
         }
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } military finally {
+    } finally {
       setLoading(false);
     }
   }
@@ -657,31 +657,33 @@ function RequestDetailPage() {
     }
   }
 
+  // Option B: Multi-row submission mapping logic configuration
   async function handleSubmitReview(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !request || submittingReview) return;
 
-    const isRequester = user.id === request.userId;
-    const revieweeId = isRequester ? request.takenBy : request.userId;
-
-    if (!revieweeId) return;
+    if (!request.takenBy) {
+      toast.error("Cannot score an unassigned task workflow.");
+      return;
+    }
 
     setSubmittingReview(true);
     try {
       const { error } = await supabase.from("request_ratings").insert({
         request_id: request.id,
-        reviewer_id: user.id,
-        reviewee_id: revieweeId,
-        rating: ratingInput,
+        requester_id: request.userId,
+        taker_id: request.takenBy,
+        reviewer_id: user.id, // Explicit directional row visibility marker
+        stars: ratingInput,
         comment: commentInput.trim()
       });
 
       if (error) throw error;
-      toast.success("Review and rating saved successfully!");
+      toast.success("Evaluation synchronized successfully!");
       setCommentInput("");
       void fetchRequestDetails();
     } catch (err: any) {
-      toast.error(err.message || "Failed to finalize review record.");
+      toast.error(err.message || "Failed to save review parameters.");
     } finally {
       setSubmittingReview(false);
     }
@@ -713,6 +715,7 @@ function RequestDetailPage() {
   const isAssignedHelper = user && user.id === request.takenBy;
   const authorLabel = request.isSecret ? "Secret Request" : (ownerProfile?.display_name || "Anonymous");
 
+  // Filter reviews array to isolate the specific user row context
   const mySubmittedReview = reviews.find(r => r.reviewer_id === user?.id);
 
   const mapEmbedUrl = request.lat && request.lng
@@ -932,18 +935,19 @@ function RequestDetailPage() {
             </span>
           </div>
 
+          {/* Dynamic Option B True Dual Mutual Performance Rating Frame Container */}
           {request.completedAt && (isOwner || isAssignedHelper) && (
             <div className="space-y-4 pt-4 border-t border-border">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Mutual Transaction Rating
+                Mutual Performance Evaluation
               </h3>
               
               {mySubmittedReview ? (
                 <div className="p-3 bg-muted/40 rounded-xl text-xs space-y-1">
-                  <p className="font-semibold text-muted-foreground">Feedback submitted successfully:</p>
+                  <p className="font-semibold text-green-600">✓ Your evaluation has been saved successfully:</p>
                   <div className="flex gap-0.5 text-amber-500">
                     {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`h-3 w-3 ${i < mySubmittedReview.rating ? "fill-current" : "text-muted"}`} />
+                      <Star key={i} className={`h-3 w-3 ${i < mySubmittedReview.stars ? "fill-current" : "text-muted"}`} />
                     ))}
                   </div>
                   {mySubmittedReview.comment && (
@@ -953,7 +957,9 @@ function RequestDetailPage() {
               ) : (
                 <form onSubmit={handleSubmitReview} className="space-y-3 p-4 border rounded-xl bg-accent/5">
                   <p className="text-xs font-medium">
-                    {isOwner ? "Rate the work performance of your helper:" : "Rate your experience with this transaction requester:"}
+                    {isOwner 
+                      ? "Evaluate the speed and work quality of your assigned task helper:" 
+                      : "Rate your coordination experience with this assignment requester:"}
                   </p>
                   <div className="flex gap-1 items-center">
                     {Array.from({ length: 5 }).map((_, idx) => {
@@ -963,7 +969,7 @@ function RequestDetailPage() {
                           key={idx}
                           type="button"
                           onClick={() => setRatingInput(starValue)}
-                          className="text-amber-500 focus:outline-none"
+                          className="text-amber-500 focus:outline-none cursor-pointer"
                         >
                           <Star className={`h-5 w-5 ${starValue <= ratingInput ? "fill-current" : "text-muted"}`} />
                         </button>
@@ -971,7 +977,7 @@ function RequestDetailPage() {
                     })}
                   </div>
                   <Textarea
-                    placeholder="Leave constructive feedback regarding this engagement..."
+                    placeholder={isOwner ? "How well did they perform?" : "Was instructions clear and payment seamless?"}
                     value={commentInput}
                     onChange={(e) => setCommentInput(e.target.value)}
                     className="rounded-xl min-h-[60px] text-xs resize-none"
@@ -979,7 +985,7 @@ function RequestDetailPage() {
                   />
                   <div className="flex justify-end">
                     <Button type="submit" size="sm" className="rounded-full text-xs" disabled={submittingReview}>
-                      {submittingReview ? "Submitting..." : "Submit Review"}
+                      {submittingReview ? "Saving evaluation..." : "Submit Score"}
                     </Button>
                   </div>
                 </form>
