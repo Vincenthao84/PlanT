@@ -72,11 +72,11 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
-      // Using only the strictly verified column confirmed by your PostgreSQL schema
+      // Querying 'taken_by' column verified in image_002e32.png
       const { data, error } = await supabase
         .from("requests")
         .select("*")
-        .eq("taken_by", userId);
+        .eq("taken_by", userId); 
 
       if (error) throw error;
 
