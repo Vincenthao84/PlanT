@@ -65,7 +65,7 @@ export function MyTasksPage() {
         if (!cancelled && data) {
           const mapped: StoredRequest[] = data.map((item: any) => ({
             id: item.id,
-            type: item.type || "general", // Fallback type string
+            type: item.type || "general",
             title: item.title || "Untitled Task",
             description: item.description || "",
             locationLabel: item.location_label || item.locationLabel || "Pinned location",
@@ -165,9 +165,11 @@ export function MyTasksPage() {
             {tasks.map((r) => {
               if (!r) return null;
 
-              // Defensive fallback parsing for missing type configurations
-              const t = r.type ? getRequestType(r.type) : null;
-              const Icon = t?.icon || MapPin;
+              // Safe fallback extraction prevents layout crash
+              const typeString = r.type || "general";
+              const t = getRequestType(typeString);
+              const Icon = t && t.icon ? t.icon : MapPin;
+              const typeLabel = t && t.label ? t.label : "Request";
               
               const { takerCompletedAt, completedAt, feeSettledAt, takenAt, id, title, description, locationLabel, reward, userId, takenBy } = r;
               
@@ -184,7 +186,7 @@ export function MyTasksPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <Badge variant="secondary" className="rounded-full text-xs">
-                          {t?.label || "Request"}
+                          {typeLabel}
                         </Badge>
                         <Badge className="rounded-full text-xs gap-1">
                           <ClipboardList className="h-3 w-3" /> Taken
@@ -215,7 +217,7 @@ export function MyTasksPage() {
                         params={{ id }}
                         className={`font-semibold text-lg leading-tight hover:underline block truncate ${fullySettled ? "line-through text-muted-foreground" : ""}`}
                       >
-                        {title}
+                        {title || "Untitled Task"}
                       </Link>
                       {description && (
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
@@ -225,7 +227,7 @@ export function MyTasksPage() {
                       <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-accent" />
-                          {locationLabel}
+                          {locationLabel || "Pinned location"}
                         </span>
                         {reward && (
                           <span className="inline-flex items-center gap-1 font-medium text-foreground">
