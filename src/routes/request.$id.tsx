@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, User } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
@@ -144,12 +144,10 @@ function RequestDetailPage() {
             }
             setBids(enrichedBids);
 
-            // FIX: If the user is the Requester (Owner) and a bid was previously accepted, auto-select it to keep chat visible
-            if (user && requestOwnerId === user.id && !selectedBidId) {
+            // FIX: Auto-select a bid channel for the requestor so the chat box renders instantly
+            if (user && requestOwnerId === user.id && enrichedBids.length > 0 && !selectedBidId) {
               const acceptedBid = enrichedBids.find(b => b.status === "accepted");
-              if (acceptedBid) {
-                setSelectedBidId(acceptedBid.id);
-              }
+              setSelectedBidId(acceptedBid ? acceptedBid.id : enrichedBids[0].id);
             }
           }
         }
@@ -425,7 +423,8 @@ function RequestDetailPage() {
     setAssigningBidId(bid.id);
 
     try {
-      // 1. Explicitly update the bid record status
+      // FIX: Rely only on updating the bid status to 'accepted'.
+      // Per database exception rules, the database trigger handles synchronizing parent assignments.
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -433,23 +432,11 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
-      // 2. FIX: Sync back the assigned user metrics directly to the primary request record 
-      // This maps the task straight into the winning helper's "My Tasks" query view instantly.
-      const { error: requestUpdateErr } = await supabase
-        .from("requests")
-        .update({
-          taken_by: bid.helper_id,
-          taken_at: new Date().toISOString()
-        })
-        .eq("id", request.id);
-
-      if (requestUpdateErr) throw requestUpdateErr;
-
       toast.success(`Task officially assigned to helper!`);
       window.location.reload();
     } catch (err: any) {
       console.error("Assignment execution runtime fault:", err);
-      toast.error("Failed to execute contract commitment changes.");
+      toast.error(err.message || "Failed to execute contract commitment changes.");
     } finally {
       setAssigningBidId(null);
     }
