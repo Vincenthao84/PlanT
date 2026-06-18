@@ -620,7 +620,7 @@ function RequestDetailPage() {
                           <span className="text-xs font-bold text-accent">${b.amount}</span>
                           <span className={`block text-[10px] uppercase font-bold tracking-wider mt-0.5 ${
                             b.status === "accepted" ? "text-green-600" : b.status === "rejected" ? "text-red-500" : "text-amber-500"
-                          }` tracking-wider mt-0.5}>
+                          }` }>
                             {b.status}
                           </span>
                         </div>
