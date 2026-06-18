@@ -124,7 +124,7 @@ function NoticeBoardPage() {
       return !receiptConfirmed;
     });
 
-    // 2. FILTER: Calculate proximity matrix restrictions (Your existing location logic)
+    // 2. FILTER: Calculate proximity matrix restrictions
     if (viewMode !== "all") {
       result = result.filter((r: any) => {
         let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
@@ -223,7 +223,9 @@ function NoticeBoardPage() {
               <div className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1 flex-wrap">
                 <User className="h-3 w-3" />
                 <span>by {r.isSecret ? "Secret Request" : (profile?.displayName ?? "Anonymous")}</span>
-                {!r.isSecret && profile && <StarRating rating={profile.average_rating} />}
+                {!r.isSecret && profile && typeof profile.average_rating === "number" && (
+                  <StarRating rating={profile.average_rating} />
+                )}
               </div>
 
               {r.description && (
