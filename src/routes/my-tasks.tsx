@@ -165,7 +165,6 @@ export function MyTasksPage() {
             {tasks.map((r) => {
               if (!r) return null;
 
-              // Safe fallback extraction prevents layout crash
               const typeString = r.type || "general";
               const t = getRequestType(typeString);
               const Icon = t && t.icon ? t.icon : MapPin;
