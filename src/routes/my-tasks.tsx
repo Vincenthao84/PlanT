@@ -9,12 +9,12 @@ import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import {
   getRequestType,
-  fetchMyTasks,
   takerCompleteRequest,
   takerReopenRequest,
   type StoredRequest,
 } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/my-tasks")({
@@ -27,7 +27,9 @@ export const Route = createFileRoute("/my-tasks")({
   component: MyTasksPage,
 });
 
-function timeAgo(ts: number): string {
+function timeAgo(dateString: string | undefined): string {
+  if (!dateString) return "Recently";
+  const ts = new Date(dateString).getTime();
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return "just now";
   const m = Math.floor(s / 60);
@@ -37,7 +39,7 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function MyTasksPage() {
+export function MyTasksPage() {
   const { user, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<StoredRequest[] | null>(null);
   const [activeChatTaskId, setActiveChatTaskId] = useState<string | null>(null);
@@ -46,14 +48,45 @@ function MyTasksPage() {
     if (!user) return;
     let cancelled = false;
 
-    fetchMyTasks(user.id)
-      .then((rs) => {
-        if (!cancelled) setTasks(rs);
-      })
-      .catch((err) => {
-        console.error("Error fetching tasks for view:", err);
+    async function getAssignedTasks() {
+      try {
+        // Query requests row entries directly from Supabase where current helper is assigned
+        const { data, error } = await supabase
+          .from("requests")
+          .select("*")
+          .eq("taken_by", user.id);
+
+        if (error) throw error;
+
+        if (!cancelled && data) {
+          const mapped: StoredRequest[] = data.map((item: any) => ({
+            id: item.id,
+            type: item.type,
+            title: item.title,
+            description: item.description,
+            locationLabel: item.location_label || item.locationLabel || "Pinned location",
+            lat: item.lat,
+            lng: item.lng,
+            reward: item.reward,
+            isSecret: item.is_secret || item.isSecret || false,
+            userId: item.user_id || item.userId,
+            takenBy: item.taken_by || item.takenBy,
+            takenAt: item.taken_at || item.takenAt,
+            takerCompletedAt: item.taker_completed_at || item.takerCompletedAt,
+            completedAt: item.completed_at || item.completedAt,
+            feeSettledAt: item.fee_settled_at || item.feeSettledAt,
+            photoUrls: item.photo_urls || item.photoUrls || [],
+            paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
+          }));
+          setTasks(mapped);
+        }
+      } catch (err) {
+        console.error("Direct fetch exception on task view list:", err);
         if (!cancelled) setTasks([]);
-      });
+      }
+    }
+
+    void getAssignedTasks();
 
     return () => {
       cancelled = true;
