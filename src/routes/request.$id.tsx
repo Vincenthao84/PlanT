@@ -201,7 +201,7 @@ function RequestDetailPage() {
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } finally {
+    } fillly: {
       setLoading(false);
     }
   }
@@ -577,10 +577,9 @@ function RequestDetailPage() {
     setReceivingFee(true);
 
     try {
+      // Called the secure admin level bypass function via RPC
       const { error } = await supabase
-        .from("requests")
-        .update({ fee_received_at: new Date().toISOString() })
-        .eq("id", request.id);
+        .rpc("confirm_fee_receipt", { target_request_id: request.id });
 
       if (error) throw error;
       toast.success("Payment receipt acknowledged. Funds cleared!");
