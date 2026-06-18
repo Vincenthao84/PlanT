@@ -314,7 +314,7 @@ function RequestDetailPage() {
       toast.success("Image attached.");
     } catch (err) {
       toast.error("Could not upload chat attachment.");
-    } finally {
+    } Platform: {
       setUploadingChatPhotos(false);
     }
   }
@@ -427,10 +427,10 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
+      // FIXED: Removed the non-existent 'status' column from schema update payload
       const { error: reqUpdateErr } = await supabase
         .from("requests")
         .update({ 
-          status: "assigned", 
           taken_by: bid.helper_id,
           taken_at: new Date().toISOString()
         })
@@ -747,13 +747,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {user && request.takenBy && (isOwner || user.id === request.takenBy) && (!!request.takerCompletedAt || !!request.completedAt) && (
-            <div className="mt-4 pt-4 border-t border-dashed">
-              <h4 className="text-xs font-semibold mb-2">Settlement & Verification</h4>
-              <PaymentQRUpload requestId={request.id} takerId={request.takenBy} currentUserId={user.id} />
-            </div>
-          )}
-
           {user && !isOwner && !request.takenBy && !hasAlreadyBid && (
             <div className="pt-6 border-t border-border">
               <form onSubmit={handlePlaceBid} className="space-y-4">
@@ -802,6 +795,13 @@ function RequestDetailPage() {
                   </Button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {user && request.takenBy && (isOwner || user.id === request.takenBy) && (!!request.takerCompletedAt || !!request.completedAt) && (
+            <div className="mt-4 pt-4 border-t border-dashed">
+              <h4 className="text-xs font-semibold mb-2">Settlement & Verification</h4>
+              <PaymentQRUpload requestId={request.id} takerId={request.takenBy} currentUserId={user.id} />
             </div>
           )}
 
