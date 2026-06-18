@@ -154,31 +154,30 @@ function RequestDetailPage() {
         setEditTitle(data.title || "");
         setEditDesc(data.description || "");
 
-        const requestOwnerId = data.user_id || data.userId;
+        const realUID = data.user_id || data.userId;
 
-        // Fetch Requestor's profile with rating
-        if (requestOwnerId) {
+        if (realUID) {
           const { data: profData } = await supabase
             .from("profiles")
             .select("display_name, avatar_url, average_rating")
-            .eq("id", requestOwnerId)
+            .eq("id", realUID)
             .maybeSingle();
+            
           if (profData) {
             setOwnerProfile({
-              display_name: profData.display_name,
+              display_name: profData.display_name || `User_${realUID.slice(0, 5)}`,
               avatar_url: profData.avatar_url,
-              average_rating: (profData as any).average_rating
+              average_rating: (profData as any).average_rating || 0
             });
           }
         }
         
-        // Populate system proposals
         let query = supabase
           .from("request_bids")
           .select("id, helper_id, amount, note, status, photo_urls")
           .eq("request_id", data.id);
 
-        if (user && requestOwnerId !== user.id) {
+        if (user && realUID !== user.id) {
           query = query.eq("helper_id", user.id);
         }
 
@@ -201,31 +200,30 @@ function RequestDetailPage() {
               note: b.note || "",
               status: b.status,
               photo_urls: b.photo_urls || [],
-              helper_name: profile?.display_name || "Helper Offer"
+              helper_name: profile?.display_name || `Helper_${b.helper_id.slice(0, 5)}`
             });
           }
           setBids(enrichedBids);
 
-          if (user && requestOwnerId === user.id && enrichedBids.length > 0 && !selectedBidId) {
+          if (user && realUID === user.id && enrichedBids.length > 0 && !selectedBidId) {
             const acceptedBid = enrichedBids.find(b => b.status === "accepted");
             setSelectedBidId(acceptedBid ? acceptedBid.id : enrichedBids[0].id);
           }
         }
 
-        // Fetch Reviews dynamically safely with try/catch fallback blocks
         try {
           const { data: reviewData } = await supabase
-            .from("request_reviews")
+            .from("request_ratings")
             .select("id, reviewer_id, reviewee_id, rating, comment")
             .eq("request_id", data.id);
           if (reviewData) setReviews(reviewData);
         } catch (e) {
-          console.warn("Reviews matrix table not initialized completely yet.", e);
+          console.warn("Could not load from request_ratings table:", e);
         }
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } finally {
+    } military finally {
       setLoading(false);
     }
   }
@@ -601,7 +599,6 @@ function RequestDetailPage() {
     setReceivingFee(true);
 
     try {
-      // Called the secure admin level bypass function via RPC
       const { error } = await supabase
         .rpc("confirm_fee_receipt", { target_request_id: request.id });
 
@@ -671,7 +668,7 @@ function RequestDetailPage() {
 
     setSubmittingReview(true);
     try {
-      const { error } = await supabase.from("request_reviews").insert({
+      const { error } = await supabase.from("request_ratings").insert({
         request_id: request.id,
         reviewer_id: user.id,
         reviewee_id: revieweeId,
@@ -735,7 +732,6 @@ function RequestDetailPage() {
 
         <Card className="p-6 sm:p-8 space-y-6" style={{ boxShadow: "var(--shadow-soft)" }}>
           
-          {/* Top Admin Options */}
           {isOwner && !request.takenBy && (
             <div className="flex justify-end gap-2 border-b border-border/40 pb-3">
               <Button 
@@ -802,7 +798,6 @@ function RequestDetailPage() {
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
                     
-                    {/* Added Requester Name and Star Rating block */}
                     <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground flex-wrap">
                       <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
                         <User className="h-3.5 w-3.5 text-muted-foreground" /> Posted by: {authorLabel}
@@ -833,7 +828,6 @@ function RequestDetailPage() {
             </>
           )}
 
-          {/* Requester Verification Completion Banner */}
           {isOwner && request.takerCompletedAt && !request.completedAt && (
             <div className="bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
               <div>
@@ -852,7 +846,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Requester Settlement Banner */}
           {isOwner && request.completedAt && !request.feeSettledAt && (
             <div className="bg-blue-50 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
               <div>
@@ -871,7 +864,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Helper Confirm Receipt Banner */}
           {isAssignedHelper && request.feeSettledAt && !request.feeReceivedAt && (
             <div className="bg-purple-50 border border-purple-200 dark:bg-purple-950/20 dark:border-purple-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
               <div>
@@ -940,7 +932,6 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {/* Mutual Rating & Review Form Block */}
           {request.completedAt && (isOwner || isAssignedHelper) && (
             <div className="space-y-4 pt-4 border-t border-border">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
