@@ -58,7 +58,7 @@ function NoticeBoardPage() {
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("map");
-  const [profiles, setProfiles] = useState<Record<string, { display_name: string | null; avatarUrl: string | null; average_rating?: number }>>({});
+  const [profiles, setProfiles] = useState<Record<string, any>>({});
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
 
@@ -78,7 +78,6 @@ function NoticeBoardPage() {
     }
   }, [viewMode]);
 
-  // Fetch requests and user's current geolocation
   useEffect(() => {
     let cancelled = false;
     
@@ -103,7 +102,6 @@ function NoticeBoardPage() {
         if (cancelled) return;
         setRequests(rs);
         
-        // SANITIZE: Remove duplicates and filter out null/undefined/empty string user IDs to stop 400 errors
         const cleanUserIds = Array.from(new Set(rs.map((r) => r.userId).filter(Boolean)));
         
         if (cleanUserIds.length > 0) {
@@ -121,17 +119,14 @@ function NoticeBoardPage() {
     };
   }, []);
 
-  // Filter and sort the requests
   const filteredAndSortedRequests = useMemo(() => {
     if (!requests) return null;
 
-    // 1. FILTER: Instantly drop requests where payment receipt has been confirmed
     let result = requests.filter((r: any) => {
       const receiptConfirmed = !!r.feeReceivedAt || !!r.fee_received_at || !!r.feeSettledAt || !!r.fee_settled_at;
       return !receiptConfirmed;
     });
 
-    // 2. FILTER: Calculate proximity matrix restrictions
     if (viewMode !== "all") {
       result = result.filter((r: any) => {
         let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
@@ -152,7 +147,6 @@ function NoticeBoardPage() {
       });
     }
 
-    // 3. SORT: Organize output configurations
     if (sortMode === "reward") {
       return result.sort((a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward));
     }
@@ -183,6 +177,10 @@ function NoticeBoardPage() {
     const takenByMe = !!user && r.takenBy === user.id;
     const isOwner = !!user && r.userId === user.id;
     const profile = profiles[r.userId];
+
+    // Explicit properties support for snake_case & camelCase variations
+    const resolvedName = profile ? (profile.display_name || profile.displayName || "User") : "Anonymous";
+    const resolvedRating = profile ? (profile.average_rating ?? profile.averageRating ?? 0) : 0;
 
     return (
       <Link
@@ -229,10 +227,9 @@ function NoticeBoardPage() {
               
               <div className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1 flex-wrap">
                 <User className="h-3 w-3" />
-                {/* FIX CASING: profile.display_name instead of profile.displayName */}
-                <span>by {r.isSecret ? "Secret Request" : (profile?.display_name || "Anonymous")}</span>
-                {!r.isSecret && profile && typeof profile.average_rating === "number" && (
-                  <StarRating rating={profile.average_rating} />
+                <span>by {r.isSecret ? "Secret Request" : resolvedName}</span>
+                {!r.isSecret && profile && (
+                  <StarRating rating={resolvedRating} />
                 )}
               </div>
 
@@ -242,7 +239,6 @@ function NoticeBoardPage() {
                 </p>
               )}
 
-              {/* Integrated Horizontal Micro Thumbnail Stream Preview Component */}
               {r.images && r.images.length > 0 && (
                 <div className="flex gap-1.5 mt-2 overflow-x-hidden">
                   {r.images.slice(0, 5).map((url, imgIdx) => (
