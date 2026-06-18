@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
@@ -57,13 +57,27 @@ function RequestDetailPage() {
   
   const [request, setRequest] = useState<ExtendedStoredRequest | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Bid actions
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
   const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
+  const [isEditingBid, setIsEditingBid] = useState(false);
+  const [editingBidId, setEditingBidId] = useState<string | null>(null);
   const [bids, setBids] = useState<BidRecord[]>([]);
   const [assigningBidId, setAssigningBidId] = useState<string | null>(null);
   const [selectedBidId, setSelectedBidId] = useState<string | null>(null);
+  
+  // Request management
+  const [isEditingRequest, setIsEditingRequest] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [updatingRequest, setUpdatingRequest] = useState(false);
+  const [deletingRequest, setDeletingRequest] = useState(false);
+  const [verifyingCompletion, setVerifyingCompletion] = useState(false);
+
+  // Chat parameters
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [newMsgText, setNewMsgText] = useState("");
@@ -79,96 +93,98 @@ function RequestDetailPage() {
     setIsMounted(true);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
+  async function fetchRequestDetails() {
+    try {
+      const { data, error } = await supabase
+        .from("requests")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-    async function fetchRequestDetails() {
-      try {
-        const { data, error } = await supabase
-          .from("requests")
-          .select("*")
-          .eq("id", id)
-          .single();
+      if (error) throw error;
+      
+      if (data) {
+        const mappedRequest: ExtendedStoredRequest = {
+          id: data.id,
+          type: data.type,
+          title: data.title,
+          description: data.description,
+          locationLabel: data.location_label || data.locationLabel || "Pinned location",
+          lat: data.lat,
+          lng: data.lng,
+          reward: data.reward,
+          isSecret: data.is_secret || data.isSecret || false,
+          userId: data.user_id || data.userId,
+          takenBy: data.taken_by || data.takenBy,
+          takenAt: data.taken_at || data.takenAt,
+          takerCompletedAt: data.taker_completed_at || data.takerCompletedAt,
+          completedAt: data.completed_at || data.completedAt,
+          feeSettledAt: data.fee_settled_at || data.feeSettledAt,
+          photoUrls: data.photo_urls || data.photoUrls || [],
+          paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
+          createdAt: data.created_at,
+        };
+        setRequest(mappedRequest);
+        setEditTitle(data.title || "");
+        setEditDesc(data.description || "");
 
-        if (error) throw error;
+        const requestOwnerId = data.user_id || data.userId;
         
-        if (!cancelled && data) {
-          const mappedRequest: ExtendedStoredRequest = {
-            id: data.id,
-            type: data.type,
-            title: data.title,
-            description: data.description,
-            locationLabel: data.location_label || data.locationLabel || "Pinned location",
-            lat: data.lat,
-            lng: data.lng,
-            reward: data.reward,
-            isSecret: data.is_secret || data.isSecret || false,
-            userId: data.user_id || data.userId,
-            takenBy: data.taken_by || data.takenBy,
-            takenAt: data.taken_at || data.takenAt,
-            takerCompletedAt: data.taker_completed_at || data.takerCompletedAt,
-            completedAt: data.completed_at || data.completedAt,
-            feeSettledAt: data.fee_settled_at || data.feeSettledAt,
-            photoUrls: data.photo_urls || data.photoUrls || [],
-            paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
-            createdAt: data.created_at,
-          };
-          setRequest(mappedRequest);
+        let query = supabase
+          .from("request_bids")
+          .select("id, helper_id, amount, note, status, photo_urls")
+          .eq("request_id", data.id);
 
-          const requestOwnerId = data.user_id || data.userId;
-          
-          let query = supabase
-            .from("request_bids")
-            .select("id, helper_id, amount, note, status, photo_urls")
-            .eq("request_id", data.id);
+        if (user && requestOwnerId !== user.id) {
+          query = query.eq("helper_id", user.id);
+        }
 
-          if (user && requestOwnerId !== user.id) {
-            query = query.eq("helper_id", user.id);
+        const { data: bidsData, error: bidsError } = await query;
+        if (bidsError) throw bidsError;
+
+        if (bidsData) {
+          const enrichedBids: BidRecord[] = [];
+          for (const b of bidsData) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("display_name")
+              .eq("id", b.helper_id)
+              .maybeSingle();
+
+            enrichedBids.push({
+              id: b.id,
+              helper_id: b.helper_id,
+              amount: b.amount,
+              note: b.note || "",
+              status: b.status,
+              photo_urls: b.photo_urls || [],
+              helper_name: profile?.display_name || "Helper Offer"
+            });
           }
+          setBids(enrichedBids);
 
-          const { data: bidsData, error: bidsError } = await query;
-          if (bidsError) throw bidsError;
-
-          if (bidsData && !cancelled) {
-            const enrichedBids: BidRecord[] = [];
-            for (const b of bidsData) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", b.helper_id)
-                .maybeSingle();
-
-              enrichedBids.push({
-                id: b.id,
-                helper_id: b.helper_id,
-                amount: b.amount,
-                note: b.note || "",
-                status: b.status,
-                photo_urls: b.photo_urls || [],
-                helper_name: profile?.display_name || "Helper Offer"
-              });
-            }
-            setBids(enrichedBids);
-
-            if (user && requestOwnerId === user.id && enrichedBids.length > 0 && !selectedBidId) {
-              const acceptedBid = enrichedBids.find(b => b.status === "accepted");
-              setSelectedBidId(acceptedBid ? acceptedBid.id : enrichedBids[0].id);
-            }
+          if (user && requestOwnerId === user.id && enrichedBids.length > 0 && !selectedBidId) {
+            const acceptedBid = enrichedBids.find(b => b.status === "accepted");
+            setSelectedBidId(acceptedBid ? acceptedBid.id : enrichedBids[0].id);
           }
         }
-      } catch (err) {
-        console.error("Error loading requests baseline:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+    } catch (err) {
+      console.error("Error loading requests baseline:", err);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
 
     async function checkExistingBid() {
       if (!user) return;
       try {
         const { data } = await supabase
           .from("request_bids")
-          .select("id")
+          .select("id, amount, note, photo_urls")
           .eq("request_id", id)
           .eq("helper_id", user.id)
           .maybeSingle();
@@ -176,6 +192,10 @@ function RequestDetailPage() {
         if (data && !cancelled) {
           setHasAlreadyBid(true);
           setSelectedBidId(data.id);
+          setEditingBidId(data.id);
+          setBidAmount(data.amount.toString());
+          setBidNote(data.note || "");
+          setUploadedBidUrls(data.photo_urls || []);
         }
       } catch (err) {
         console.error("Error verifying active bidding indices:", err);
@@ -382,14 +402,14 @@ function RequestDetailPage() {
       });
 
       if (error) throw error;
-      newMsgText("");
+      setNewMsgText("");
       setChatPhotos([]);
     } catch (err: any) {
       toast.error(err.message || "Could not dispatch message.");
     }
   }
 
-  async function handlePlaceBid(e: React.FormEvent) {
+  async function handlePlaceOrUpdateBid(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !request) return;
 
@@ -400,25 +420,105 @@ function RequestDetailPage() {
 
     setSubmittingBid(true);
     try {
-      const { error } = await supabase
-        .from("request_bids")
-        .insert({
-          request_id: request.id,
-          helper_id: user.id,
-          amount: parseFloat(bidAmount),
-          note: bidNote.trim(),
-          status: "pending",
-          photo_urls: uploadedBidUrls
-        });
+      if (isEditingBid && editingBidId) {
+        const { error } = await supabase
+          .from("request_bids")
+          .update({
+            amount: parseFloat(bidAmount),
+            note: bidNote.trim(),
+            photo_urls: uploadedBidUrls
+          })
+          .eq("id", editingBidId);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast.success("Proposal bid updated successfully!");
+        setIsEditingBid(false);
+      } else {
+        const { error } = await supabase
+          .from("request_bids")
+          .insert({
+            request_id: request.id,
+            helper_id: user.id,
+            amount: parseFloat(bidAmount),
+            note: bidNote.trim(),
+            status: "pending",
+            photo_urls: uploadedBidUrls
+          });
 
-      toast.success("Proposal bid submitted successfully!");
-      setHasAlreadyBid(true);
+        if (error) throw error;
+        toast.success("Proposal bid submitted successfully!");
+        setHasAlreadyBid(true);
+      }
+      void fetchRequestDetails();
     } catch (err: any) {
       toast.error(err.message || "Failed to finalize offer registry.");
     } finally {
       setSubmittingBid(false);
+    }
+  }
+
+  async function handleUpdateRequest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!request || updatingRequest) return;
+    setUpdatingRequest(true);
+
+    try {
+      const { error } = await supabase
+        .from("requests")
+        .update({
+          title: editTitle.trim(),
+          description: editDesc.trim(),
+        })
+        .eq("id", request.id);
+
+      if (error) throw error;
+      toast.success("Request modifications saved.");
+      setIsEditingRequest(false);
+      void fetchRequestDetails();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update listing configuration.");
+    } finally {
+      setUpdatingRequest(false);
+    }
+  }
+
+  async function handleDeleteRequest() {
+    if (!request || deletingRequest || !confirm("Are you sure you want to permanently delete this request?")) return;
+    setDeletingRequest(true);
+
+    try {
+      const { error } = await supabase
+        .from("requests")
+        .delete()
+        .eq("id", request.id);
+
+      if (error) throw error;
+      toast.success("Request listing removed successfully.");
+      void navigate({ to: "/notice-board" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to terminate notice board record.");
+    } finally {
+      setDeletingRequest(false);
+    }
+  }
+
+  async function handleVerifyCompletion() {
+    if (!request || verifyingCompletion) return;
+    setVerifyingCompletion(true);
+
+    try {
+      const { error } = await supabase
+        .from("requests")
+        .update({ completed_at: new Date().toISOString() })
+        .eq("id", request.id);
+
+      if (error) throw error;
+      toast.success("Task completion successfully verified!");
+      void fetchRequestDetails();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to verify completion.");
+    } finally {
+      setVerifyingCompletion(false);
     }
   }
 
@@ -427,8 +527,7 @@ function RequestDetailPage() {
     setAssigningBidId(bid.id);
 
     try {
-      // Execute the single secure atomic RPC block instead of raw multi-table updates
-      const { data, error } = await supabase.rpc("accept_bid", {
+      const { error } = await supabase.rpc("accept_bid", {
         _bid_id: bid.id,
       });
 
@@ -440,13 +539,12 @@ function RequestDetailPage() {
         throw error;
       }
 
-      // Synchronize client interface context gracefully
       setBids((prev) =>
         prev.map((b) =>
           b.id === bid.id
             ? { ...b, status: "accepted" }
             : b.status === "pending"
-              ? { ...b, status: "rejected" } // Reflect alternative rejections immediately
+              ? { ...b, status: "rejected" }
               : b
         )
       );
@@ -460,6 +558,7 @@ function RequestDetailPage() {
       }
 
       toast.success(`Task officially assigned to helper!`);
+      void fetchRequestDetails();
     } catch (err: any) {
       console.error("Assignment execution runtime fault:", err);
       toast.error(err.message || "Failed to execute contract commitment changes.");
@@ -508,35 +607,102 @@ function RequestDetailPage() {
         </button>
 
         <Card className="p-6 sm:p-8 space-y-6" style={{ boxShadow: "var(--shadow-soft)" }}>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                <Icon className="h-6 w-6" />
+          
+          {/* Top Admin / Edit bar for Owner */}
+          {isOwner && !request.takenBy && (
+            <div className="flex justify-end gap-2 border-b border-border/40 pb-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsEditingRequest(!isEditingRequest)}
+                className="rounded-xl h-8 text-xs gap-1"
+              >
+                <Edit2 className="h-3 w-3" /> {isEditingRequest ? "Cancel Edit" : "Edit Details"}
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                disabled={deletingRequest}
+                onClick={() => { void handleDeleteRequest(); }}
+                className="rounded-xl h-8 text-xs gap-1"
+              >
+                <Trash2 className="h-3 w-3" /> Delete Post
+              </Button>
+            </div>
+          )}
+
+          {isEditingRequest ? (
+            <form onSubmit={handleUpdateRequest} className="space-y-4 pt-2">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Modify Request Information</h3>
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Title</label>
+                <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required className="rounded-xl" />
               </div>
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="secondary" className="rounded-full text-xs">
-                    {t?.label ?? "Request"}
-                  </Badge>
-                  {request.isSecret && (
-                    <Badge variant="outline" className="rounded-full text-xs bg-muted/40">Anonymous</Badge>
-                  )}
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</label>
+                <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} required className="rounded-xl min-h-[100px]" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="submit" size="sm" disabled={updatingRequest} className="rounded-full px-4 text-xs">
+                  {updatingRequest ? "Saving changes..." : "Save Modifications"}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="secondary" className="rounded-full text-xs">
+                        {t?.label ?? "Request"}
+                      </Badge>
+                      {request.isSecret && (
+                        <Badge variant="outline" className="rounded-full text-xs bg-muted/40">Anonymous</Badge>
+                      )}
+                      {request.completedAt && (
+                        <Badge variant="default" className="rounded-full text-xs bg-green-600 text-white">Verified Complete</Badge>
+                      )}
+                    </div>
+                    <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
+                  </div>
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
-              </div>
-            </div>
 
-            {request.reward && (
-              <div className="bg-accent/10 text-accent px-4 py-2 rounded-2xl flex items-center gap-1.5 font-semibold text-sm">
-                <Gift className="h-4 w-4" />
-                {request.reward}
+                {request.reward && (
+                  <div className="bg-accent/10 text-accent px-4 py-2 rounded-2xl flex items-center gap-1.5 font-semibold text-sm">
+                    <Gift className="h-4 w-4" />
+                    {request.reward}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {request.description && (
-            <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words border-l-2 border-muted pl-4 py-1">
-              {request.description}
+              {request.description && (
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words border-l-2 border-muted pl-4 py-1">
+                  {request.description}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Requester Verification Completion Banner */}
+          {isOwner && request.takerCompletedAt && !request.completedAt && (
+            <div className="bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
+              <div>
+                <p className="text-xs font-bold text-green-800 dark:text-green-400 uppercase tracking-wider">Helper Completed Task</p>
+                <p className="text-xs text-muted-foreground mt-0.5">The assigned companion has completed the task objectives. Please evaluate and verify completion.</p>
+              </div>
+              <Button 
+                size="sm" 
+                className="bg-green-600 hover:bg-green-700 text-white rounded-full text-xs shrink-0 gap-1"
+                disabled={verifyingCompletion}
+                onClick={() => { void handleVerifyCompletion(); }}
+              >
+                <CheckCircle className="h-3.5 w-3.5" />
+                {verifyingCompletion ? "Verifying..." : "Verify Completion"}
+              </Button>
             </div>
           )}
 
@@ -592,12 +758,44 @@ function RequestDetailPage() {
 
           {user && (isOwner || hasAlreadyBid) && (
             <div className="space-y-3 pt-4 border-t border-border">
-              <label className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
-                <MessageSquare className="w-3.5 h-3.5 text-primary" />
-                {isOwner ? `Current Proposals (${bids.length})` : "Your Private Proposal Channel"}
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
+                  <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                  {isOwner ? `Current Proposals (${bids.length})` : "Your Private Proposal Channel"}
+                </label>
+                
+                {/* Helper Edit Bid parameters action trigger */}
+                {!isOwner && hasAlreadyBid && !request.takenBy && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setIsEditingBid(!isEditingBid)}
+                    className="rounded-xl h-7 text-[11px]"
+                  >
+                    {isEditingBid ? "View Private Chat" : "Modify My Proposal Bid"}
+                  </Button>
+                )}
+              </div>
 
-              {bids.length === 0 ? (
+              {isEditingBid ? (
+                <form onSubmit={handlePlaceOrUpdateBid} className="space-y-4 p-4 border rounded-xl bg-muted/20">
+                  <h4 className="text-xs font-bold uppercase text-muted-foreground">Edit Your Bid Information</h4>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Required Compensation Reward ($)</label>
+                    <Input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} required className="rounded-xl max-w-[200px]" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Introduction or Service Note</label>
+                    <Textarea value={bidNote} onChange={(e) => setBidNote(e.target.value)} maxLength={300} className="rounded-xl min-h-[80px] text-xs resize-none" />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingBid(false)} className="rounded-full text-xs">Cancel</Button>
+                    <Button type="submit" size="sm" disabled={submittingBid} className="rounded-full text-xs px-4">
+                      {submittingBid ? "Saving bid..." : "Save Bid Changes"}
+                    </Button>
+                  </div>
+                </form>
+              ) : bids.length === 0 ? (
                 <div className="border border-dashed rounded-xl p-6 text-center text-xs text-muted-foreground italic bg-muted/5">
                   No active bids currently listed for this notice.
                 </div>
@@ -620,7 +818,7 @@ function RequestDetailPage() {
                           <span className="text-xs font-bold text-accent">${b.amount}</span>
                           <span className={`block text-[10px] uppercase font-bold tracking-wider mt-0.5 ${
                             b.status === "accepted" ? "text-green-600" : b.status === "rejected" ? "text-red-500" : "text-amber-500"
-                          }` }>
+                          }`}>
                             {b.status}
                           </span>
                         </div>
@@ -750,7 +948,7 @@ function RequestDetailPage() {
               <h3 className="text-xs font-bold uppercase text-muted-foreground tracking-wider mb-3">
                 Submit Configuration Proposal
               </h3>
-              <form onSubmit={handlePlaceBid} className="space-y-4">
+              <form onSubmit={handlePlaceOrUpdateBid} className="space-y-4">
                 <div>
                   <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                     Your Required Compensation Reward ($)
