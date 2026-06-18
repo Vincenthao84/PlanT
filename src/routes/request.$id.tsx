@@ -72,6 +72,13 @@ function RequestDetailPage() {
 
   const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
+  
+  // Hydration fix component state indicator
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,7 +151,6 @@ function RequestDetailPage() {
             }
             setBids(enrichedBids);
 
-            // FIX: Auto-select a bid channel for the requestor so the chat box renders instantly
             if (user && requestOwnerId === user.id && enrichedBids.length > 0 && !selectedBidId) {
               const acceptedBid = enrichedBids.find(b => b.status === "accepted");
               setSelectedBidId(acceptedBid ? acceptedBid.id : enrichedBids[0].id);
@@ -153,7 +159,7 @@ function RequestDetailPage() {
         }
       } catch (err) {
         console.error("Error loading requests baseline:", err);
-      } finally {
+      } finaly {
         if (!cancelled) setLoading(false);
       }
     }
@@ -410,7 +416,6 @@ function RequestDetailPage() {
 
       toast.success("Proposal bid submitted successfully!");
       setHasAlreadyBid(true);
-      window.location.reload();
     } catch (err: any) {
       toast.error(err.message || "Failed to finalize offer registry.");
     } finally {
@@ -423,8 +428,6 @@ function RequestDetailPage() {
     setAssigningBidId(bid.id);
 
     try {
-      // FIX: Rely only on updating the bid status to 'accepted'.
-      // Per database exception rules, the database trigger handles synchronizing parent assignments.
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -432,8 +435,15 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
+      // Optimistic local update so frontend reactive tables catch up immediately without hard reloading
+      setBids((prev) =>
+        prev.map((b) => (b.id === bid.id ? { ...b, status: "accepted" } : b))
+      );
+      if (request) {
+        setRequest({ ...request, takenBy: bid.helper_id, takenAt: new Date().toISOString() });
+      }
+
       toast.success(`Task officially assigned to helper!`);
-      window.location.reload();
     } catch (err: any) {
       console.error("Assignment execution runtime fault:", err);
       toast.error(err.message || "Failed to execute contract commitment changes.");
@@ -560,7 +570,7 @@ function RequestDetailPage() {
             </span> 
             <span suppressHydrationWarning className="inline-flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" /> 
-              Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"} 
+              Posted {isMounted && request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"} 
             </span>
           </div>
 
@@ -577,13 +587,13 @@ function RequestDetailPage() {
                   No active bids currently listed for this notice.
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {bids.map((b) => (
                     <div 
                       key={b.id} 
                       onClick={() => setSelectedBidId(b.id)}
-                      className={`p-4 border rounded-xl transition-all cursor-pointer ${
-                        selectedBidId === b.id ? "border-primary bg-primary/5" : "hover:bg-muted/40"
+                      className={`p-4 border rounded-xl transition-all cursor-pointer space-y-4 ${
+                        selectedBidId === b.id ? "border-primary bg-primary/5 shadow-sm" : "hover:bg-muted/40"
                       }`}
                     >
                       <div className="flex justify-between items-start gap-2 flex-wrap">
@@ -603,7 +613,7 @@ function RequestDetailPage() {
 
                       {/* Display proposal document references if attached */}
                       {b.photo_urls && b.photo_urls.length > 0 && (
-                        <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1">
+                        <div className="flex gap-1.5 overflow-x-auto pb-1">
                           {b.photo_urls.map((pUrl, pIdx) => (
                             <a 
                               key={pIdx} 
@@ -616,6 +626,88 @@ function RequestDetailPage() {
                               <img src={pUrl} alt="Bid reference" className="object-cover w-full h-full" />
                             </a>
                           ))}
+                        </div>
+                      )}
+
+                      {/* POSITION RESTRUCTURE: Embedded Secure Communication sandbox right inside the selected bidder card container */}
+                      {selectedBidId === b.id && (
+                        <div className="pt-3 border-t border-border/60 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+                              Secure Communication Sandbox
+                            </h4>
+                            {chatLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                          </div>
+
+                          <ScrollArea className="h-52 border rounded-xl p-3 bg-background">
+                            <div className="space-y-3">
+                              {chatMessages.map((msg) => {
+                                const isMe = msg.author_id === user.id;
+                                return (
+                                  <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                                    <div className={`max-w-[85%] rounded-2xl p-2.5 text-xs ${
+                                      isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-muted text-foreground rounded-tl-none"
+                                    }`}>
+                                      <p className="font-bold text-[9px] opacity-80 mb-0.5">{msg.author_name}</p>
+                                      <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+                                      
+                                      {msg.photo_urls && msg.photo_urls.length > 0 && (
+                                        <div className="grid grid-cols-2 gap-1.5 mt-2">
+                                          {msg.photo_urls.map((img, idx) => (
+                                            <a key={idx} href={img} target="_blank" rel="noreferrer" className="rounded overflow-hidden border">
+                                              <img src={img} alt="Chat attachment" className="object-cover w-full h-20" />
+                                            </a>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span className="text-[9px] text-muted-foreground mt-0.5 px-1">
+                                      {isMounted ? new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              <div ref={scrollRef} />
+                            </div>
+                          </ScrollArea>
+
+                          {/* Chat Form Attachments */}
+                          <form onSubmit={handleSendChatMessage} className="space-y-2">
+                            {chatPhotos.length > 0 && (
+                              <div className="flex gap-2 p-1.5 border rounded-xl bg-muted/40 flex-wrap">
+                                {chatPhotos.map((url, idx) => (
+                                  <div key={idx} className="relative w-10 h-10 border rounded overflow-hidden">
+                                    <img src={url} alt="Draft" className="object-cover w-full h-full" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setChatPhotos(prev => prev.filter((_, i) => i !== idx))}
+                                      className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5"
+                                    >
+                                      <X className="h-2 w-2" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex gap-2 items-center">
+                              <label className="inline-flex h-8 w-8 items-center justify-center border rounded-xl bg-background hover:bg-muted/50 cursor-pointer transition-colors flex-shrink-0 shadow-sm">
+                                <input type="file" accept="image/*" multiple className="hidden" onChange={handleChatPhotoUpload} disabled={uploadingChatPhotos} />
+                                {uploadingChatPhotos ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Camera className="h-3.5 w-3.5 text-muted-foreground" />}
+                              </label>
+
+                              <Input
+                                placeholder="Type encrypted contract response..."
+                                value={newMsgText}
+                                onChange={(e) => setNewMsgText(e.target.value)}
+                                className="rounded-xl text-xs h-8"
+                              />
+
+                              <Button type="submit" size="icon" className="h-8 w-8 rounded-xl flex-shrink-0" disabled={!newMsgText.trim() && chatPhotos.length === 0}>
+                                <Send className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </form>
                         </div>
                       )}
 
@@ -639,88 +731,6 @@ function RequestDetailPage() {
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Private Chat Message Section */}
-          {user && selectedBidId && (
-            <div className="space-y-4 pt-4 border-t border-border">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider">
-                  Secure Communication Sandbox
-                </h4>
-                {chatLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-              </div>
-
-              <ScrollArea className="h-64 border rounded-xl p-4 bg-muted/10">
-                <div className="space-y-3">
-                  {chatMessages.map((msg) => {
-                    const isMe = msg.author_id === user.id;
-                    return (
-                      <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                        <div className={`max-w-[85%] rounded-2xl p-3 text-xs ${
-                          isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-muted text-foreground rounded-tl-none"
-                        }`}>
-                          <p className="font-bold text-[10px] opacity-80 mb-0.5">{msg.author_name}</p>
-                          <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-                          
-                          {msg.photo_urls && msg.photo_urls.length > 0 && (
-                            <div className="grid grid-cols-2 gap-1.5 mt-2">
-                              {msg.photo_urls.map((img, idx) => (
-                                <a key={idx} href={img} target="_blank" rel="noreferrer" className="rounded overflow-hidden border">
-                                  <img src={img} alt="Chat attachment" className="object-cover w-full h-24" />
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-[9px] text-muted-foreground mt-0.5 px-1">
-                          {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  <div ref={scrollRef} />
-                </div>
-              </ScrollArea>
-
-              {/* Chat Form Attachments */}
-              <form onSubmit={handleSendChatMessage} className="space-y-2">
-                {chatPhotos.length > 0 && (
-                  <div className="flex gap-2 p-2 border rounded-xl bg-muted/40 flex-wrap">
-                    {chatPhotos.map((url, idx) => (
-                      <div key={idx} className="relative w-12 h-12 border rounded overflow-hidden">
-                        <img src={url} alt="Draft" className="object-cover w-full h-full" />
-                        <button
-                          type="button"
-                          onClick={() => setChatPhotos(prev => prev.filter((_, i) => i !== idx))}
-                          className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5"
-                        >
-                          <X className="h-2 w-2" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex gap-2 items-center">
-                  <label className="inline-flex h-9 w-9 items-center justify-center border rounded-xl bg-background hover:bg-muted/50 cursor-pointer transition-colors flex-shrink-0 shadow-sm">
-                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleChatPhotoUpload} disabled={uploadingChatPhotos} />
-                    {uploadingChatPhotos ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Camera className="h-4 w-4 text-muted-foreground" />}
-                  </label>
-
-                  <Input
-                    placeholder="Type encrypted contract response..."
-                    value={newMsgText}
-                    onChange={(e) => setNewMsgText(e.target.value)}
-                    className="rounded-xl text-xs h-9"
-                  />
-
-                  <Button type="submit" size="icon" className="h-9 w-9 rounded-xl flex-shrink-0" disabled={!newMsgText.trim() && chatPhotos.length === 0}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </form>
             </div>
           )}
 
