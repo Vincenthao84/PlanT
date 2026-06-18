@@ -553,8 +553,13 @@ async function handleAcceptBid(bid: BidRecord) {
 
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
             <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-accent" />{request.locationLabel}</span>
-            <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"}</span>
-          </div>
+<span 
+  suppressHydrationWarning 
+  className="inline-flex items-center gap-1"
+>
+  <Clock className="h-3.5 w-3.5" />
+  Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"}
+</span>
 
           {user && (isOwner || hasAlreadyBid) && (
             <div className="space-y-3 pt-4 border-t border-border">
