@@ -72,11 +72,11 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
-      // Robust fallbacks checking all potential variations of 'taken_by' column names
+      // Using only the strictly verified column confirmed by your PostgreSQL schema
       const { data, error } = await supabase
         .from("requests")
         .select("*")
-        .or(`taken_by.eq.${userId},takenBy.eq.${userId},taker_id.eq.${userId}`);
+        .eq("taken_by", userId);
 
       if (error) throw error;
 
@@ -92,7 +92,7 @@ export function MyTasksPage() {
           reward: item.reward,
           isSecret: item.is_secret || item.isSecret || false,
           userId: item.user_id || item.userId,
-          takenBy: item.taken_by || item.takenBy || item.taker_id,
+          takenBy: item.taken_by || item.takenBy,
           takenAt: item.taken_at || item.takenAt,
           takerCompletedAt: item.taker_completed_at || item.takerCompletedAt,
           completedAt: item.completed_at || item.completedAt,
@@ -103,7 +103,8 @@ export function MyTasksPage() {
         setTasks(mapped);
       }
     } catch (err) {
-      console.error("Direct fetch exception on task view list:", err);
+      console.error("Fetch exception on task view list:", err);
+      toast.error("Failed to load your tasks");
       setTasks([]);
     }
   }, []);
@@ -118,7 +119,7 @@ export function MyTasksPage() {
     setRefreshing(true);
     await getAssignedTasks(user.id);
     setRefreshing(false);
-    toast.success("Tasks synchronized successfully!");
+    toast.success("Tasks refreshed");
   };
 
   if (authLoading || !isMounted) {
