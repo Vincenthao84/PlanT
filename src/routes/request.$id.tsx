@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle, CreditCard } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
@@ -76,6 +76,7 @@ function RequestDetailPage() {
   const [updatingRequest, setUpdatingRequest] = useState(false);
   const [deletingRequest, setDeletingRequest] = useState(false);
   const [verifyingCompletion, setVerifyingCompletion] = useState(false);
+  const [settlingFee, setSettlingFee] = useState(false);
 
   // Chat parameters
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -522,6 +523,26 @@ function RequestDetailPage() {
     }
   }
 
+  async function handleConfirmPaid() {
+    if (!request || settlingFee) return;
+    setSettlingFee(true);
+
+    try {
+      const { error } = await supabase
+        .from("requests")
+        .update({ fee_settled_at: new Date().toISOString() })
+        .eq("id", request.id);
+
+      if (error) throw error;
+      toast.success("Payment confirmed! Service fee officially settled.");
+      void fetchRequestDetails();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to register payment resolution.");
+    } finally {
+      setSettlingFee(false);
+    }
+  }
+
   async function handleAcceptBid(bid: BidRecord) {
     if (!user || !request || assigningBidId) return;
     setAssigningBidId(bid.id);
@@ -666,6 +687,9 @@ function RequestDetailPage() {
                       {request.completedAt && (
                         <Badge variant="default" className="rounded-full text-xs bg-green-600 text-white">Verified Complete</Badge>
                       )}
+                      {request.feeSettledAt && (
+                        <Badge variant="default" className="rounded-full text-xs bg-blue-600 text-white">Paid & Settled</Badge>
+                      )}
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
                   </div>
@@ -702,6 +726,25 @@ function RequestDetailPage() {
               >
                 <CheckCircle className="h-3.5 w-3.5" />
                 {verifyingCompletion ? "Verifying..." : "Verify Completion"}
+              </Button>
+            </div>
+          )}
+
+          {/* Requester Post-Verification Settlement Banner */}
+          {isOwner && request.completedAt && !request.feeSettledAt && (
+            <div className="bg-blue-50 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
+              <div>
+                <p className="text-xs font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider">Completion Verified</p>
+                <p className="text-xs text-muted-foreground mt-0.5">You've verified completion. Please finalize payment to your helper if you haven't done so already.</p>
+              </div>
+              <Button 
+                size="sm" 
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs shrink-0 gap-1 shadow-sm"
+                disabled={settlingFee}
+                onClick={() => { void handleConfirmPaid(); }}
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                {settlingFee ? "Confirming..." : "Confirm Paid"}
               </Button>
             </div>
           )}
