@@ -415,11 +415,13 @@ function RequestDetailPage() {
     }
   }
 
-  async function handleAcceptBid(bid: BidRecord) {
+async function handleAcceptBid(bid: BidRecord) {
     if (!user || !request || assigningBidId) return;
     setAssigningBidId(bid.id);
 
     try {
+      // 1. Update the bid status to 'accepted'. Your database trigger or 
+      // RLS rule automatically assigns 'taken_by' and 'taken_at' behind the scenes.
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -427,17 +429,7 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
-      // FIXED: Removed the non-existent 'status' column from schema update payload
-      const { error: reqUpdateErr } = await supabase
-        .from("requests")
-        .update({ 
-          taken_by: bid.helper_id,
-          taken_at: new Date().toISOString()
-        })
-        .eq("id", request.id);
-
-      if (reqUpdateErr) throw reqUpdateErr;
-
+      // 2. Success! Notify the client and reload to display the updated assignment layout
       toast.success(`Task officially assigned to helper!`);
       window.location.reload();
     } catch (err: any) {
