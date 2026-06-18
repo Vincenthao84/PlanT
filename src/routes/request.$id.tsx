@@ -659,7 +659,6 @@ function RequestDetailPage() {
     }
   }
 
-  // Pure column workaround direction-submission logic configuration
   async function handleSubmitReview(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !request || submittingReview) return;
@@ -671,7 +670,6 @@ function RequestDetailPage() {
 
     setSubmittingReview(true);
     try {
-      // Determine columns based on who is doing the review right now
       const isOwnerReviewing = user.id === request.userId;
       
       const insertPayload = {
@@ -722,12 +720,10 @@ function RequestDetailPage() {
   const isOwner = user && user.id === request.userId;
   const isAssignedHelper = user && user.id === request.takenBy;
   
-  // FIX FALLBACK LINKAGE: Inspect profile directly. If no profile exists, show safe fallback.
   const authorLabel = request.isSecret 
     ? "Secret Request" 
     : (ownerProfile?.display_name || `User_${request.userId?.slice(0, 5)}`);
 
-  // Filter reviews array to isolate the specific user row context without reviewer_id
   const mySubmittedReview = reviews.find(r => {
     if (isOwner) {
       return r.requester_id === request.userId && r.taker_id === request.takenBy;
@@ -953,7 +949,6 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {/* Mutual Performance Rating Container */}
           {request.completedAt && (isOwner || isAssignedHelper) && (
             <div className="space-y-4 pt-4 border-t border-border">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -985,7 +980,7 @@ function RequestDetailPage() {
                       return (
                         <button
                           key={idx}
-                          type="button}
+                          type="button"
                           onClick={() => setRatingInput(starValue)}
                           className="text-amber-500 focus:outline-none cursor-pointer"
                         >
