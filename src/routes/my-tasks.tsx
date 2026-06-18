@@ -32,28 +32,27 @@ function TimeAgoText({ dateString }: { dateString: string | undefined }) {
 
   useEffect(() => {
     if (!dateString) return;
-    try {
-      const ts = new Date(dateString).getTime();
-      if (isNaN(ts)) return;
-      const s = Math.floor((Date.now() - ts) / 1000);
-      if (s < 60) {
-        setText("just now");
-        return;
+    
+    const calculateTime = () => {
+      try {
+        const ts = new Date(dateString).getTime();
+        if (isNaN(ts)) return "Recently";
+        const s = Math.floor((Date.now() - ts) / 1000);
+        if (s < 60) return "just now";
+        
+        const m = Math.floor(s / 60);
+        if (m < 60) return `${m}m ago`;
+        
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${h}h ago`;
+        
+        return `${Math.floor(h / 24)}d ago`;
+      } catch {
+        return "Recently";
       }
-      const m = Math.floor(s / 60);
-      if (m < 60) {
-        setText(`${m}m ago`);
-        return;
-      }
-      const h = Math.floor(m / 60);
-      if (h < 24) {
-        setText(`${h}h ago`);
-        return;
-      }
-      setText(`${Math.floor(h / 24)}d ago`);
-    } catch {
-      setText("Recently");
-    }
+    };
+
+    setText(calculateTime());
   }, [dateString]);
 
   return <span>{text}</span>;
@@ -72,36 +71,61 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
-      // Querying 'taken_by' column verified in image_002e32.png
-      const { data, error } = await supabase
+      // 1. Fetch tasks where requests.taken_by matching user
+      const { data: directData, error: directError } = await supabase
         .from("requests")
         .select("*")
-        .eq("taken_by", userId); 
+        .eq("taken_by", userId);
 
-      if (error) throw error;
+      if (directError) throw directError;
 
-      if (data) {
-        const mapped: StoredRequest[] = data.map((item: any) => ({
-          id: item.id,
-          type: item.type || "general",
-          title: item.title || "Untitled Task",
-          description: item.description || "",
-          locationLabel: item.location_label || item.locationLabel || "Pinned location",
-          lat: item.lat,
-          lng: item.lng,
-          reward: item.reward,
-          isSecret: item.is_secret || item.isSecret || false,
-          userId: item.user_id || item.userId,
-          takenBy: item.taken_by || item.takenBy,
-          takenAt: item.taken_at || item.takenAt,
-          takerCompletedAt: item.taker_completed_at || item.takerCompletedAt,
-          completedAt: item.completed_at || item.completedAt,
-          feeSettledAt: item.fee_settled_at || item.feeSettledAt,
-          photoUrls: item.photo_urls || item.photoUrls || [],
-          paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
-        }));
-        setTasks(mapped);
+      // 2. Fallback: Fetch requests via request_bids where status is 'accepted'
+      const { data: bidData, error: bidError } = await supabase
+        .from("request_bids")
+        .select("request_id, requests(*)")
+        .eq("helper_id", userId)
+        .eq("status", "accepted");
+
+      if (bidError) throw bidError;
+
+      // Combine and filter unique records
+      const combinedMap = new Map<string, any>();
+
+      if (directData) {
+        directData.forEach((item) => combinedMap.set(item.id, item));
       }
+
+      if (bidData) {
+        bidData.forEach((bid: any) => {
+          if (bid.requests && !combinedMap.has(bid.requests.id)) {
+            combinedMap.set(bid.requests.id, bid.requests);
+          }
+        });
+      }
+
+      const unifiedData = Array.from(combinedMap.values());
+
+      const mapped: StoredRequest[] = unifiedData.map((item: any) => ({
+        id: item.id,
+        type: item.type || "general",
+        title: item.title || "Untitled Task",
+        description: item.description || "",
+        locationLabel: item.location_label || item.locationLabel || "Pinned location",
+        lat: item.lat,
+        lng: item.lng,
+        reward: item.reward,
+        isSecret: item.is_secret || item.isSecret || false,
+        userId: item.user_id || item.userId,
+        takenBy: item.taken_by || userId, // Fallback to current user ID if taken_by column is blank
+        takenAt: item.taken_at || item.created_at,
+        takerCompletedAt: item.taker_completed_at || item.takerCompletedAt,
+        completedAt: item.completed_at || item.completedAt,
+        feeSettledAt: item.fee_settled_at || item.feeSettledAt,
+        photoUrls: item.photo_urls || item.photoUrls || [],
+        paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
+      }));
+
+      setTasks(mapped);
     } catch (err) {
       console.error("Fetch exception on task view list:", err);
       toast.error("Failed to load your tasks");
