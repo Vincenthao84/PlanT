@@ -25,10 +25,7 @@ interface BidRecord {
   note: string;
   status: string;
   photo_urls: string[];
-  profiles?: {
-    display_name: string | null;
-    avatar_url: string | null;
-  };
+  helper_name?: string;
 }
 
 interface ChatMessage {
@@ -39,10 +36,7 @@ interface ChatMessage {
   body: string;
   photo_urls: string[];
   created_at: string;
-  profiles?: {
-    display_name: string | null;
-    avatar_url: string | null;
-  };
+  author_name?: string;
 }
 
 export const Route = createFileRoute("/request/$id")({
@@ -70,7 +64,6 @@ function RequestDetailPage() {
   const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
   const [bids, setBids] = useState<BidRecord[]>([]);
   const [assigningBidId, setAssigningBidId] = useState<string | null>(null);
-
   const [selectedBidId, setSelectedBidId] = useState<string | null>(null);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -121,32 +114,42 @@ function RequestDetailPage() {
 
           const requestOwnerId = data.user_id || data.userId;
           
-          let query = supabase.from("request_bids").select(`
-            id, 
-            helper_id, 
-            amount, 
-            note, 
-            status, 
-            photo_urls,
-            profiles (display_name, avatar_url)
-          `).eq("request_id", data.id);
+          let query = supabase
+            .from("request_bids")
+            .select("id, helper_id, amount, note, status, photo_urls")
+            .eq("request_id", data.id);
 
           if (user && requestOwnerId !== user.id) {
             query = query.eq("helper_id", user.id);
           }
 
           const { data: bidsData, error: bidsError } = await query;
-          
-          if (bidsError) {
-            console.error("Error fetching bids data stream:", bidsError);
-          }
+          if (bidsError) throw bidsError;
           
           if (bidsData && !cancelled) {
-            setBids(bidsData as any[]);
+            const enrichedBids: BidRecord[] = [];
+            for (const b of bidsData) {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("display_name")
+                .eq("id", b.helper_id)
+                .maybeSingle();
+
+              enrichedBids.push({
+                id: b.id,
+                helper_id: b.helper_id,
+                amount: b.amount,
+                note: b.note || "",
+                status: b.status,
+                photo_urls: b.photo_urls || [],
+                helper_name: profile?.display_name || "Helper Offer"
+              });
+            }
+            setBids(enrichedBids);
           }
         }
       } catch (err) {
-        console.error("Error loading request assets:", err);
+        console.error("Error loading requests baseline:", err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -167,7 +170,7 @@ function RequestDetailPage() {
           setSelectedBidId(data.id);
         }
       } catch (err) {
-        console.error("Error inspecting historical bid validation:", err);
+        console.error("Error verifying active bidding indices:", err);
       }
     }
 
@@ -175,7 +178,7 @@ function RequestDetailPage() {
     void checkExistingBid();
 
     const channel = supabase
-      .channel(`request-detail-${id}`)
+      .channel(`request-detail-room-${id}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "requests", filter: `id=eq.${id}` },
@@ -201,24 +204,37 @@ function RequestDetailPage() {
       try {
         const { data, error } = await supabase
           .from("request_messages")
-          .select(`
-            id, 
-            request_id, 
-            bid_id,
-            author_id, 
-            body, 
-            photo_urls, 
-            created_at, 
-            profiles (display_name, avatar_url)
-          `)
+          .select("id, request_id, bid_id, author_id, body, photo_urls, created_at")
           .eq("request_id", request.id)
           .eq("bid_id", selectedBidId)
           .order("created_at");
 
         if (error) throw error;
-        setChatMessages(data as any[] || []);
+
+        if (data) {
+          const enrichedMessages: ChatMessage[] = [];
+          for (const msg of data) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("display_name")
+              .eq("id", msg.author_id)
+              .maybeSingle();
+
+            enrichedMessages.push({
+              id: msg.id,
+              request_id: msg.request_id,
+              bid_id: msg.bid_id,
+              author_id: msg.author_id,
+              body: msg.body,
+              photo_urls: msg.photo_urls || [],
+              created_at: msg.created_at,
+              author_name: profile?.display_name || "User"
+            });
+          }
+          setChatMessages(enrichedMessages);
+        }
       } catch (err) {
-        console.error("Error loading messages database stream:", err);
+        console.error("Error executing flat message mapping streams:", err);
       } finally {
         setChatLoading(false);
         setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -228,7 +244,7 @@ function RequestDetailPage() {
     void fetchChatMessages();
 
     const chatChannel = supabase
-      .channel(`chat-room-sandbox-${selectedBidId}`)
+      .channel(`chat-sandbox-room-${selectedBidId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "request_messages", filter: `request_id=eq.${request.id}` },
@@ -237,14 +253,20 @@ function RequestDetailPage() {
 
           const { data: profile } = await supabase
             .from("profiles")
-            .select("display_name, avatar_url")
+            .select("display_name")
             .eq("id", payload.new.author_id)
-            .single();
+            .maybeSingle();
 
-          const completeMsg = {
-            ...payload.new,
-            profiles: profile || { display_name: "User", avatar_url: null }
-          } as ChatMessage;
+          const completeMsg: ChatMessage = {
+            id: payload.new.id,
+            request_id: payload.new.request_id,
+            bid_id: payload.new.bid_id,
+            author_id: payload.new.author_id,
+            body: payload.new.body,
+            photo_urls: payload.new.photo_urls || [],
+            created_at: payload.new.created_at,
+            author_name: profile?.display_name || "User"
+          };
 
           setChatMessages((prev) => [...prev, completeMsg]);
           setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -393,13 +415,11 @@ function RequestDetailPage() {
     }
   }
 
-  // ✅ FIXED FOR PRODUCTION: Corrected query schema keywords to use strict database snake_case keys.
   async function handleAcceptBid(bid: BidRecord) {
     if (!user || !request || assigningBidId) return;
     setAssigningBidId(bid.id);
 
     try {
-      // 1. Update the target bid record status row to accepted
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -407,7 +427,6 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
-      // 2. Update parent request notice with the chosen winner using strict snake_case column layout properties
       const { error: reqUpdateErr } = await supabase
         .from("requests")
         .update({ 
@@ -576,7 +595,7 @@ function RequestDetailPage() {
                           <div className="space-y-0.5 pr-2 min-w-0 text-xs">
                             <div className="flex items-center gap-1.5 font-semibold text-foreground">
                               <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <span>{b.profiles?.display_name || "Helper Offer"}</span>
+                              <span>{b.helper_name}</span>
                               {b.status === "accepted" && (
                                 <Badge className="bg-emerald-500 hover:bg-emerald-600 text-[9px] h-4 px-1.5 rounded-full text-white">Winner</Badge>
                               )}
@@ -599,7 +618,7 @@ function RequestDetailPage() {
                                 <div className="text-[11px]">
                                   <p className="font-bold text-foreground">Accept this offer?</p>
                                   <p className="text-muted-foreground leading-tight">
-                                    Assigns the job listing task permanently to {b.profiles?.display_name || "this helper"}.
+                                    Assigns the job listing task permanently to {b.helper_name}.
                                   </p>
                                 </div>
                                 <Button 
@@ -648,7 +667,7 @@ function RequestDetailPage() {
                                         return (
                                           <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                                             <span className="text-[9px] text-muted-foreground mb-0.5 px-1">
-                                              {msg.profiles?.display_name || "User"}
+                                              {msg.author_name}
                                             </span>
                                             <div className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-xs ${
                                               isMe ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
