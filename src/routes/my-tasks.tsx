@@ -71,7 +71,7 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
-      // 1. Fetch tasks where requests.taken_by matching user
+      // 1. Fetch tasks where you are explicitly marked as the taker
       const { data: directData, error: directError } = await supabase
         .from("requests")
         .select("*")
@@ -79,16 +79,16 @@ export function MyTasksPage() {
 
       if (directError) throw directError;
 
-      // 2. Fallback: Fetch requests via request_bids where status is 'accepted'
+      // 2. Fallback: Fetch tasks via request_bids table where bid is accepted
       const { data: bidData, error: bidError } = await supabase
         .from("request_bids")
         .select("request_id, requests(*)")
         .eq("helper_id", userId)
-        .eq("status", "accepted");
+        .eq("status", "accepted"); // Matches request_bids status field safely
 
       if (bidError) throw bidError;
 
-      // Combine and filter unique records
+      // Unify entries into a single map keyed by request ID to prevent duplicate listings
       const combinedMap = new Map<string, any>();
 
       if (directData) {
@@ -116,7 +116,7 @@ export function MyTasksPage() {
         reward: item.reward,
         isSecret: item.is_secret || item.isSecret || false,
         userId: item.user_id || item.userId,
-        takenBy: item.taken_by || userId, // Fallback to current user ID if taken_by column is blank
+        takenBy: item.taken_by || userId, // Fallback placeholder if column isn't written back yet
         takenAt: item.taken_at || item.created_at,
         takerCompletedAt: item.taker_completed_at || item.takerCompletedAt,
         completedAt: item.completed_at || item.completedAt,
@@ -127,7 +127,7 @@ export function MyTasksPage() {
 
       setTasks(mapped);
     } catch (err) {
-      console.error("Fetch exception on task view list:", err);
+      console.error("Direct fetch exception on task view list:", err);
       toast.error("Failed to load your tasks");
       setTasks([]);
     }
