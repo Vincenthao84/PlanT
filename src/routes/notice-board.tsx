@@ -9,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { BidDialog } from "@/components/BidDialog";
+import { StarRating } from "@/components/StarRating";
 import {
   getRequestType,
   fetchAllRequests,
@@ -57,7 +58,7 @@ function NoticeBoardPage() {
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("map");
-  const [profiles, setProfiles] = useState<Record<string, { displayName: string | null; avatarUrl: string | null }>>({});
+  const [profiles, setProfiles] = useState<Record<string, { displayName: string | null; avatarUrl: string | null; average_rating?: number }>>({});
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
 
@@ -114,46 +115,46 @@ function NoticeBoardPage() {
   }, []);
 
   // Filter and sort the requests
-const filteredAndSortedRequests = useMemo(() => {
-  if (!requests) return null;
+  const filteredAndSortedRequests = useMemo(() => {
+    if (!requests) return null;
 
-  // 1. FILTER: Instantly drop requests where payment receipt has been confirmed
-  let result = requests.filter((r: any) => {
-    const receiptConfirmed = !!r.feeReceivedAt || !!r.fee_received_at || !!r.feeSettledAt || !!r.fee_settled_at;
-    return !receiptConfirmed;
-  });
-
-  // 2. FILTER: Calculate proximity matrix restrictions (Your existing location logic)
-  if (viewMode !== "all") {
-    result = result.filter((r: any) => {
-      let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
-      let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
-      
-      if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return false;
-      if (!userLocation) return true;
-
-      const latDiff = Math.abs(lat - userLocation.lat);
-      const lngDiff = Math.abs(lng - userLocation.lng);
-      return latDiff <= 1.0 && lngDiff <= 1.0;
+    // 1. FILTER: Instantly drop requests where payment receipt has been confirmed
+    let result = requests.filter((r: any) => {
+      const receiptConfirmed = !!r.feeReceivedAt || !!r.fee_received_at || !!r.feeSettledAt || !!r.fee_settled_at;
+      return !receiptConfirmed;
     });
-  } else {
-    result = result.filter((r: any) => {
-      let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
-      let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
-      return !(isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0));
-    });
-  }
 
-  // 3. SORT: Organize output configurations
-  if (sortMode === "reward") {
-    return result.sort((a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward));
-  }
-  return result.sort((a, b) => {
-    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return timeB - timeA;
-  });
-}, [requests, sortMode, userLocation, viewMode]);
+    // 2. FILTER: Calculate proximity matrix restrictions (Your existing location logic)
+    if (viewMode !== "all") {
+      result = result.filter((r: any) => {
+        let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
+        let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
+        
+        if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return false;
+        if (!userLocation) return true;
+
+        const latDiff = Math.abs(lat - userLocation.lat);
+        const lngDiff = Math.abs(lng - userLocation.lng);
+        return latDiff <= 1.0 && lngDiff <= 1.0;
+      });
+    } else {
+      result = result.filter((r: any) => {
+        let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
+        let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
+        return !(isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0));
+      });
+    }
+
+    // 3. SORT: Organize output configurations
+    if (sortMode === "reward") {
+      return result.sort((a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward));
+    }
+    return result.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [requests, sortMode, userLocation, viewMode]);
 
   const fullMapHref = useMemo(() => {
     if (!filteredAndSortedRequests || filteredAndSortedRequests.length === 0) return null;
@@ -174,6 +175,7 @@ const filteredAndSortedRequests = useMemo(() => {
     const isTaken = !!r.takenBy;
     const takenByMe = !!user && r.takenBy === user.id;
     const isOwner = !!user && r.userId === user.id;
+    const profile = profiles[r.userId];
 
     return (
       <Link
@@ -218,10 +220,12 @@ const filteredAndSortedRequests = useMemo(() => {
                 {r.title}
               </h3>
               
-              <p className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1">
+              <div className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1 flex-wrap">
                 <User className="h-3 w-3" />
-                by {r.isSecret ? "Secret Request" : (profiles[r.userId]?.displayName ?? "Anonymous")}
-              </p>
+                <span>by {r.isSecret ? "Secret Request" : (profile?.displayName ?? "Anonymous")}</span>
+                {!r.isSecret && profile && <StarRating rating={profile.average_rating} />}
+              </div>
+
               {r.description && (
                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                   {r.description}
