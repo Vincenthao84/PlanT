@@ -114,37 +114,46 @@ function NoticeBoardPage() {
   }, []);
 
   // Filter and sort the requests
-  const filteredAndSortedRequests = useMemo(() => {
-    if (!requests) return null;
+const filteredAndSortedRequests = useMemo(() => {
+  if (!requests) return null;
 
-    let result = [...requests];
+  // 1. FILTER: Instantly drop requests where payment receipt has been confirmed
+  let result = requests.filter((r: any) => {
+    const receiptConfirmed = !!r.feeReceivedAt || !!r.fee_received_at || !!r.feeSettledAt || !!r.fee_settled_at;
+    return !receiptConfirmed;
+  });
 
-    if (viewMode !== "all") {
-      result = result.filter((r: any) => {
-        let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
-        let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
-        
-        if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return false;
-        if (!userLocation) return true;
+  // 2. FILTER: Calculate proximity matrix restrictions (Your existing location logic)
+  if (viewMode !== "all") {
+    result = result.filter((r: any) => {
+      let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
+      let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
+      
+      if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return false;
+      if (!userLocation) return true;
 
-        const latDiff = Math.abs(lat - userLocation.lat);
-        const lngDiff = Math.abs(lng - userLocation.lng);
+      const latDiff = Math.abs(lat - userLocation.lat);
+      const lngDiff = Math.abs(lng - userLocation.lng);
+      return latDiff <= 1.0 && lngDiff <= 1.0;
+    });
+  } else {
+    result = result.filter((r: any) => {
+      let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
+      let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
+      return !(isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0));
+    });
+  }
 
-        return latDiff <= 1.0 && lngDiff <= 1.0;
-      });
-    } else {
-      result = result.filter((r: any) => {
-        let lat = Number(r.lat ?? r.latitude ?? r?.location?.lat);
-        let lng = Number(r.lng ?? r.longitude ?? r?.location?.lng ?? r.lon);
-        return !(isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0));
-      });
-    }
-
-    if (sortMode === "reward") {
-      return result.sort((a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward));
-    }
-    return result.sort((a, b) => b.createdAt - a.createdAt);
-  }, [requests, sortMode, userLocation, viewMode]);
+  // 3. SORT: Organize output configurations
+  if (sortMode === "reward") {
+    return result.sort((a, b) => parseRewardValue(b.reward) - parseRewardValue(a.reward));
+  }
+  return result.sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return timeB - timeA;
+  });
+}, [requests, sortMode, userLocation, viewMode]);
 
   const fullMapHref = useMemo(() => {
     if (!filteredAndSortedRequests || filteredAndSortedRequests.length === 0) return null;
