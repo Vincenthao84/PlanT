@@ -27,27 +27,49 @@ export const Route = createFileRoute("/my-tasks")({
   component: MyTasksPage,
 });
 
-function timeAgo(dateString: string | undefined): string {
-  if (!dateString) return "Recently";
-  try {
-    const ts = new Date(dateString).getTime();
-    if (isNaN(ts)) return "Recently";
-    const s = Math.floor((Date.now() - ts) / 1000);
-    if (s < 60) return "just now";
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  } catch {
-    return "Recently";
-  }
+// A component wrapper to prevent server vs client time formatting mismatch differences
+function TimeAgoText({ dateString }: { dateString: string | undefined }) {
+  const [text, setText] = useState<string>("Recently");
+
+  useEffect(() => {
+    if (!dateString) return;
+    try {
+      const ts = new Date(dateString).getTime();
+      if (isNaN(ts)) return;
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 60) {
+        setText("just now");
+        return;
+      }
+      const m = Math.floor(s / 60);
+      if (m < 60) {
+        setText(`${m}m ago`);
+        return;
+      }
+      const h = Math.floor(m / 60);
+      if (h < 24) {
+        setText(`${h}h ago`);
+        return;
+      }
+      setText(`${Math.floor(h / 24)}d ago`);
+    } catch {
+      setText("Recently");
+    }
+  }, [dateString]);
+
+  return <span>{text}</span>;
 }
 
 export function MyTasksPage() {
   const { user, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<StoredRequest[] | null>(null);
   const [activeChatTaskId, setActiveChatTaskId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Guarding layout structure to ensure smooth client-side rendering
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -97,7 +119,7 @@ export function MyTasksPage() {
     };
   }, [user]);
 
-  if (authLoading) {
+  if (authLoading || !isMounted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
         Loading…
@@ -207,7 +229,7 @@ export function MyTasksPage() {
                         )}
                         {takenAt && (
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" /> Taken {timeAgo(takenAt)}
+                            <Clock className="h-3 w-3" /> Taken <TimeAgoText dateString={takenAt} />
                           </span>
                         )}
                       </div>
