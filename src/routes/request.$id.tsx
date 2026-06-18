@@ -427,13 +427,13 @@ function RequestDetailPage() {
     setAssigningBidId(bid.id);
 
     try {
+      // 1. Update the request_bids table status
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
         .eq("id", bid.id);
 
       if (bidUpdateErr) {
-        // Handle specific unique key constraints elegantly for the end-user
         if (bidUpdateErr.code === "23505") {
           toast.error("This helper cannot be assigned; they currently have another active running task!");
           return;
@@ -441,6 +441,18 @@ function RequestDetailPage() {
         throw bidUpdateErr;
       }
 
+      // 2. FIXED: Update the requests table columns in the database
+      const { error: reqUpdateErr } = await supabase
+        .from("requests")
+        .update({ 
+          taken_by: bid.helper_id, 
+          taken_at: new Date().toISOString() 
+        })
+        .eq("id", request.id);
+
+      if (reqUpdateErr) throw reqUpdateErr;
+
+      // 3. Update local state
       setBids((prev) =>
         prev.map((b) => (b.id === bid.id ? { ...b, status: "accepted" } : b))
       );
