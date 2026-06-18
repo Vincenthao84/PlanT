@@ -145,19 +145,25 @@ export async function fetchAllRequests(): Promise<StoredRequest[]> {
 
 export async function fetchProfilesByIds(
   ids: string[],
-): Promise<Record<string, { displayName: string | null; avatarUrl: string | null }>> {
+): Promise<Record<string, { displayName: string | null; avatarUrl: string | null; averageRating: number }>> { // 1. Update the return type
   const unique = Array.from(new Set(ids.filter(Boolean)));
   if (unique.length === 0) return {};
+  
+  // 2. Add 'average_rating' to the select statement
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url")
+    .select("id, display_name, avatar_url, average_rating") 
     .in("id", unique);
+    
   if (error) throw error;
-  const map: Record<string, { displayName: string | null; avatarUrl: string | null }> = {};
-  (data ?? []).forEach((p) => {
-    map[(p as { id: string }).id] = {
-      displayName: (p as { display_name: string | null }).display_name,
-      avatarUrl: (p as { avatar_url: string | null }).avatar_url,
+  
+  // 3. Update the map construction
+  const map: Record<string, { displayName: string | null; avatarUrl: string | null; averageRating: number }> = {};
+  (data ?? []).forEach((p: any) => {
+    map[p.id] = {
+      displayName: p.display_name,
+      avatarUrl: p.avatar_url,
+      averageRating: p.average_rating ?? 0, // Ensure it defaults to 0
     };
   });
   return map;
