@@ -4,9 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle, CreditCard, Star } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle, CreditCard, Star, User } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
+import { StarRating } from "@/components/StarRating";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +49,12 @@ interface ReviewRecord {
   comment: string;
 }
 
+interface OwnerProfile {
+  display_name: string | null;
+  avatar_url: string | null;
+  average_rating?: number;
+}
+
 export const Route = createFileRoute("/request/$id")({
   head: ({ params }) => ({
     meta: [
@@ -65,6 +72,7 @@ function RequestDetailPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   
   const [request, setRequest] = useState<ExtendedStoredRequest | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Bid states
@@ -147,6 +155,22 @@ function RequestDetailPage() {
         setEditDesc(data.description || "");
 
         const requestOwnerId = data.user_id || data.userId;
+
+        // Fetch Requestor's profile with rating
+        if (requestOwnerId) {
+          const { data: profData } = await supabase
+            .from("profiles")
+            .select("display_name, avatar_url, average_rating")
+            .eq("id", requestOwnerId)
+            .maybeSingle();
+          if (profData) {
+            setOwnerProfile({
+              display_name: profData.display_name,
+              avatar_url: profData.avatar_url,
+              average_rating: (profData as any).average_rating
+            });
+          }
+        }
         
         // Populate system proposals
         let query = supabase
@@ -201,7 +225,7 @@ function RequestDetailPage() {
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } fillly: {
+    } finally {
       setLoading(false);
     }
   }
@@ -690,6 +714,7 @@ function RequestDetailPage() {
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
   const isOwner = user && user.id === request.userId;
   const isAssignedHelper = user && user.id === request.takenBy;
+  const authorLabel = request.isSecret ? "Secret Request" : (ownerProfile?.display_name || "Anonymous");
 
   const mySubmittedReview = reviews.find(r => r.reviewer_id === user?.id);
 
@@ -776,6 +801,19 @@ function RequestDetailPage() {
                       )}
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
+                    
+                    {/* Added Requester Name and Star Rating block */}
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground flex-wrap">
+                      <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" /> Posted by: {authorLabel}
+                      </span>
+                      {!request.isSecret && ownerProfile && (
+                        <>
+                          <span className="text-muted/60">•</span>
+                          <StarRating rating={ownerProfile.average_rating} />
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
