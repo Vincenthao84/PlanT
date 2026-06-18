@@ -166,7 +166,7 @@ function RequestDetailPage() {
             
           if (profData) {
             setOwnerProfile({
-              display_name: profData.display_name || `User_${realUID.slice(0, 5)}`,
+              display_name: profData.display_name,
               avatar_url: profData.avatar_url,
               average_rating: (profData as any).average_rating || 0
             });
@@ -721,9 +721,11 @@ function RequestDetailPage() {
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
   const isOwner = user && user.id === request.userId;
   const isAssignedHelper = user && user.id === request.takenBy;
+  
+  // FIX FALLBACK LINKAGE: Inspect profile directly. If no profile exists, show safe fallback.
   const authorLabel = request.isSecret 
-  ? "Secret Request" 
-  : (ownerProfile?.display_name || `User_${request.userId?.slice(0, 5)}`);
+    ? "Secret Request" 
+    : (ownerProfile?.display_name || `User_${request.userId?.slice(0, 5)}`);
 
   // Filter reviews array to isolate the specific user row context without reviewer_id
   const mySubmittedReview = reviews.find(r => {
@@ -983,7 +985,7 @@ function RequestDetailPage() {
                       return (
                         <button
                           key={idx}
-                          type="button"
+                          type="button}
                           onClick={() => setRatingInput(starValue)}
                           className="text-amber-500 focus:outline-none cursor-pointer"
                         >
