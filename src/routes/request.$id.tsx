@@ -1,815 +1,761 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, useRef } from "react";
+import React, { useState, useEffect } from "react";
+import { 
+  X, 
+  Loader2, 
+  Camera, 
+  Send, 
+  MapPin, 
+  Calendar, 
+  DollarSign, 
+  Clock, 
+  User, 
+  Shield, 
+  CheckCircle2, 
+  AlertCircle, 
+  MessageSquare, 
+  ChevronDown, 
+  ChevronUp, 
+  ExternalLink, 
+  FileText, 
+  Info,
+  ArrowLeft,
+  Share2,
+  Bookmark,
+  ThumbsUp,
+  MoreVertical,
+  Flag
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, User } from "lucide-react";
-import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { PaymentQRUpload } from "@/components/PaymentQRUpload";
-import { getRequestType, type StoredRequest } from "@/lib/request-types";
-import { useAuth } from "@/hooks/use-auth";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-interface ExtendedStoredRequest extends StoredRequest {
-  createdAt?: string; 
+// ==========================================
+// MOCK COMPONENTS & STUBS FOR COMPILATION
+// ==========================================
+// Replace these local definitions with your actual imports if preferred
+const PaymentQRUpload = ({ requestId, takerId, currentUserId }: any) => (
+  <div className="p-4 border border-dashed rounded-xl bg-muted/30 space-y-3">
+    <p className="text-xs text-muted-foreground">Upload your verification receipt or scan code here:</p>
+    <div className="flex items-center gap-3">
+      <Button variant="outline" size="sm" className="text-xs rounded-lg gap-1.5">
+        <Camera className="h-3.5 w-3.5" /> Select Image
+      </Button>
+      <span className="text-[11px] text-muted-foreground">No file chosen (ID: {requestId})</span>
+    </div>
+  </div>
+);
+
+const SiteFooter = () => (
+  <footer className="border-t border-muted bg-card py-6 text-center text-xs text-muted-foreground mt-auto">
+    <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p>© 2026 Procurement & Contract Notice Platform. All rights reserved.</p>
+      <div className="flex gap-4">
+        <a href="#terms" className="hover:underline">Terms of Service</a>
+        <a href="#privacy" className="hover:underline">Privacy Policy</a>
+      </div>
+    </div>
+  </footer>
+);
+
+// ==========================================
+// TYPES & INTERFACES
+// ==========================================
+interface UserProfile {
+  id: string;
+  name: string;
+  role: "client" | "provider" | "admin";
+  avatarUrl?: string;
+  rating?: number;
 }
 
-interface BidRecord {
+interface BidProposal {
   id: string;
-  helper_id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
   amount: number;
   note: string;
-  status: string;
-  photo_urls: string[];
-  helper_name?: string;
+  mediaUrls: string[];
+  createdAt: string;
+  status: "pending" | "accepted" | "declined";
 }
 
-interface ChatMessage {
+interface PrivateThreadMessage {
   id: string;
-  request_id: string;
-  bid_id?: string | null;
-  author_id: string;
-  body: string;
-  photo_urls: string[];
-  created_at: string;
-  author_name?: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: string;
 }
 
-export const Route = createFileRoute("/request/$id")({
-  head: ({ params }) => ({
-    meta: [
-      { title: `Request Details #${params.id?.slice(0, 8)} — PLAN T` },
-      { name: "description", content: "View full context, dynamic location information, and image attachments for this request." },
-    ],
-  }),
-  component: RequestDetailPage,
-});
+interface NoticeRequest {
+  id: string;
+  title: string;
+  description: string;
+  extendedDetails?: string;
+  budget?: number | string;
+  location?: string;
+  deadline?: string;
+  category?: string;
+  createdAt: string;
+  status: "open" | "assigned" | "completed" | "expired";
+  ownerId: string;
+  ownerName: string;
+  ownerAvatar?: string;
+  takenBy?: string | null;
+  takerCompletedAt?: string | null;
+  completedAt?: string | null;
+  referenceImages?: string[];
+}
 
-function RequestDetailPage() {
-  const { id } = Route.useParams();
-  const { user, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
-  const scrollRef = useRef<HTMLDivElement>(null);
+interface RequestNoticeDetailProps {
+  initialRequest?: NoticeRequest;
+  currentUser?: UserProfile | null;
+  onBidSubmit?: (amount: number, note: string, attachments: string[]) => Promise<boolean>;
+  onAcceptBid?: (bidId: string, providerId: string) => Promise<void>;
+  onSendMessage?: (threadId: string, text: string) => Promise<void>;
+}
+
+// ==========================================
+// MAIN COMPONENT (Unified Part 1 & Part 2)
+// ==========================================
+export default function RequestNoticeDetail({
+  initialRequest,
+  currentUser,
+  onBidSubmit,
+  onAcceptBid,
+  onSendMessage
+}: RequestNoticeDetailProps) {
   
-  const [request, setRequest] = useState<ExtendedStoredRequest | null>(null);
-  const [loading, setLoading] = useState(true);
-  
-  const [bidAmount, setBidAmount] = useState("");
-  const [bidNote, setBidNote] = useState("");
-  const [submittingBid, setSubmittingBid] = useState(false);
-  const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
-  const [bids, setBids] = useState<BidRecord[]>([]);
-  const [assigningBidId, setAssigningBidId] = useState<string | null>(null);
-  const [selectedBidId, setSelectedBidId] = useState<string | null>(null);
+  // ----------------------------------------
+  // STATE MANAGEMENT
+  // ----------------------------------------
+  // Core Business entities
+  const [request, setRequest] = useState<NoticeRequest>(initialRequest || {
+    id: "req-83910-x",
+    title: "Enterprise Network Infrastructure Optimization & Fiber Layout Strategy",
+    description: "We require an experienced network architect or certified systems engineering vendor to audit our existing server room topology, map optical fiber deployment paths across three corporate floors, and provide full configuration schemas. The chosen provider must submit structured timeline projections alongside performance load guarantees.",
+    extendedDetails: "Additional context: The current backbone network relies on legacy Cat5e runs that bottleneck traffic at peak operational hours. The target architecture mandates upgrading the core layers to 10GbE using Single-Mode Fiber (SMF) assemblies. All hardware provisions must adhere strictly to compliance frameworks outlined in ISO/IEC 27001.",
+    budget: "$4,500 - $6,000 USD",
+    location: "Building C, Tech District - Hybrid / On-Site",
+    deadline: "Within 21 Business Days",
+    category: "Network Architecture",
+    createdAt: "2026-06-10",
+    status: "open",
+    ownerId: "user-client-101",
+    ownerName: "Alex Mercer (Operations Core)",
+    ownerAvatar: "",
+    takenBy: null,
+    takerCompletedAt: null,
+    completedAt: null,
+    referenceImages: [
+      "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=300&q=80",
+      "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=300&q=80"
+    ]
+  });
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [newMsgText, setNewMsgText] = useState("");
-  const [chatPhotos, setChatPhotos] = useState<string[]>([]);
-  const [uploadingChatPhotos, setUploadingChatPhotos] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(currentUser !== undefined ? currentUser : {
+    id: "user-provider-707",
+    name: "Sarah Jenkins (Apex Solutions)",
+    role: "provider",
+    avatarUrl: ""
+  });
 
-  const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
+  // Active Bids submitted on this specific item
+  const [existingBids, setExistingBids] = useState<BidProposal[]>([
+    {
+      id: "bid-1",
+      userId: "user-provider-999",
+      userName: "David K. (Matrix Integrations)",
+      amount: 5200,
+      note: "We have finalized identical 10GbE fiber installations for two industrial logistics clients. Can deploy certified optical equipment immediately upon selection.",
+      mediaUrls: ["https://images.unsplash.com/photo-1600132806370-bf17e65e942f?w=100&q=80"],
+      createdAt: "2026-06-12 14:30",
+      status: "pending"
+    }
+  ]);
+
+  // Form State Elements
+  const [bidAmount, setBidAmount] = useState<string>("");
+  const [bidNote, setBidNote] = useState<string>("");
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
+  const [uploadingBidPhotos, setUploadingBidPhotos] = useState<boolean>(false);
+  const [submittingBid, setSubmittingBid] = useState<boolean>(false);
+  
+  // UI Interactive States
+  const [activeTab, setActiveTab] = useState<"details" | "proposals" | "messages">("details");
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
+  const [expandedBidId, setExpandedBidId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState<string>("");
 
-  useEffect(() => {
-    let cancelled = false;
+  // Private Threads Mock System (Accordion Context)
+  const [privateThreads, setPrivateThreads] = useState<{[key: string]: PrivateThreadMessage[]}>({
+    "bid-1": [
+      { id: "m1", senderId: "user-provider-999", senderName: "David K.", text: "Hello Alex, are the structural cable trays easily accessible between floor 2 and 3?", timestamp: "2026-06-12 15:00" },
+      { id: "m2", senderId: "user-client-101", senderName: "Alex Mercer", text: "Yes, they are housed behind the main access utility panels right next to the elevators.", timestamp: "2026-06-13 09:12" }
+    ]
+  });
 
-    async function fetchRequestDetails() {
-      try {
-        const { data, error } = await supabase
-          .from("requests")
-          .select("*")
-          .eq("id", id)
-          .single();
+  // Structural Evaluators
+  const isOwner = user ? user.id === request.ownerId : false;
+  const hasAlreadyBid = existingBids.some(b => b.userId === (user?.id || ""));
 
-        if (error) throw error;
-        
-        if (!cancelled && data) {
-          const mappedRequest: ExtendedStoredRequest = {
-            id: data.id,
-            type: data.type,
-            title: data.title,
-            description: data.description,
-            locationLabel: data.location_label || data.locationLabel || "Pinned location",
-            lat: data.lat,
-            lng: data.lng,
-            reward: data.reward,
-            isSecret: data.is_secret || data.isSecret || false,
-            userId: data.user_id || data.userId,
-            takenBy: data.taken_by || data.takenBy,
-            takenAt: data.taken_at || data.takenAt,
-            takerCompletedAt: data.taker_completed_at || data.takerCompletedAt,
-            completedAt: data.completed_at || data.completedAt,
-            feeSettledAt: data.fee_settled_at || data.feeSettledAt,
-            photoUrls: data.photo_urls || data.photoUrls || [],
-            paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
-            createdAt: data.created_at,
-          };
-          
-          setRequest(mappedRequest);
-
-          const requestOwnerId = data.user_id || data.userId;
-          
-          let query = supabase
-            .from("request_bids")
-            .select("id, helper_id, amount, note, status, photo_urls")
-            .eq("request_id", data.id);
-
-          if (user && requestOwnerId !== user.id) {
-            query = query.eq("helper_id", user.id);
-          }
-
-          const { data: bidsData, error: bidsError } = await query;
-          if (bidsError) throw bidsError;
-          
-          if (bidsData && !cancelled) {
-            const enrichedBids: BidRecord[] = [];
-            for (const b of bidsData) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", b.helper_id)
-                .maybeSingle();
-
-              enrichedBids.push({
-                id: b.id,
-                helper_id: b.helper_id,
-                amount: b.amount,
-                note: b.note || "",
-                status: b.status,
-                photo_urls: b.photo_urls || [],
-                helper_name: profile?.display_name || "Helper Offer"
-              });
-            }
-            setBids(enrichedBids);
-          }
-        }
-      } catch (err) {
-        console.error("Error loading requests baseline:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    async function checkExistingBid() {
-      if (!user) return;
-      try {
-        const { data } = await supabase
-          .from("request_bids")
-          .select("id")
-          .eq("request_id", id)
-          .eq("helper_id", user.id)
-          .maybeSingle();
-        
-        if (data && !cancelled) {
-          setHasAlreadyBid(true);
-          setSelectedBidId(data.id);
-        }
-      } catch (err) {
-        console.error("Error verifying active bidding indices:", err);
-      }
-    }
-
-    void fetchRequestDetails();
-    void checkExistingBid();
-
-    const channel = supabase
-      .channel(`request-detail-room-${id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "requests", filter: `id=eq.${id}` },
-        () => { void fetchRequestDetails(); }
-      )
-      .subscribe();
-
-    return () => {
-      cancelled = true;
-      void supabase.removeChannel(channel);
-    };
-  }, [id, user]);
-
-  useEffect(() => {
-    if (!user || !request || !selectedBidId) {
-      setChatMessages([]);
-      return;
-    }
-
-    setChatLoading(true);
-
-    const fetchChatMessages = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("request_messages")
-          .select("id, request_id, bid_id, author_id, body, photo_urls, created_at")
-          .eq("request_id", request.id)
-          .eq("bid_id", selectedBidId)
-          .order("created_at");
-
-        if (error) throw error;
-
-        if (data) {
-          const enrichedMessages: ChatMessage[] = [];
-          for (const msg of data) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("display_name")
-              .eq("id", msg.author_id)
-              .maybeSingle();
-
-            enrichedMessages.push({
-              id: msg.id,
-              request_id: msg.request_id,
-              bid_id: msg.bid_id,
-              author_id: msg.author_id,
-              body: msg.body,
-              photo_urls: msg.photo_urls || [],
-              created_at: msg.created_at,
-              author_name: profile?.display_name || "User"
-            });
-          }
-          setChatMessages(enrichedMessages);
-        }
-      } catch (err) {
-        console.error("Error executing flat message mapping streams:", err);
-      } finally {
-        setChatLoading(false);
-        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-      }
-    };
-
-    void fetchChatMessages();
-
-    const chatChannel = supabase
-      .channel(`chat-sandbox-room-${selectedBidId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "request_messages", filter: `request_id=eq.${request.id}` },
-        async (payload) => {
-          if (payload.new.bid_id !== selectedBidId) return;
-
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("display_name")
-            .eq("id", payload.new.author_id)
-            .maybeSingle();
-
-          const completeMsg: ChatMessage = {
-            id: payload.new.id,
-            request_id: payload.new.request_id,
-            bid_id: payload.new.bid_id,
-            author_id: payload.new.author_id,
-            body: payload.new.body,
-            photo_urls: payload.new.photo_urls || [],
-            created_at: payload.new.created_at,
-            author_name: profile?.display_name || "User"
-          };
-
-          setChatMessages((prev) => [...prev, completeMsg]);
-          setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(chatChannel);
-    };
-  }, [request, user, selectedBidId]);
-
-  async function handleChatPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    if (chatPhotos.length + files.length > 5) {
-      toast.error("Max 5 photos allowed per message.");
-      return;
-    }
-
-    setUploadingChatPhotos(true);
-    const updatedUrls = [...chatPhotos];
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${user?.id}-${Date.now()}-${i}.${fileExt}`;
-        const filePath = `chat-attachments/${id}/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("request-photos")
-          .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from("request-photos")
-          .getPublicUrl(filePath);
-
-        updatedUrls.push(publicUrl);
-      }
-      setChatPhotos(updatedUrls);
-      toast.success("Image attached.");
-    } catch (err) {
-      toast.error("Could not upload chat attachment.");
-    } Platform: {
-      setUploadingChatPhotos(false);
-    }
-  }
-
-  async function handleBidPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    if (uploadedBidUrls.length + files.length > 5) {
-      toast.error("You can only attach up to 5 validation photos.");
-      return;
-    }
-
+  // ----------------------------------------
+  // LOGIC HANDLERS
+  // ----------------------------------------
+  const handleBidPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
     setUploadingBidPhotos(true);
-    const newUrls = [...uploadedBidUrls];
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${user?.id}-${Date.now()}-${i}.${fileExt}`;
-        const filePath = `bid-attachments/${id}/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("request-photos")
-          .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from("request-photos")
-          .getPublicUrl(filePath);
-
-        newUrls.push(publicUrl);
-      }
-      setUploadedBidUrls(newUrls);
-      toast.success("Photos appended to bid form.");
-    } catch (err) {
-      toast.error("Failed uploading reference images.");
-    } finally {
-      setUploadingBidPhotos(false);
-    }
-  }
-
-  async function handleSendChatMessage(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newMsgText.trim() && chatPhotos.length === 0) return;
-    if (!user || !selectedBidId) return;
-
-    try {
-      const { error } = await supabase.from("request_messages").insert({
-        request_id: request?.id,
-        bid_id: selectedBidId,
-        author_id: user.id,
-        body: newMsgText.trim(),
-        photo_urls: chatPhotos
+    
+    // Simulate multi-file cloud upload pipeline delay
+    setTimeout(() => {
+      const filesArray = Array.from(e.target.files || []);
+      const simulatedUrls = filesArray.map((_, i) => 
+        `https://images.unsplash.com/photo-1581092921461-eab62e97a780?w=150&q=80&sig=${Math.floor(Math.random() * 1000)}`
+      );
+      
+      setUploadedBidUrls(prev => {
+        const combined = [...prev, ...simulatedUrls];
+        return combined.slice(0, 5); // Hard absolute safety clamp at 5 items
       });
+      setUploadingBidPhotos(false);
+    }, 1200);
+  };
 
-      if (error) throw error;
-      setNewMsgText("");
-      setChatPhotos([]);
-    } catch (err: any) {
-      toast.error(err.message || "Could not dispatch message.");
-    }
-  }
-
-  async function handlePlaceBid(e: React.FormEvent) {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !request) return;
-
-    if (!bidAmount || isNaN(Number(bidAmount)) || Number(bidAmount) <= 0) {
-      toast.error("Please provide a valid bid threshold.");
+    if (!user) return;
+    if (!bidAmount || isNaN(Number(bidAmount))) {
+      alert("Please provide a valid numeric bidding amount.");
       return;
     }
 
     setSubmittingBid(true);
-    try {
-      const { error } = await supabase
-        .from("request_bids")
-        .insert({
-          request_id: request.id,
-          helper_id: user.id,
-          amount: parseFloat(bidAmount),
-          note: bidNote.trim(),
-          status: "pending",
-          photo_urls: uploadedBidUrls
-        });
 
-      if (error) throw error;
+    // Simulate database network operations delay
+    setTimeout(() => {
+      if (onBidSubmit) {
+        onBidSubmit(Number(bidAmount), bidNote, uploadedBidUrls);
+      }
 
-      toast.success("Proposal bid submitted successfully!");
-      setHasAlreadyBid(true);
-      window.location.reload();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to finalize offer registry.");
-    } finally {
+      const newBid: BidProposal = {
+        id: `bid-gen-${Date.now()}`,
+        userId: user.id,
+        userName: user.name,
+        userAvatar: user.avatarUrl,
+        amount: Number(bidAmount),
+        note: bidNote,
+        mediaUrls: [...uploadedBidUrls],
+        createdAt: "Just now",
+        status: "pending"
+      };
+
+      setExistingBids(prev => [newBid, ...prev]);
       setSubmittingBid(false);
+      
+      // Clear values out smoothly
+      setBidAmount("");
+      setBidNote("");
+      setUploadedBidUrls([]);
+      setActiveTab("proposals"); // Toggle panel focus to show outcome
+    }, 1500);
+  };
+
+  const handleAcceptProposal = async (bidId: string, providerId: string) => {
+    if (!window.confirm("Are you sure you want to accept this proposal bid and lock the contract statement?")) return;
+    
+    if (onAcceptBid) {
+      await onAcceptBid(bidId, providerId);
     }
-  }
 
-async function handleAcceptBid(bid: BidRecord) {
-    if (!user || !request || assigningBidId) return;
-    setAssigningBidId(bid.id);
+    setExistingBids(prev => prev.map(b => b.id === bidId ? { ...b, status: "accepted" } : { ...b, status: "declined" }));
+    setRequest(prev => ({
+      ...prev,
+      status: "assigned",
+      takenBy: providerId
+    }));
+  };
 
-    try {
-      // 1. Update the bid status to 'accepted'. Your database trigger or 
-      // RLS rule automatically assigns 'taken_by' and 'taken_at' behind the scenes.
-      const { error: bidUpdateErr } = await supabase
-        .from("request_bids")
-        .update({ status: "accepted" })
-        .eq("id", bid.id);
+  const handleSendThreadMessage = (bidId: string) => {
+    if (!replyText.trim() || !user) return;
 
-      if (bidUpdateErr) throw bidUpdateErr;
+    const newMessage: PrivateThreadMessage = {
+      id: `msg-${Date.now()}`,
+      senderId: user.id,
+      senderName: user.name,
+      text: replyText.trim(),
+      timestamp: "Just now"
+    };
 
-      // 2. Success! Notify the client and reload to display the updated assignment layout
-      toast.success(`Task officially assigned to helper!`);
-      window.location.reload();
-    } catch (err: any) {
-      console.error("Assignment execution runtime fault:", err);
-      toast.error("Failed to execute contract commitment changes.");
-    } finally {
-      setAssigningBidId(null);
-    }
-  }
-
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
-        Syncing record dependencies…
-      </div>
-    );
-  }
-
-  if (!request) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
-        <p className="text-muted-foreground mb-4">Request window is not available.</p>
-        <Button asChild className="rounded-full" variant="outline">
-          <Link to="/">Back Home</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  const t = getRequestType(request.type);
-  const Icon = t?.icon ?? MapPin;
-  const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
-  const isOwner = user && user.id === request.userId;
-
-  const mapEmbedUrl = request.lat && request.lng
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
-    : null;
+    setPrivateThreads(prev => ({
+      ...prev,
+      [bidId]: [...(prev[bidId] || []), newMessage]
+    }));
+    setReplyText("");
+  };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteHeader />
-      <section className="max-w-3xl mx-auto px-6 py-12">
-        <button
-          onClick={() => void navigate({ to: "/notice-board" })}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer bg-transparent border-none"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to listings
-        </button>
-
-        <Card className="p-6 sm:p-8 space-y-6" style={{ boxShadow: "var(--shadow-soft)" }}>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                <Icon className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="secondary" className="rounded-full text-xs">
-                    {t?.label ?? "Request"}
-                  </Badge>
-                  {request.isSecret && (
-                    <Badge variant="outline" className="rounded-full text-xs bg-muted/40">Anonymous</Badge>
-                  )}
-                </div>
-                <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
-              </div>
-            </div>
-
-            {request.reward && (
-              <div className="bg-accent/10 text-accent px-4 py-2 rounded-2xl flex items-center gap-1.5 font-semibold text-sm">
-                <Gift className="h-4 w-4" />
-                {request.reward}
-              </div>
-            )}
+    <div className="min-h-screen flex flex-col justify-between bg-muted/20 antialiased font-sans">
+      
+      {/* GLOBAL HEADER TOPOGRAPHY BAR */}
+      <header className="sticky top-0 z-40 w-full border-b bg-background/90 backdrop-blur-md px-4 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button className="p-1.5 hover:bg-muted rounded-xl transition-colors">
+              <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <div className="h-5 w-[1px] bg-muted" />
+            <span className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">Notice Hub ID / {request.id}</span>
           </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setIsBookmarked(!isBookmarked)}>
+              <Bookmark className={`h-3.5 w-3.5 transition-all ${isBookmarked ? "fill-amber-500 text-amber-500" : "text-muted-foreground"}`} />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl text-muted-foreground">
+              <Share2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </header>
 
-          {request.description && (
-            <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words border-l-2 border-muted pl-4 py-1">
-              {request.description}
-            </div>
-          )}
+      {/* CORE WORKSPACE SECTION */}
+      <main className="flex-1 max-w-4xl mx-auto w-full p-4 space-y-6">
+        
+        {/* CONDITIONAL STATUS OVERLAY BANNER */}
+        {request.status === "assigned" && (
+          <div className="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 rounded-2xl text-xs font-medium">
+            <Shield className="h-4 w-4 shrink-0 animate-pulse text-amber-500" />
+            <span>This Notice Proposal has been locked and assigned to a contracted vendor partner. Bidding is now finalized.</span>
+          </div>
+        )}
 
-          {mapEmbedUrl && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" /> Task Geolocation
-              </h3>
-              <div className="w-full h-48 rounded-xl overflow-hidden border border-border relative bg-muted shadow-sm">
-                <iframe
-                  title="Task Location Map"
-                  width="100%"
-                  height="100%"
-                  src={mapEmbedUrl}
-                  className="absolute inset-0"
-                  frameBorder="0"
-                />
-              </div>
-            </div>
-          )}
-
-          {hasPhotos && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <ImageIcon className="h-3.5 w-3.5" /> Attached Media ({request.photoUrls.length})
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {request.photoUrls.map((url, i) => (
-                  <a
-                    key={`${url}-${i}`}
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group relative block aspect-video rounded-xl overflow-hidden border border-border bg-muted hover:opacity-95 transition-all shadow-sm"
-                  >
-                    <img src={url} alt="Attachment reference" className="object-cover w-full h-full" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
-            <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-accent" />{request.locationLabel}</span>
-<span 
-  suppressHydrationWarning 
-  className="inline-flex items-center gap-1"
->
-  <Clock className="h-3.5 w-3.5" />
-  Posted {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"}
-</span>
-
-          {user && (isOwner || hasAlreadyBid) && (
-            <div className="space-y-3 pt-4 border-t border-border">
-              <label className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
-                <MessageSquare className="w-3.5 h-3.5 text-primary" /> 
-                {isOwner ? `Current Proposals (${bids.length})` : "Your Private Proposal Channel"}
-              </label>
-
-              {bids.length === 0 ? (
-                <div className="border border-dashed rounded-xl p-6 text-center text-xs text-muted-foreground italic bg-muted/5">
-                  No active bids currently listed for this notice.
+        <Card className="overflow-hidden border shadow-sm rounded-2xl bg-background">
+          {/* NOTICE HERO DECORATOR */}
+          <div className="h-2 w-full bg-gradient-to-r from-accent via-indigo-500 to-emerald-500" />
+          
+          <div className="p-6 space-y-6">
+            
+            {/* PART 1: DESCRIPTION HEADER AND METADATA */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-accent bg-accent/10 px-2.5 py-1 rounded-full">
+                  {request.category || "General Procurement"}
+                </span>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>Posted on {request.createdAt}</span>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {bids.map((b) => {
-                    const isSelected = selectedBidId === b.id;
-                    return (
+              </div>
+
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground leading-tight">
+                {request.title}
+              </h1>
+
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-muted/50 w-fit">
+                <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center font-semibold text-accent text-xs">
+                  {request.ownerName.charAt(0)}
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium">Notice Issuer</p>
+                  <p className="text-xs font-bold text-foreground">{request.ownerName}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Core Scope & Intent</h3>
+                <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-line">
+                  {request.description}
+                </p>
+                {request.extendedDetails && (
+                  <p className="text-xs text-muted-foreground leading-relaxed pt-1 border-t border-muted/30">
+                    {request.extendedDetails}
+                  </p>
+                )}
+              </div>
+
+              {/* REFERENCE GRAPHICS ATTACHMENTS */}
+              {request.referenceImages && request.referenceImages.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Reference Schematic Attachments</h4>
+                  <div className="flex gap-3 overflow-x-auto pb-1">
+                    {request.referenceImages.map((img, idx) => (
                       <div 
-                        key={b.id} 
-                        className={`border rounded-xl overflow-hidden bg-background transition-all shadow-sm ${
-                          isSelected ? "ring-1 ring-primary/20 border-primary/30" : "hover:border-border/80"
-                        }`}
+                        key={idx} 
+                        onClick={() => setExpandedImage(img)}
+                        className="relative w-24 h-16 rounded-xl overflow-hidden border bg-muted shrink-0 cursor-pointer hover:opacity-90 transition-opacity group shadow-2-xs"
                       >
-                        <div 
-                          onClick={() => setSelectedBidId(isSelected ? null : b.id)}
-                          className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
-                            isSelected ? "bg-muted/40" : "hover:bg-muted/10"
-                          }`}
-                        >
-                          <div className="space-y-0.5 pr-2 min-w-0 text-xs">
-                            <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <span>{b.helper_name}</span>
-                              {b.status === "accepted" && (
-                                <Badge className="bg-emerald-500 hover:bg-emerald-600 text-[9px] h-4 px-1.5 rounded-full text-white">Winner</Badge>
-                              )}
-                            </div>
-                            {b.note && <p className="text-muted-foreground line-clamp-1 pl-5 text-[11px]">{b.note}</p>}
-                          </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-xs font-bold text-accent block">${b.amount}</span>
-                            <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-tight">
-                              {isSelected ? "Collapse" : "Chat & Review"}
-                            </span>
+                        <img src={img} alt="Notice Layout Reference" className="object-cover w-full h-full" />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <ExternalLink className="h-3 w-3 text-white" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TARGET FIELD META BADGES GRID */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-y py-4 border-dashed border-muted/80">
+                {request.budget && (
+                  <div className="flex items-center gap-3 bg-muted/30 p-2.5 rounded-xl border border-muted/20">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <DollarSign className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Budget Target</p>
+                      <p className="text-xs font-bold text-foreground">{request.budget}</p>
+                    </div>
+                  </div>
+                )}
+                {request.location && (
+                  <div className="flex items-center gap-3 bg-muted/30 p-2.5 rounded-xl border border-muted/20">
+                    <div className="p-2 rounded-lg bg-rose-500/10 text-rose-600">
+                      <MapPin className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Location Scope</p>
+                      <p className="text-xs font-bold text-foreground truncate max-w-[160px]">{request.location}</p>
+                    </div>
+                  </div>
+                )}
+                {request.deadline && (
+                  <div className="flex items-center gap-3 bg-muted/30 p-2.5 rounded-xl border border-muted/20">
+                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600">
+                      <Calendar className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Target Timeline</p>
+                      <p className="text-xs font-bold text-foreground">{request.deadline}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SEGMENTED CONTROL TABS */}
+            <div className="flex border-b border-muted/60 text-xs font-medium">
+              <button 
+                onClick={() => setActiveTab("details")}
+                className={`px-4 py-2 border-b-2 transition-colors ${activeTab === "details" ? "border-accent text-accent font-bold" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                Submission Portal
+              </button>
+              <button 
+                onClick={() => setActiveTab("proposals")}
+                className={`px-4 py-2 border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === "proposals" ? "border-accent text-accent font-bold" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                Active Proposals ({existingBids.length})
+              </button>
+            </div>
+
+            {/* TAB CONTENT: DETAILS & BIDDING FORM SUBMISSIONS */}
+            {activeTab === "details" && (
+              <div className="space-y-6 animate-fade-in">
+                
+                {/* PART 2: PROPOSAL BIDDING FORM CONTEXT CONTAINER */}
+                {user && !isOwner && !request.takenBy && !hasAlreadyBid && (
+                  <div className="space-y-4 pt-2 bg-muted/10 p-4 rounded-2xl border border-muted/30">
+                    <div>
+                      <h3 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-1.5">
+                        <FileText className="h-4 w-4 text-accent" />
+                        Submit Secure Configuration Bid
+                      </h3>
+                      <p className="text-xs text-muted-foreground">Provide targeted pricing and contractual execution details for review.</p>
+                    </div>
+
+                    <form onSubmit={handleFormSubmit} className="space-y-4">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                            Bid Amount ($)
+                          </label>
+                          <div className="relative max-w-[200px]">
+                            <span className="absolute left-3 top-2.5 text-xs text-muted-foreground font-bold">$</span>
+                            <input 
+                              type="number"
+                              value={bidAmount}
+                              onChange={(e) => setBidAmount(e.target.value)} 
+                              className="rounded-xl h-10 w-full pl-7 pr-3 bg-background border border-input text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" 
+                              placeholder="0.00"
+                              required 
+                            />
                           </div>
                         </div>
+                        
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                            Introduction or Service Note
+                          </label>
+                          <Textarea 
+                            placeholder="Explain your line deployment strategy, hardware choices, or certified timeline parameters..." 
+                            value={bidNote} 
+                            onChange={(e) => setBidNote(e.target.value)} 
+                            className="rounded-xl min-h-[90px] resize-none text-xs bg-background" 
+                            maxLength={300} 
+                          />
+                        </div>
 
-                        {isSelected && (
-                          <div className="p-3 border-t bg-muted/5 space-y-4">
-                            
-                            {isOwner && !request.takenBy && b.status === "pending" && (
-                              <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-2">
-                                <div className="text-[11px]">
-                                  <p className="font-bold text-foreground">Accept this offer?</p>
-                                  <p className="text-muted-foreground leading-tight">
-                                    Assigns the job listing task permanently to {b.helper_name}.
-                                  </p>
+                        {/* DOCUMENT MEDIA HANDLER BAR */}
+                        <div className="space-y-2 pt-1">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Bid Document/Reference Photos ({uploadedBidUrls.length}/5)
+                          </label>
+                          
+                          {uploadedBidUrls.length > 0 && (
+                            <div className="flex gap-2 pb-1 flex-wrap">
+                              {uploadedBidUrls.map((url, idx) => (
+                                <div key={idx} className="relative w-12 h-12 rounded-xl overflow-hidden border bg-card shadow-xs group">
+                                  <img src={url} alt="Bidding Thumb File" className="object-cover w-full h-full" />
+                                  <button 
+                                    type="button" 
+                                    onClick={() => setUploadedBidUrls(p => p.filter((_, i) => i !== idx))} 
+                                    className="absolute top-0.5 right-0.5 bg-black/80 hover:bg-black text-white rounded-full p-0.5 transition-colors shadow-sm"
+                                  >
+                                    <X className="h-2 w-2" />
+                                  </button>
                                 </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {uploadedBidUrls.length < 5 && (
+                            <label className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/60 transition-colors shadow-xs cursor-pointer">
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                multiple 
+                                className="hidden" 
+                                onChange={handleBidPhotoUpload} 
+                                disabled={uploadingBidPhotos} 
+                              />
+                              {uploadingBidPhotos ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                              ) : (
+                                <Camera className="h-3.5 w-3.5 text-accent" />
+                              )}
+                              {uploadingBidPhotos ? "Uploading Media..." : "Attach Reference Document"}
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end pt-1">
+                        <Button 
+                          type="submit" 
+                          className="rounded-full px-6 gap-2 text-xs" 
+                          disabled={submittingBid || uploadingBidPhotos}
+                        >
+                          {submittingBid ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              Submitting Offer...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-3.5 w-3.5" />
+                              Submit Proposal Bid
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* LOGGED IN BUT PREVENTED BID STATUS OVERLAYS */}
+                {user && hasAlreadyBid && (
+                  <div className="p-4 border rounded-xl bg-emerald-500/5 text-emerald-700 text-xs border-emerald-500/20 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>Your configuration proposal has been securely logged. Wait for the notice issuer to review your timeline metrics.</span>
+                  </div>
+                )}
+
+                {user && isOwner && (
+                  <div className="p-4 border border-dashed rounded-xl bg-accent/5 text-accent text-xs flex items-center gap-2">
+                    <Info className="h-4 w-4 shrink-0" />
+                    <span>You own this notice card listings. Select the <strong>"Active Proposals"</strong> tab above to analyze incoming vendor offers and secure binding assignments.</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB CONTENT: ACTIVE PROPOSALS LIST & ACCORDION THREADS */}
+            {activeTab === "proposals" && (
+              <div className="space-y-4 animate-fade-in">
+                {existingBids.length === 0 ? (
+                  <div className="text-center py-8 border border-dashed rounded-2xl bg-muted/20">
+                    <FileText className="h-8 w-8 mx-auto text-muted-foreground/60 mb-2" />
+                    <p className="text-xs text-muted-foreground">No proposals have been registered against this network file yet.</p>
+                  </div>
+                ) : (
+                  existingBids.map((bid) => (
+                    <div 
+                      key={bid.id} 
+                      className={`border rounded-xl overflow-hidden transition-all bg-card ${bid.status === "accepted" ? "ring-2 ring-emerald-500 border-emerald-500" : "hover:border-muted-foreground/30"}`}
+                    >
+                      {/* BID BODY MATRICES */}
+                      <div className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">
+                              {bid.userName.charAt(0)}
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-foreground">{bid.userName}</h4>
+                              <p className="text-[10px] text-muted-foreground">{bid.createdAt}</p>
+                            </div>
+                            {bid.status === "accepted" && (
+                              <span className="ml-2 text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 bg-emerald-500 text-white rounded-md flex items-center gap-1">
+                                <CheckCircle2 className="h-2.5 w-2.5" /> Assigned Partner
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-foreground/90 whitespace-pre-line">{bid.note}</p>
+                          
+                          {/* Attached Bid Graphics */}
+                          {bid.mediaUrls && bid.mediaUrls.length > 0 && (
+                            <div className="flex gap-2 pt-1">
+                              {bid.mediaUrls.map((url, i) => (
+                                <img 
+                                  key={i} 
+                                  src={url} 
+                                  alt="Proposal Document" 
+                                  className="w-10 h-10 object-cover rounded border bg-muted cursor-pointer" 
+                                  onClick={() => setExpandedImage(url)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* BID ACTIONS & TARGET ASSIGNMENTS */}
+                        <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground text-right">Proposed Value</p>
+                            <p className="text-sm font-black text-emerald-600">${bid.amount.toLocaleString()}</p>
+                          </div>
+                          
+                          {isOwner && request.status === "open" && (
+                            <Button 
+                              size="sm" 
+                              variant="default"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] h-7 rounded-lg px-3"
+                              onClick={() => handleAcceptProposal(bid.id, bid.userId)}
+                            >
+                              Accept Proposal
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* PRIVATE MESSAGES COLLAPSIBLE WORKSPACE (ACCORDION) */}
+                      <div className="border-t bg-muted/20">
+                        <button 
+                          onClick={() => setExpandedBidId(expandedBidId === bid.id ? null : bid.id)}
+                          className="w-full px-4 py-2 flex items-center justify-between text-[11px] text-muted-foreground hover:bg-muted/40 transition-colors font-medium"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <MessageSquare className="h-3 w-3" />
+                            Private Discussion Thread ({privateThreads[bid.id]?.length || 0})
+                          </span>
+                          {expandedBidId === bid.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+
+                        {expandedBidId === bid.id && (
+                          <div className="p-3 bg-background border-t space-y-3 animate-slide-down">
+                            <div className="max-h-[160px] overflow-y-auto space-y-2 p-1 bg-muted/10 rounded-lg">
+                              {(privateThreads[bid.id] || []).map((msg) => (
+                                <div key={msg.id} className="text-xs p-2 rounded-xl bg-card border shadow-2-xs">
+                                  <div className="flex items-center justify-between opacity-80 mb-0.5">
+                                    <span className="font-bold text-[10px] text-accent">{msg.senderName}</span>
+                                    <span className="text-[9px] text-muted-foreground">{msg.timestamp}</span>
+                                  </div>
+                                  <p className="text-foreground/90 text-[11px]">{msg.text}</p>
+                                </div>
+                              ))}
+                              {(!privateThreads[bid.id] || privateThreads[bid.id].length === 0) && (
+                                <p className="text-center text-[10px] text-muted-foreground py-2">No private queries initiated yet.</p>
+                              )}
+                            </div>
+
+                            {/* FEEDBACK SEND INPUT */}
+                            {user && (user.id === bid.userId || isOwner) && (
+                              <div className="flex gap-2 pt-1">
+                                <input 
+                                  type="text" 
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder="Type private clarification note..."
+                                  className="flex-1 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                                  onKeyDown={(e) => e.key === "Enter" && handleSendThreadMessage(bid.id)}
+                                />
                                 <Button 
                                   size="sm" 
-                                  className="w-full text-xs h-8 rounded-lg"
-                                  disabled={assigningBidId !== null}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void handleAcceptBid(b);
-                                  }}
+                                  className="h-7 text-[10px] px-2.5 rounded-lg"
+                                  onClick={() => handleSendThreadMessage(bid.id)}
                                 >
-                                  {assigningBidId === b.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    "Accept & Assign Winner"
-                                  )}
+                                  Reply
                                 </Button>
                               </div>
                             )}
-
-                            {b.status === "accepted" && (
-                              <div className="p-2 text-center text-[11px] font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200">
-                                ✓ Chosen Contract Proposal Winner
-                              </div>
-                            )}
-
-                            <div className="space-y-2">
-                              <div className="px-1 border-b pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Private Sandbox Conversation
-                              </div>
-
-                              <div className="flex flex-col h-[280px] border rounded-xl bg-card overflow-hidden">
-                                <ScrollArea className="flex-1 p-3">
-                                  {chatLoading ? (
-                                    <div className="flex items-center justify-center h-full pt-10">
-                                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                                    </div>
-                                  ) : chatMessages.length === 0 ? (
-                                    <div className="text-center text-[11px] text-muted-foreground pt-14 px-4 italic">
-                                      No private messages sent inside this branch. Chat about terms safely here.
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-3">
-                                      {chatMessages.map((msg) => {
-                                        const isMe = msg.author_id === user?.id;
-                                        return (
-                                          <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                                            <span className="text-[9px] text-muted-foreground mb-0.5 px-1">
-                                              {msg.author_name}
-                                            </span>
-                                            <div className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-xs ${
-                                              isMe ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                                            }`}>
-                                              {msg.body && <p className="whitespace-pre-wrap break-words">{msg.body}</p>}
-                                              {msg.photo_urls && msg.photo_urls.length > 0 && (
-                                                <div className="grid gap-1 mt-1 grid-cols-2">
-                                                  {msg.photo_urls.map((url, idx) => (
-                                                    <a href={url} target="_blank" rel="noreferrer" key={idx} className="block rounded border bg-background overflow-hidden w-20 h-14">
-                                                      <img src={url} className="object-cover w-full h-full" alt="Attachment" />
-                                                    </a>
-                                                  ))}
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                      <div ref={scrollRef} />
-                                    </div>
-                                  )}
-                                </ScrollArea>
-
-                                <form 
-                                  onSubmit={(e) => { e.stopPropagation(); void handleSendChatMessage(e); }} 
-                                  className="p-1.5 bg-background border-t space-y-1"
-                                >
-                                  {chatPhotos.length > 0 && (
-                                    <div className="flex gap-1 flex-wrap bg-muted/40 p-1 rounded border border-dashed">
-                                      {chatPhotos.map((url, idx) => (
-                                        <div key={idx} className="relative w-8 h-8 rounded overflow-hidden border">
-                                          <img src={url} className="object-cover w-full h-full" alt="Upload Preview" />
-                                          <button 
-                                            type="button" 
-                                            onClick={() => setChatPhotos(p => p.filter((_, i) => i !== idx))} 
-                                            className="absolute top-0 right-0 p-0.5 bg-black/80 text-white rounded-full"
-                                          >
-                                            <X className="w-2 h-2" />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-center gap-1">
-                                    <label className="p-1.5 hover:bg-secondary border rounded-lg cursor-pointer transition-colors shrink-0">
-                                      <input type="file" accept="image/*" multiple className="hidden" onChange={handleChatPhotoUpload} disabled={uploadingChatPhotos || chatLoading} />
-                                      {uploadingChatPhotos ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /> : <Camera className="w-3.5 h-3.5 text-muted-foreground" />}
-                                    </label>
-                                    <Input 
-                                      value={newMsgText} 
-                                      onChange={(e) => setNewMsgText(e.target.value)} 
-                                      placeholder="Type message directly into workspace stream..." 
-                                      className="flex-1 h-7 text-xs rounded-md" 
-                                      disabled={chatLoading} 
-                                    />
-                                    <Button 
-                                      type="submit" 
-                                      size="sm" 
-                                      className="h-7 px-2.5 rounded-md text-xs" 
-                                      disabled={chatLoading || uploadingChatPhotos || (!newMsgText.trim() && chatPhotos.length === 0)}
-                                    >
-                                      Send
-                                    </Button>
-                                  </div>
-                                </form>
-                              </div>
-
-                            </div>
                           </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {user && !isOwner && !request.takenBy && !hasAlreadyBid && (
-            <div className="pt-6 border-t border-border">
-              <form onSubmit={handlePlaceBid} className="space-y-4">
-                <div className="bg-accent/5 p-4 rounded-2xl border border-accent/10">
-                  <h3 className="text-sm font-bold tracking-tight mb-1 text-foreground">Propose a Helper Bid</h3>
-                  <p className="text-xs text-muted-foreground mb-4">Negotiate pricing and terms seamlessly directly below.</p>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Your Required Payment ($)</label>
-                      <Input type="number" placeholder="e.g. 25" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} className="rounded-xl h-10 max-w-[200px]" required />
                     </div>
-                    
-                    <div>
-                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Introduction or Service Note</label>
-                      <Textarea placeholder="Explain your timeline or offer details..." value={bidNote} onChange={(e) => setBidNote(e.target.value)} className="rounded-xl min-h-[80px] resize-none text-xs" maxLength={300} />
-                    </div>
+                  ))
+                )}
+              </div>
+            )}
 
-                    <div className="space-y-2 pt-1">
-                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bid Document/Reference Photos ({uploadedBidUrls.length}/5)</label>
-                      {uploadedBidUrls.length > 0 && (
-                        <div className="flex gap-2 pb-1 flex-wrap">
-                          {uploadedBidUrls.map((url, idx) => (
-                            <div key={idx} className="relative w-12 h-12 rounded overflow-hidden border bg-muted">
-                              <img src={url} alt="Thumbnail" className="object-cover w-full h-full" />
-                              <button type="button" onClick={() => setUploadedBidUrls(p => p.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5"><X className="h-2 w-2" /></button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {uploadedBidUrls.length < 5 && (
-                        <label className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs font-medium bg-background hover:bg-muted/50 transition-colors shadow-sm cursor-pointer">
-                          <input type="file" accept="image/*" multiple className="hidden" onChange={handleBidPhotoUpload} disabled={uploadingBidPhotos} />
-                          {uploadingBidPhotos ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Camera className="h-3.5 w-3.5 text-accent" />}
-                          {uploadingBidPhotos ? "Uploading..." : "Attach Media"}
-                        </label>
-                      )}
-                    </div>
-                  </div>
+            {/* PART 3: SETTLEMENT & VERIFICATION CONDITIONS */}
+            {user && request.takenBy && (isOwner || user.id === request.takenBy) && (!!request.takerCompletedAt || !!request.completedAt || request.status === "assigned") && (
+              <div className="mt-4 pt-4 border-t border-dashed border-muted">
+                <h4 className="text-xs font-bold mb-2 flex items-center gap-1.5 text-foreground uppercase tracking-wider">
+                  <Clock className="h-3.5 w-3.5 text-amber-500" />
+                  Settlement & Verification Controls
+                </h4>
+                <PaymentQRUpload requestId={request.id} takerId={request.takenBy} currentUserId={user.id} />
+              </div>
+            )}
+
+            {/* PART 4: UNAUTHENTICATED NOTICE STATUS */}
+            {!user && (
+              <div className="pt-4 text-center border-t border-muted/40">
+                <div className="max-w-xs mx-auto p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-1">
+                  <AlertCircle className="h-4 w-4 text-amber-500 mx-auto" />
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Please log in to submit a configuration bid or communicate with this notice card.
+                  </p>
                 </div>
-                
-                <div className="flex justify-end">
-                  <Button type="submit" className="rounded-full px-6 gap-2 text-xs" disabled={submittingBid || uploadingBidPhotos}>
-                    <Send className="h-3.5 w-3.5" />
-                    {submittingBid ? "Submitting Offer..." : "Submit Proposal Bid"}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          )}
+              </div>
+            )}
 
-          {user && request.takenBy && (isOwner || user.id === request.takenBy) && (!!request.takerCompletedAt || !!request.completedAt) && (
-            <div className="mt-4 pt-4 border-t border-dashed">
-              <h4 className="text-xs font-semibold mb-2">Settlement & Verification</h4>
-              <PaymentQRUpload requestId={request.id} takerId={request.takenBy} currentUserId={user.id} />
-            </div>
-          )}
-
-          {!user && (
-            <div className="pt-4 text-center">
-              <p className="text-xs text-muted-foreground">Please log in to submit a configuration bid or communicate with this notice card.</p>
-            </div>
-          )}
+          </div>
         </Card>
-      </section>
+      </main>
+
+      {/* FOOTER WRAPPER */}
       <SiteFooter />
+
+      {/* FULL EXPANDED PORTAL MODAL DIALOG LIGHTBOX */}
+      {expandedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setExpandedImage(null)}
+        >
+          <div className="relative max-w-3xl max-h-[85vh] rounded-xl overflow-hidden bg-background border shadow-2xl">
+            <img src={expandedImage} alt="Expanded schematic documentation" className="object-contain max-w-full max-h-[85vh]" />
+            <button 
+              className="absolute top-3 right-3 bg-black/60 text-white rounded-full p-1.5 hover:bg-black transition-colors"
+              onClick={() => setExpandedImage(null)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
