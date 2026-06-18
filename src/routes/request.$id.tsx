@@ -73,7 +73,6 @@ function RequestDetailPage() {
   const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
   
-  // Hydration fix component state indicator
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -159,7 +158,7 @@ function RequestDetailPage() {
         }
       } catch (err) {
         console.error("Error loading requests baseline:", err);
-      } finaly {
+      } finally {
         if (!cancelled) setLoading(false);
       }
     }
@@ -435,7 +434,6 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
-      // Optimistic local update so frontend reactive tables catch up immediately without hard reloading
       setBids((prev) =>
         prev.map((b) => (b.id === bid.id ? { ...b, status: "accepted" } : b))
       );
@@ -574,7 +572,6 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {/* Proposal / Private Channel Handling */}
           {user && (isOwner || hasAlreadyBid) && (
             <div className="space-y-3 pt-4 border-t border-border">
               <label className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
@@ -611,7 +608,6 @@ function RequestDetailPage() {
                         </div>
                       </div>
 
-                      {/* Display proposal document references if attached */}
                       {b.photo_urls && b.photo_urls.length > 0 && (
                         <div className="flex gap-1.5 overflow-x-auto pb-1">
                           {b.photo_urls.map((pUrl, pIdx) => (
@@ -629,7 +625,6 @@ function RequestDetailPage() {
                         </div>
                       )}
 
-                      {/* POSITION RESTRUCTURE: Embedded Secure Communication sandbox right inside the selected bidder card container */}
                       {selectedBidId === b.id && (
                         <div className="pt-3 border-t border-border/60 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-between">
@@ -671,7 +666,6 @@ function RequestDetailPage() {
                             </div>
                           </ScrollArea>
 
-                          {/* Chat Form Attachments */}
                           <form onSubmit={handleSendChatMessage} className="space-y-2">
                             {chatPhotos.length > 0 && (
                               <div className="flex gap-2 p-1.5 border rounded-xl bg-muted/40 flex-wrap">
@@ -711,7 +705,6 @@ function RequestDetailPage() {
                         </div>
                       )}
 
-                      {/* Accept Button Logic for Owner */}
                       {isOwner && b.status === "pending" && !request.takenBy && (
                         <div className="mt-3 flex justify-end">
                           <Button 
@@ -734,7 +727,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Place New Bid Form Control */}
           {user && !isOwner && !hasAlreadyBid && (
             <div className="pt-4 border-t border-border">
               <h3 className="text-xs font-bold uppercase text-muted-foreground tracking-wider mb-3">
@@ -768,7 +760,6 @@ function RequestDetailPage() {
                   />
                 </div>
 
-                {/* Validation / Bid Photos Upload Block */}
                 <div className="space-y-2">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Bid Document/Reference Photos ({uploadedBidUrls.length}/5)
@@ -813,7 +804,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Settlement / Escrow Actions */}
           {user && request.takenBy && (isOwner || user.id === request.takenBy) && (!!request.takerCompletedAt || !!request.completedAt) && (
             <div className="mt-4 pt-4 border-t border-dashed">
               <h4 className="text-xs font-semibold mb-2">Settlement & Verification</h4>
@@ -821,7 +811,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Anonymous View Gate */}
           {!user && (
             <div className="pt-4 text-center">
               <p className="text-xs text-muted-foreground">
