@@ -43,7 +43,9 @@ interface ChatMessage {
 
 interface ReviewRecord {
   id: string;
-  reviewer_id: string;
+  request_id: string;
+  requester_id: string;
+  taker_id: string;
   stars: number;
   comment: string;
 }
@@ -210,11 +212,11 @@ function RequestDetailPage() {
           }
         }
 
-        // Mutual option B fetch adjustments matching dual-row paradigm
+        // Fetch all ratings for this request
         try {
           const { data: reviewData } = await supabase
             .from("request_ratings")
-            .select("id, reviewer_id, stars, comment")
+            .select("id, request_id, requester_id, taker_id, stars, comment")
             .eq("request_id", data.id);
           if (reviewData) setReviews(reviewData);
         } catch (e) {
@@ -657,7 +659,7 @@ function RequestDetailPage() {
     }
   }
 
-  // Option B: Multi-row submission mapping logic configuration
+  // Pure column workaround direction-submission logic configuration
   async function handleSubmitReview(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !request || submittingReview) return;
@@ -669,17 +671,23 @@ function RequestDetailPage() {
 
     setSubmittingReview(true);
     try {
-      const { error } = await supabase.from("request_ratings").insert({
+      // Determine columns based on who is doing the review right now
+      const isOwnerReviewing = user.id === request.userId;
+      
+      const insertPayload = {
         request_id: request.id,
-        requester_id: request.userId,
-        taker_id: request.takenBy,
-        reviewer_id: user.id, // Explicit directional row visibility marker
+        requester_id: isOwnerReviewing ? request.userId : request.takenBy,
+        taker_id: isOwnerReviewing ? request.takenBy : request.userId,
         stars: ratingInput,
         comment: commentInput.trim()
-      });
+      };
+
+      const { error } = await supabase
+        .from("request_ratings")
+        .insert(insertPayload);
 
       if (error) throw error;
-      toast.success("Evaluation synchronized successfully!");
+      toast.success("Evaluation saved successfully!");
       setCommentInput("");
       void fetchRequestDetails();
     } catch (err: any) {
@@ -715,8 +723,14 @@ function RequestDetailPage() {
   const isAssignedHelper = user && user.id === request.takenBy;
   const authorLabel = request.isSecret ? "Secret Request" : (ownerProfile?.display_name || "Anonymous");
 
-  // Filter reviews array to isolate the specific user row context
-  const mySubmittedReview = reviews.find(r => r.reviewer_id === user?.id);
+  // Filter reviews array to isolate the specific user row context without reviewer_id
+  const mySubmittedReview = reviews.find(r => {
+    if (isOwner) {
+      return r.requester_id === request.userId && r.taker_id === request.takenBy;
+    } else {
+      return r.requester_id === request.takenBy && r.taker_id === request.userId;
+    }
+  });
 
   const mapEmbedUrl = request.lat && request.lng
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
@@ -857,7 +871,7 @@ function RequestDetailPage() {
               </div>
               <Button 
                 size="sm" 
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs shrink-0 gap-1 shadow-sm"
+                className="bg-blue-600 hover:bg-green-700 text-white rounded-full text-xs shrink-0 gap-1 shadow-sm"
                 disabled={settlingFee}
                 onClick={() => { void handleConfirmPaid(); }}
               >
@@ -935,7 +949,7 @@ function RequestDetailPage() {
             </span>
           </div>
 
-          {/* Dynamic Option B True Dual Mutual Performance Rating Frame Container */}
+          {/* Mutual Performance Rating Container */}
           {request.completedAt && (isOwner || isAssignedHelper) && (
             <div className="space-y-4 pt-4 border-t border-border">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
