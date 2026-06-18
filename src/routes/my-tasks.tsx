@@ -29,14 +29,19 @@ export const Route = createFileRoute("/my-tasks")({
 
 function timeAgo(dateString: string | undefined): string {
   if (!dateString) return "Recently";
-  const ts = new Date(dateString).getTime();
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  try {
+    const ts = new Date(dateString).getTime();
+    if (isNaN(ts)) return "Recently";
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return "just now";
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  } catch {
+    return "Recently";
+  }
 }
 
 export function MyTasksPage() {
@@ -50,7 +55,6 @@ export function MyTasksPage() {
 
     async function getAssignedTasks() {
       try {
-        // Query requests row entries directly from Supabase where current helper is assigned
         const { data, error } = await supabase
           .from("requests")
           .select("*")
@@ -61,9 +65,9 @@ export function MyTasksPage() {
         if (!cancelled && data) {
           const mapped: StoredRequest[] = data.map((item: any) => ({
             id: item.id,
-            type: item.type,
-            title: item.title,
-            description: item.description,
+            type: item.type || "general", // Fallback type string
+            title: item.title || "Untitled Task",
+            description: item.description || "",
             locationLabel: item.location_label || item.locationLabel || "Pinned location",
             lat: item.lat,
             lng: item.lng,
@@ -159,8 +163,12 @@ export function MyTasksPage() {
         ) : (
           <div className="space-y-4">
             {tasks.map((r) => {
-              const t = getRequestType(r.type);
-              const Icon = t?.icon ?? MapPin;
+              if (!r) return null;
+
+              // Defensive fallback parsing for missing type configurations
+              const t = r.type ? getRequestType(r.type) : null;
+              const Icon = t?.icon || MapPin;
+              
               const { takerCompletedAt, completedAt, feeSettledAt, takenAt, id, title, description, locationLabel, reward, userId, takenBy } = r;
               
               const takerDone = !!takerCompletedAt;
@@ -176,7 +184,7 @@ export function MyTasksPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <Badge variant="secondary" className="rounded-full text-xs">
-                          {t?.label ?? "Request"}
+                          {t?.label || "Request"}
                         </Badge>
                         <Badge className="rounded-full text-xs gap-1">
                           <ClipboardList className="h-3 w-3" /> Taken
