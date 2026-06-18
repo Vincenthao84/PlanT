@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle, CreditCard } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle, CreditCard, Star } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { getRequestType, type StoredRequest } from "@/lib/request-types";
@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
+  feeReceivedAt?: string | null;
 }
 
 interface BidRecord {
@@ -37,6 +38,14 @@ interface ChatMessage {
   photo_urls: string[];
   created_at: string;
   author_name?: string;
+}
+
+interface ReviewRecord {
+  id: string;
+  reviewer_id: string;
+  reviewee_id: string;
+  rating: number;
+  comment: string;
 }
 
 export const Route = createFileRoute("/request/$id")({
@@ -69,7 +78,7 @@ function RequestDetailPage() {
   const [assigningBidId, setAssigningBidId] = useState<string | null>(null);
   const [selectedBidId, setSelectedBidId] = useState<string | null>(null);
   
-  // Request management
+  // Request management & State closures
   const [isEditingRequest, setIsEditingRequest] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -77,6 +86,7 @@ function RequestDetailPage() {
   const [deletingRequest, setDeletingRequest] = useState(false);
   const [verifyingCompletion, setVerifyingCompletion] = useState(false);
   const [settlingFee, setSettlingFee] = useState(false);
+  const [receivingFee, setReceivingFee] = useState(false);
 
   // Chat parameters
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -88,6 +98,12 @@ function RequestDetailPage() {
   const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
   
+  // Mutual Rating Module States
+  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
+  const [ratingInput, setRatingInput] = useState(5);
+  const [commentInput, setCommentInput] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -121,6 +137,7 @@ function RequestDetailPage() {
           takerCompletedAt: data.taker_completed_at || data.takerCompletedAt,
           completedAt: data.completed_at || data.completedAt,
           feeSettledAt: data.fee_settled_at || data.feeSettledAt,
+          feeReceivedAt: data.fee_received_at || null,
           photoUrls: data.photo_urls || data.photoUrls || [],
           paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
           createdAt: data.created_at,
@@ -131,6 +148,7 @@ function RequestDetailPage() {
 
         const requestOwnerId = data.user_id || data.userId;
         
+        // Fetch Bids
         let query = supabase
           .from("request_bids")
           .select("id, helper_id, amount, note, status, photo_urls")
@@ -169,6 +187,13 @@ function RequestDetailPage() {
             setSelectedBidId(acceptedBid ? acceptedBid.id : enrichedBids[0].id);
           }
         }
+
+        // Fetch Reviews relative to this request instance
+        const { data: reviewData } = await supabase
+          .from("request_reviews")
+          .select("id, reviewer_id, reviewee_id, rating, comment")
+          .eq("request_id", data.id);
+        if (reviewData) setReviews(reviewData);
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
@@ -543,6 +568,26 @@ function RequestDetailPage() {
     }
   }
 
+  async function handleConfirmReceipt() {
+    if (!request || receivingFee) return;
+    setReceivingFee(true);
+
+    try {
+      const { error } = await supabase
+        .from("requests")
+        .update({ fee_received_at: new Date().toISOString() })
+        .eq("id", request.id);
+
+      if (error) throw error;
+      toast.success("Payment receipt acknowledged. Funds cleared!");
+      void fetchRequestDetails();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to lock receipt verification.");
+    } finally {
+      setReceivingFee(false);
+    }
+  }
+
   async function handleAcceptBid(bid: BidRecord) {
     if (!user || !request || assigningBidId) return;
     setAssigningBidId(bid.id);
@@ -588,6 +633,36 @@ function RequestDetailPage() {
     }
   }
 
+  async function handleSubmitReview(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !request || submittingReview) return;
+
+    const isRequester = user.id === request.userId;
+    const revieweeId = isRequester ? request.takenBy : request.userId;
+
+    if (!revieweeId) return;
+
+    setSubmittingReview(true);
+    try {
+      const { error } = await supabase.from("request_reviews").insert({
+        request_id: request.id,
+        reviewer_id: user.id,
+        reviewee_id: revieweeId,
+        rating: ratingInput,
+        comment: commentInput.trim()
+      });
+
+      if (error) throw error;
+      toast.success("Review and rating saved successfully!");
+      setCommentInput("");
+      void fetchRequestDetails();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to finalize review record.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
@@ -611,6 +686,9 @@ function RequestDetailPage() {
   const Icon = t?.icon ?? MapPin;
   const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
   const isOwner = user && user.id === request.userId;
+  const isAssignedHelper = user && user.id === request.takenBy;
+
+  const mySubmittedReview = reviews.find(r => r.reviewer_id === user?.id);
 
   const mapEmbedUrl = request.lat && request.lng
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
@@ -687,8 +765,11 @@ function RequestDetailPage() {
                       {request.completedAt && (
                         <Badge variant="default" className="rounded-full text-xs bg-green-600 text-white">Verified Complete</Badge>
                       )}
-                      {request.feeSettledAt && (
-                        <Badge variant="default" className="rounded-full text-xs bg-blue-600 text-white">Paid & Settled</Badge>
+                      {request.feeSettledAt && !request.feeReceivedAt && (
+                        <Badge variant="default" className="rounded-full text-xs bg-blue-600 text-white">Paid by Requester</Badge>
+                      )}
+                      {request.feeReceivedAt && (
+                        <Badge variant="default" className="rounded-full text-xs bg-purple-600 text-white">Funds Receipt Confirmed</Badge>
                       )}
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
@@ -749,6 +830,25 @@ function RequestDetailPage() {
             </div>
           )}
 
+          {/* Helper Confirm Receipt Module (Won Bidder Action) */}
+          {isAssignedHelper && request.feeSettledAt && !request.feeReceivedAt && (
+            <div className="bg-purple-50 border border-purple-200 dark:bg-purple-950/20 dark:border-purple-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
+              <div>
+                <p className="text-xs font-bold text-purple-800 dark:text-purple-400 uppercase tracking-wider">Payment Dispatched by Requester</p>
+                <p className="text-xs text-muted-foreground mt-0.5">The owner has logged their payment delivery. Please confirm once funds are received on your end.</p>
+              </div>
+              <Button 
+                size="sm" 
+                className="bg-purple-600 hover:bg-purple-700 text-white rounded-full text-xs shrink-0 gap-1 shadow-sm"
+                disabled={receivingFee}
+                onClick={() => { void handleConfirmReceipt(); }}
+              >
+                <CheckCircle className="h-3.5 w-3.5" />
+                {receivingFee ? "Acknowledging..." : "Confirm Receipt"}
+              </Button>
+            </div>
+          )}
+
           {mapEmbedUrl && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -799,6 +899,62 @@ function RequestDetailPage() {
             </span>
           </div>
 
+          {/* Mutual Rating & Review Mechanism block */}
+          {request.completedAt && (isOwner || isAssignedHelper) && (
+            <div className="space-y-4 pt-4 border-t border-border">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Mutual Transaction Rating
+              </h3>
+              
+              {mySubmittedReview ? (
+                <div className="p-3 bg-muted/40 rounded-xl text-xs space-y-1">
+                  <p className="font-semibold text-muted-foreground">You have already submitted feedback:</p>
+                  <div className="flex gap-0.5 text-amber-500">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className={`h-3 w-3 ${i < mySubmittedReview.rating ? "fill-current" : "text-muted"}`} />
+                    ))}
+                  </div>
+                  {mySubmittedReview.comment && (
+                    <p className="italic text-foreground mt-1">"{mySubmittedReview.comment}"</p>
+                  )}
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitReview} className="space-y-3 p-4 border rounded-xl bg-accent/5">
+                  <p className="text-xs font-medium">
+                    {isOwner ? "Rate the work performance of your helper:" : "Rate your experience with this transaction requester:"}
+                  </p>
+                  <div className="flex gap-1 items-center">
+                    {Array.from({ length: 5 }).map((_, idx) => {
+                      const starValue = idx + 1;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setRatingInput(starValue)}
+                          className="text-amber-500 focus:outline-none"
+                        >
+                          <Star className={`h-5 w-5 ${starValue <= ratingInput ? "fill-current" : "text-muted"}`} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Textarea
+                    placeholder="Leave constructive feedback regarding this engagement..."
+                    value={commentInput}
+                    onChange={(e) => setCommentInput(e.target.value)}
+                    className="rounded-xl min-h-[60px] text-xs resize-none"
+                    maxLength={200}
+                  />
+                  <div className="flex justify-end">
+                    <Button type="submit" size="sm" className="rounded-full text-xs" disabled={submittingReview}>
+                      {submittingReview ? "Submitting..." : "Submit Review"}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
           {user && (isOwner || hasAlreadyBid) && (
             <div className="space-y-3 pt-4 border-t border-border">
               <div className="flex items-center justify-between">
@@ -807,7 +963,6 @@ function RequestDetailPage() {
                   {isOwner ? `Current Proposals (${bids.length})` : "Your Private Proposal Channel"}
                 </label>
                 
-                {/* Helper Edit Bid parameters action trigger */}
                 {!isOwner && hasAlreadyBid && !request.takenBy && (
                   <Button 
                     variant="outline" 
