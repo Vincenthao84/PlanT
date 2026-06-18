@@ -58,7 +58,7 @@ function NoticeBoardPage() {
   const [requests, setRequests] = useState<StoredRequest[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("map");
-  const [profiles, setProfiles] = useState<Record<string, { displayName: string | null; avatarUrl: string | null; average_rating?: number }>>({});
+  const [profiles, setProfiles] = useState<Record<string, { display_name: string | null; avatarUrl: string | null; average_rating?: number }>>({});
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
 
@@ -100,9 +100,16 @@ function NoticeBoardPage() {
 
     fetchAllRequests()
       .then(async (rs) => {
-        if (!cancelled) setRequests(rs);
-        const map = await fetchProfilesByIds(rs.map((r) => r.userId)).catch(() => ({}));
-        if (!cancelled) setProfiles(map);
+        if (cancelled) return;
+        setRequests(rs);
+        
+        // SANITIZE: Remove duplicates and filter out null/undefined/empty string user IDs to stop 400 errors
+        const cleanUserIds = Array.from(new Set(rs.map((r) => r.userId).filter(Boolean)));
+        
+        if (cleanUserIds.length > 0) {
+          const map = await fetchProfilesByIds(cleanUserIds).catch(() => ({}));
+          if (!cancelled) setProfiles(map);
+        }
       })
       .catch((err) => {
         console.error("Failed to collect request assets:", err);
@@ -222,7 +229,8 @@ function NoticeBoardPage() {
               
               <div className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1 flex-wrap">
                 <User className="h-3 w-3" />
-                <span>by {r.isSecret ? "Secret Request" : (profile?.displayName ?? "Anonymous")}</span>
+                {/* FIX CASING: profile.display_name instead of profile.displayName */}
+                <span>by {r.isSecret ? "Secret Request" : (profile?.display_name || "Anonymous")}</span>
                 {!r.isSecret && profile && typeof profile.average_rating === "number" && (
                   <StarRating rating={profile.average_rating} />
                 )}
