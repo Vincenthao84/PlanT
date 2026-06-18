@@ -143,11 +143,19 @@ function RequestDetailPage() {
               });
             }
             setBids(enrichedBids);
+
+            // FIX: If the user is the Requester (Owner) and a bid was previously accepted, auto-select it to keep chat visible
+            if (user && requestOwnerId === user.id && !selectedBidId) {
+              const acceptedBid = enrichedBids.find(b => b.status === "accepted");
+              if (acceptedBid) {
+                setSelectedBidId(acceptedBid.id);
+              }
+            }
           }
         }
       } catch (err) {
         console.error("Error loading requests baseline:", err);
-      } {
+      } finally {
         if (!cancelled) setLoading(false);
       }
     }
@@ -407,7 +415,7 @@ function RequestDetailPage() {
       window.location.reload();
     } catch (err: any) {
       toast.error(err.message || "Failed to finalize offer registry.");
-    } {
+    } finally {
       setSubmittingBid(false);
     }
   }
@@ -417,8 +425,7 @@ function RequestDetailPage() {
     setAssigningBidId(bid.id);
 
     try {
-      // 1. Update the bid status to 'accepted'.
-      // Your database trigger or RLS rule automatically assigns 'taken_by' and 'taken_at' behind the scenes.
+      // 1. Explicitly update the bid record status
       const { error: bidUpdateErr } = await supabase
         .from("request_bids")
         .update({ status: "accepted" })
@@ -426,7 +433,18 @@ function RequestDetailPage() {
 
       if (bidUpdateErr) throw bidUpdateErr;
 
-      // 2. Success! Notify the client and reload to display the updated assignment layout
+      // 2. FIX: Sync back the assigned user metrics directly to the primary request record 
+      // This maps the task straight into the winning helper's "My Tasks" query view instantly.
+      const { error: requestUpdateErr } = await supabase
+        .from("requests")
+        .update({
+          taken_by: bid.helper_id,
+          taken_at: new Date().toISOString()
+        })
+        .eq("id", request.id);
+
+      if (requestUpdateErr) throw requestUpdateErr;
+
       toast.success(`Task officially assigned to helper!`);
       window.location.reload();
     } catch (err: any) {
@@ -576,7 +594,7 @@ function RequestDetailPage() {
                   {bids.map((b) => (
                     <div 
                       key={b.id} 
-                      onClick={() => !isOwner && setSelectedBidId(b.id)}
+                      onClick={() => setSelectedBidId(b.id)}
                       className={`p-4 border rounded-xl transition-all cursor-pointer ${
                         selectedBidId === b.id ? "border-primary bg-primary/5" : "hover:bg-muted/40"
                       }`}
