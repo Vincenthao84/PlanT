@@ -432,7 +432,14 @@ function RequestDetailPage() {
         .update({ status: "accepted" })
         .eq("id", bid.id);
 
-      if (bidUpdateErr) throw bidUpdateErr;
+      if (bidUpdateErr) {
+        // Handle specific unique key constraints elegantly for the end-user
+        if (bidUpdateErr.code === "23505") {
+          toast.error("This helper cannot be assigned; they currently have another active running task!");
+          return;
+        }
+        throw bidUpdateErr;
+      }
 
       setBids((prev) =>
         prev.map((b) => (b.id === bid.id ? { ...b, status: "accepted" } : b))
