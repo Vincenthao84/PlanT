@@ -11,12 +11,12 @@ export interface RequestType {
 }
 
 export const requestTypes: RequestType[] = [
-  { slug: "snap",      label: "Snap",      icon: Camera,           desc: "Instant photo or video of a place — check a queue, see a menu, confirm hours." },
-  { slug: "knowledge", label: "Knowledge", icon: Brain,            desc: "Local intel before you buy a home, switch jobs, or move abroad." },
-  { slug: "action",    label: "Action",    icon: Hand,             desc: "Save a table, take a queue ticket, drop off a message." },
-  { slug: "object",    label: "Object",    icon: Package,          desc: "Trade, deliver or pick up something nearby." },
-  { slug: "rental",    label: "Rental",    icon: Key,              desc: "Rent out an idle storage corner, a parking spot or a tool." },
-  { slug: "anything",  label: "Anything",  icon: MoreHorizontal,   desc: "If someone can help with it, you can post it on PLAN T." },
+  { slug: "snap",      label: "Snap",      icon: Camera,            desc: "Instant photo or video of a place — check a queue, see a menu, confirm hours." },
+  { slug: "knowledge", label: "Knowledge", icon: Brain,             desc: "Local intel before you buy a home, switch jobs, or move abroad." },
+  { slug: "action",    label: "Action",    icon: Hand,              desc: "Save a table, take a queue ticket, drop off a message." },
+  { slug: "object",    label: "Object",    icon: Package,           desc: "Trade, deliver or pick up something nearby." },
+  { slug: "rental",    label: "Rental",    icon: Key,               desc: "Rent out an idle storage corner, a parking spot or a tool." },
+  { slug: "anything",  label: "Anything",  icon: MoreHorizontal,    desc: "If someone can help with it, you can post it on PLAN T." },
 ];
 
 export function getRequestType(slug: string): RequestType | undefined {
@@ -40,7 +40,7 @@ export interface StoredRequest {
   takerCompletedAt: number | null;
   feeSettledAt: number | null;
   isSecret: boolean;
-  images: string[];
+  photoUrls: string[]; // ✅ Fixed naming convention mismatch
 }
 
 type Row = {
@@ -60,7 +60,7 @@ type Row = {
   taker_completed_at: string | null;
   fee_settled_at: string | null;
   is_secret: boolean;
-  images: string[] | null;
+  photo_urls: string[] | null; // ✅ Fixed naming convention mismatch
 };
 
 function rowToRequest(row: Row): StoredRequest {
@@ -81,7 +81,7 @@ function rowToRequest(row: Row): StoredRequest {
     takerCompletedAt: row.taker_completed_at ? new Date(row.taker_completed_at).getTime() : null,
     feeSettledAt: row.fee_settled_at ? new Date(row.fee_settled_at).getTime() : null,
     isSecret: row.is_secret ?? false,
-    images: row.images ?? [],
+    photoUrls: row.photo_urls ?? [], // ✅ Fixed assignment
   };
 }
 
@@ -94,7 +94,7 @@ export type NewRequestInput = {
   lng: number;
   reward: string;
   isSecret?: boolean;
-  images?: string[];
+  photoUrls?: string[]; // ✅ Fixed parameter name
 };
 
 export async function createRequest(input: NewRequestInput): Promise<StoredRequest> {
@@ -115,7 +115,7 @@ export async function createRequest(input: NewRequestInput): Promise<StoredReque
       lng: input.lng,
       reward: input.reward,
       is_secret: input.isSecret ?? false,
-      images: input.images ?? [],
+      photo_urls: input.photoUrls ?? [], // ✅ Changed "images" to valid database column "photo_urls"
     })
     .select()
     .single();
@@ -175,7 +175,7 @@ export interface RequestBid {
   createdAt: number;
   helperDisplayName: string | null;
   helperAvatarUrl: string | null;
-  photoUrls?: string[]; // ✅ Added array type mapping support to the interface
+  photoUrls?: string[]; 
 }
 
 export async function listRequestBids(requestId: string): Promise<RequestBid[]> {
@@ -193,7 +193,7 @@ export async function listRequestBids(requestId: string): Promise<RequestBid[]> 
     created_at: string;
     helper_display_name: string | null;
     helper_avatar_url: string | null;
-    photo_urls?: string[] | null; // ✅ Target database projection mapping
+    photo_urls?: string[] | null; 
   };
   return ((data ?? []) as BidRow[]).map((r) => ({
     id: r.id,
@@ -205,11 +205,10 @@ export async function listRequestBids(requestId: string): Promise<RequestBid[]> 
     createdAt: new Date(r.created_at).getTime(),
     helperDisplayName: r.helper_display_name,
     helperAvatarUrl: r.helper_avatar_url,
-    photoUrls: r.photo_urls ?? [], // ✅ Falls back to empty list array natively
+    photoUrls: r.photo_urls ?? [], 
   }));
 }
 
-// ✅ Updated to accept `photoUrls` parameter directly during generation execution
 export async function placeBid(
   requestId: string,
   amount: string,
@@ -226,7 +225,7 @@ export async function placeBid(
     helper_id: user.id,
     amount,
     note,
-    photo_urls: photoUrls // ✅ Injected natively into submission insert payload
+    photo_urls: photoUrls 
   });
   
   if (error) {
@@ -283,7 +282,7 @@ export type UpdateRequestInput = {
   description: string;
   locationLabel: string;
   reward: string;
-  images?: string[];
+  photoUrls?: string[]; // ✅ Fixed parameter name
 };
 
 export async function updateRequest(
@@ -297,8 +296,8 @@ export async function updateRequest(
     reward: input.reward,
   };
 
-  if (input.images !== undefined) {
-    updatePayload.images = input.images;
+  if (input.photoUrls !== undefined) {
+    updatePayload.photo_urls = input.photoUrls; // ✅ Changed "images" to valid database column "photo_urls"
   }
 
   const { data, error } = await supabase
