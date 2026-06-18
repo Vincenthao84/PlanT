@@ -50,7 +50,6 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
         if (bidId) {
           query = query.eq("bid_id", bidId);
         } else {
-          // If viewing the global request detail, filter out standalone bid negotiations
           query = query.is("bid_id", null);
         }
 
@@ -66,7 +65,6 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
 
     void fetchMessages();
 
-    // ✅ FIXED: Removed the hardcoded string filter argument to bypass database UUID parsing crashes
     const channel = supabase
       .channel(`task-chat-${requestId}-${bidId || 'global'}`)
       .on(
@@ -79,7 +77,6 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
         (payload) => {
           const msg = payload.new as Message;
           
-          // ✅ FIXED: Safely filter rows locally to separate conversations without breaking your stream connection
           if (msg.request_id !== requestId) return;
           if (bidId && msg.bid_id !== bidId) return;
           if (!bidId && msg.bid_id) return;
@@ -131,6 +128,18 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
     }
   }
 
+  // Safe time formatting helper function to protect against invalid date string parameters
+  const formatMessageTime = (dateString: string | undefined | null) => {
+    if (!dateString) return "Just now";
+    try {
+      const parsedDate = new Date(dateString);
+      if (isNaN(parsedDate.getTime())) return "Just now";
+      return parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return "Just now";
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-6 text-xs text-muted-foreground gap-2">
@@ -166,7 +175,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
                   {msg.body} 
                 </div>
                 <span className="text-[9px] text-muted-foreground mt-0.5 px-1">
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {formatMessageTime(msg.created_at)}
                 </span>
               </div>
             );
