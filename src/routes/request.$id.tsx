@@ -34,7 +34,7 @@ interface BidRecord {
   status: string;
   photo_urls: string[];
   helper_name?: string;
-  averageRating?: number; // Added to store bidder's rating
+  averageRating?: number;
 }
 
 interface ChatMessage {
@@ -187,7 +187,7 @@ function RequestDetailPage() {
             setOwnerProfile({
               display_name: profData.display_name || profData.displayName || null,
               avatar_url: profData.avatar_url || profData.avatarUrl || null,
-              average_rating: Number((profData as any).average_rating || (profData as any).averageRating || 0)
+              average_rating: Number(profData.average_rating || profData.averageRating || 0)
             });
           }
         }
@@ -207,9 +207,10 @@ function RequestDetailPage() {
         if (bidsData) {
           const enrichedBids: BidRecord[] = [];
           for (const b of bidsData) {
+            // Explicitly pulling display_name and average_rating from your profiles table layout
             const { data: profile } = await supabase
               .from("profiles")
-              .select("display_name, displayName, average_rating, averageRating")
+              .select("display_name, average_rating")
               .eq("id", b.helper_id)
               .maybeSingle();
 
@@ -220,8 +221,8 @@ function RequestDetailPage() {
               note: b.note || "",
               status: b.status,
               photo_urls: b.photo_urls || [],
-              helper_name: profile ? (profile.display_name || profile.displayName || `Helper_${b.helper_id.slice(0, 5)}`) : `Helper_${b.helper_id.slice(0, 5)}`,
-              averageRating: Number((profile as any)?.average_rating || (profile as any)?.averageRating || 0)
+              helper_name: profile?.display_name || `User_${b.helper_id.slice(0, 5)}`,
+              averageRating: Number(profile?.average_rating || 0)
             });
           }
           setBids(enrichedBids);
@@ -317,7 +318,7 @@ function RequestDetailPage() {
           for (const msg of data) {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("*")
+              .select("display_name")
               .eq("id", msg.author_id)
               .maybeSingle();
 
@@ -329,13 +330,13 @@ function RequestDetailPage() {
               body: msg.body,
               photo_urls: msg.photo_urls || [],
               created_at: msg.created_at,
-              author_name: profile ? (profile.display_name || profile.displayName || "User") : "User"
+              author_name: profile?.display_name || "User"
             });
           }
           setChatMessages(enrichedMessages);
         }
       } catch (err) {
-        console.error("Error executing flat message mapping streams:", err);
+        console.error("Error message maps:", err);
       } finally {
         setChatLoading(false);
         setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -354,7 +355,7 @@ function RequestDetailPage() {
 
           const { data: profile } = await supabase
             .from("profiles")
-            .select("*")
+            .select("display_name")
             .eq("id", payload.new.author_id)
             .maybeSingle();
 
@@ -366,7 +367,7 @@ function RequestDetailPage() {
             body: payload.new.body,
             photo_urls: payload.new.photo_urls || [],
             created_at: payload.new.created_at,
-            author_name: profile ? (profile.display_name || profile.displayName || "User") : "User"
+            author_name: profile?.display_name || "User"
           };
 
           setChatMessages((prev) => [...prev, completeMsg]);
@@ -671,7 +672,7 @@ function RequestDetailPage() {
       toast.success(`Task officially assigned to helper!`);
       void fetchRequestDetails();
     } catch (err: any) {
-      console.error("Assignment execution runtime fault:", err);
+      console.error("Assignment fault:", err);
       toast.error(err.message || "Failed to execute contract commitment changes.");
     } finally {
       setAssigningBidId(null);
@@ -1078,12 +1079,21 @@ function RequestDetailPage() {
                       }`}
                     >
                       <div className="flex justify-between items-start gap-2 flex-wrap">
-                        <div onClick={(e) => { e.stopPropagation(); fetchBidderHistory(b.helper_id, b.helper_name || "Helper"); }} className="cursor-pointer hover:underline">
-                          <p className="text-xs font-semibold text-foreground flex items-center gap-2">
-                            {b.helper_name}
+                        {/* Interactive Clickable Profile Area */}
+                        <div 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (b.helper_id) {
+                              void fetchBidderHistory(b.helper_id, b.helper_name || "Helper"); 
+                            }
+                          }} 
+                          className="cursor-pointer group flex flex-col"
+                        >
+                          <div className="text-xs font-semibold text-foreground flex items-center gap-2 group-hover:text-primary transition-colors">
+                            <span>{b.helper_name}</span>
                             <StarRating rating={b.averageRating || 0} />
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{b.note}</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">{b.note}</p>
                         </div>
                         <div className="text-right">
                           <span className="text-xs font-bold text-accent">${b.amount}</span>
@@ -1308,25 +1318,33 @@ function RequestDetailPage() {
         </Card>
       </section>
 
-      {/* History Dialog */}
+      {/* History Dialog Modal View */}
       <Dialog open={historyDialog.open} onOpenChange={(open) => setHistoryDialog(prev => ({ ...prev, open }))}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle>{historyDialog.name}'s History</DialogTitle>
+            <DialogTitle>{historyDialog.name}'s Rating History</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
             {bidderHistory.length > 0 ? (
               bidderHistory.map((h, i) => (
-                <div key={i} className="border-b pb-2">
-                  <div className="flex items-center gap-2">
+                <div key={i} className="border-b border-border/60 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between gap-2">
                     <StarRating rating={h.stars} />
-                    <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleDateString()}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {h.created_at ? new Date(h.created_at).toLocaleDateString() : ""}
+                    </span>
                   </div>
-                  <p className="text-sm mt-1">{h.comment}</p>
+                  {h.comment ? (
+                    <p className="text-xs text-foreground mt-1.5 bg-muted/30 p-2 rounded-xl italic">
+                      "{h.comment}"
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground/60 mt-1 italic">No text comment left.</p>
+                  )}
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">No ratings yet.</p>
+              <p className="text-xs text-muted-foreground italic text-center py-4">No historical reviews available.</p>
             )}
           </div>
         </DialogContent>
