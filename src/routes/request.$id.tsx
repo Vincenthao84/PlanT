@@ -14,6 +14,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
@@ -28,6 +34,7 @@ interface BidRecord {
   status: string;
   photo_urls: string[];
   helper_name?: string;
+  averageRating?: number; // Added to store bidder's rating
 }
 
 interface ChatMessage {
@@ -76,6 +83,10 @@ function RequestDetailPage() {
   const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // History Dialog States
+  const [historyDialog, setHistoryDialog] = useState<{ open: boolean; userId: string | null; name: string | null }>({ open: false, userId: null, name: null });
+  const [bidderHistory, setBidderHistory] = useState<any[]>([]);
+
   // Bid states
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
@@ -87,7 +98,6 @@ function RequestDetailPage() {
   const [assigningBidId, setAssigningBidId] = useState<string | null>(null);
   const [selectedBidId, setSelectedBidId] = useState<string | null>(null);
   
-  // Request operations state indicators
   const [isEditingRequest, setIsEditingRequest] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -97,7 +107,6 @@ function RequestDetailPage() {
   const [settlingFee, setSettlingFee] = useState(false);
   const [receivingFee, setReceivingFee] = useState(false);
 
-  // Communication / Chat parameters
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [newMsgText, setNewMsgText] = useState("");
@@ -107,7 +116,6 @@ function RequestDetailPage() {
   const [uploadingBidPhotos, setUploadingBidPhotos] = useState(false);
   const [uploadedBidUrls, setUploadedBidUrls] = useState<string[]>([]);
   
-  // Mutual Rating Module Configurations
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [ratingInput, setRatingInput] = useState(5);
   const [commentInput, setCommentInput] = useState("");
@@ -118,6 +126,17 @@ function RequestDetailPage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  async function fetchBidderHistory(userId: string, name: string) {
+    setHistoryDialog({ open: true, userId, name });
+    const { data } = await supabase
+      .from('request_ratings')
+      .select('stars, comment, created_at')
+      .eq('taker_id', userId)
+      .order('created_at', { ascending: false });
+    
+    setBidderHistory(data || []);
+  }
 
   async function fetchRequestDetails() {
     try {
@@ -190,7 +209,7 @@ function RequestDetailPage() {
           for (const b of bidsData) {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("*")
+              .select("display_name, displayName, average_rating, averageRating")
               .eq("id", b.helper_id)
               .maybeSingle();
 
@@ -201,7 +220,8 @@ function RequestDetailPage() {
               note: b.note || "",
               status: b.status,
               photo_urls: b.photo_urls || [],
-              helper_name: profile ? (profile.display_name || profile.displayName || `Helper_${b.helper_id.slice(0, 5)}`) : `Helper_${b.helper_id.slice(0, 5)}`
+              helper_name: profile ? (profile.display_name || profile.displayName || `Helper_${b.helper_id.slice(0, 5)}`) : `Helper_${b.helper_id.slice(0, 5)}`,
+              averageRating: Number((profile as any)?.average_rating || (profile as any)?.averageRating || 0)
             });
           }
           setBids(enrichedBids);
@@ -1058,8 +1078,11 @@ function RequestDetailPage() {
                       }`}
                     >
                       <div className="flex justify-between items-start gap-2 flex-wrap">
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">{b.helper_name}</p>
+                        <div onClick={(e) => { e.stopPropagation(); fetchBidderHistory(b.helper_id, b.helper_name || "Helper"); }} className="cursor-pointer hover:underline">
+                          <p className="text-xs font-semibold text-foreground flex items-center gap-2">
+                            {b.helper_name}
+                            <StarRating rating={b.averageRating || 0} />
+                          </p>
                           <p className="text-xs text-muted-foreground mt-0.5">{b.note}</p>
                         </div>
                         <div className="text-right">
@@ -1284,6 +1307,31 @@ function RequestDetailPage() {
           )}
         </Card>
       </section>
+
+      {/* History Dialog */}
+      <Dialog open={historyDialog.open} onOpenChange={(open) => setHistoryDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{historyDialog.name}'s History</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {bidderHistory.length > 0 ? (
+              bidderHistory.map((h, i) => (
+                <div key={i} className="border-b pb-2">
+                  <div className="flex items-center gap-2">
+                    <StarRating rating={h.stars} />
+                    <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-sm mt-1">{h.comment}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No ratings yet.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <SiteFooter />
     </div>
   );
