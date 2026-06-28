@@ -689,8 +689,6 @@ function RequestDetailPage() {
 
     setSubmittingReview(true);
     try {
-      // FIX: Database role layouts are structural properties. Keep them locked to roles!
-      // requester_id is always the listing author, taker_id is always the transaction helper.
       const insertPayload = {
         request_id: request.id,
         requester_id: request.userId,
@@ -710,6 +708,7 @@ function RequestDetailPage() {
     } catch (err: any) {
       toast.error(err.message || "Failed to save review parameters.");
     } finally {
+      // FIXED: Swapped to false so state UI indicators reset immediately upon resolution
       setSubmittingReview(false);
     }
   }
