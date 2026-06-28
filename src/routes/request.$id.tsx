@@ -207,7 +207,6 @@ function RequestDetailPage() {
         if (bidsData) {
           const enrichedBids: BidRecord[] = [];
           for (const b of bidsData) {
-            // Explicitly pulling display_name and average_rating from your profiles table layout
             const { data: profile } = await supabase
               .from("profiles")
               .select("display_name, average_rating")
@@ -690,12 +689,12 @@ function RequestDetailPage() {
 
     setSubmittingReview(true);
     try {
-      const isOwnerReviewing = user.id === request.userId;
-      
+      // FIX: Database role layouts are structural properties. Keep them locked to roles!
+      // requester_id is always the listing author, taker_id is always the transaction helper.
       const insertPayload = {
         request_id: request.id,
-        requester_id: isOwnerReviewing ? request.userId : request.takenBy,
-        taker_id: isOwnerReviewing ? request.takenBy : request.userId,
+        requester_id: request.userId,
+        taker_id: request.takenBy,
         stars: ratingInput,
         comment: commentInput.trim()
       };
@@ -760,33 +759,34 @@ function RequestDetailPage() {
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
       <section className="max-w-3xl mx-auto px-6 py-12">
-        <button
-          onClick={() => void navigate({ to: "/notice-board" })}
+        <button 
+          onClick={() => void navigate({ to: "/notice-board" })} 
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer bg-transparent border-none"
         >
           <ArrowLeft className="h-4 w-4" /> Back to listings
         </button>
 
         <Card className="p-6 sm:p-8 space-y-6" style={{ boxShadow: "var(--shadow-soft)" }}>
-          
           {isOwner && !request.takenBy && (
             <div className="flex justify-end gap-2 border-b border-border/40 pb-3">
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => setIsEditingRequest(!isEditingRequest)}
+                onClick={() => setIsEditingRequest(!isEditingRequest)} 
                 className="rounded-xl h-8 text-xs gap-1"
               >
-                <Edit2 className="h-3 w-3" /> {isEditingRequest ? "Cancel Edit" : "Edit Details"}
+                <Edit2 className="h-3 w-3" />
+                {isEditingRequest ? "Cancel Edit" : "Edit Details"}
               </Button>
               <Button 
                 variant="destructive" 
                 size="sm" 
-                disabled={deletingRequest}
-                onClick={() => { void handleDeleteRequest(); }}
+                disabled={deletingRequest} 
+                onClick={() => { void handleDeleteRequest(); }} 
                 className="rounded-xl h-8 text-xs gap-1"
               >
-                <Trash2 className="h-3 w-3" /> Delete Post
+                <Trash2 className="h-3 w-3" />
+                Delete Post
               </Button>
             </div>
           )}
@@ -834,7 +834,6 @@ function RequestDetailPage() {
                       )}
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
-                    
                     <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground flex-wrap">
                       <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
                         <User className="h-3.5 w-3.5 text-muted-foreground" /> Posted by: {authorLabel}
@@ -848,7 +847,6 @@ function RequestDetailPage() {
                     </div>
                   </div>
                 </div>
-
                 {request.reward && (
                   <div className="bg-accent/10 text-accent px-4 py-2 rounded-2xl flex items-center gap-1.5 font-semibold text-sm">
                     <Gift className="h-4 w-4" />
@@ -865,160 +863,349 @@ function RequestDetailPage() {
             </>
           )}
 
-          {isOwner && request.takerCompletedAt && !request.completedAt && (
-            <div className="bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
-              <div>
-                <p className="text-xs font-bold text-green-800 dark:text-green-400 uppercase tracking-wider">Helper Completed Task</p>
-                <p className="text-xs text-muted-foreground mt-0.5">The assigned helper has finished operations. Please review and acknowledge completion.</p>
-              </div>
-              <Button 
-                size="sm" 
-                className="bg-green-600 hover:bg-green-700 text-white rounded-full text-xs shrink-0 gap-1"
-                disabled={verifyingCompletion}
-                onClick={() => { void handleVerifyCompletion(); }}
-              >
-                <CheckCircle className="h-3.5 w-3.5" />
-                {verifyingCompletion ? "Verifying..." : "Verify Completion"}
-              </Button>
-            </div>
-          )}
-
-          {isOwner && request.completedAt && !request.feeSettledAt && (
-            <div className="bg-blue-50 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
-              <div>
-                <p className="text-xs font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider">Completion Verified</p>
-                <p className="text-xs text-muted-foreground mt-0.5">You have approved completion. Please proceed to pay your helper to close the loop.</p>
-              </div>
-              <Button 
-                size="sm" 
-                className="bg-blue-600 hover:bg-green-700 text-white rounded-full text-xs shrink-0 gap-1 shadow-sm"
-                disabled={settlingFee}
-                onClick={() => { void handleConfirmPaid(); }}
-              >
-                <CreditCard className="h-3.5 w-3.5" />
-                {settlingFee ? "Confirming..." : "Confirm Paid"}
-              </Button>
-            </div>
-          )}
-
-          {isAssignedHelper && request.feeSettledAt && !request.feeReceivedAt && (
-            <div className="bg-purple-50 border border-purple-200 dark:bg-purple-950/20 dark:border-purple-900/40 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50">
-              <div>
-                <p className="text-xs font-bold text-purple-800 dark:text-purple-400 uppercase tracking-wider">Payment Sent by Requester</p>
-                <p className="text-xs text-muted-foreground mt-0.5">The requester has submitted payment. Click the button below as soon as funds clear in your wallet.</p>
-              </div>
-              <Button 
-                size="sm" 
-                className="bg-purple-600 hover:bg-purple-700 text-white rounded-full text-xs shrink-0 gap-1 shadow-sm"
-                disabled={receivingFee}
-                onClick={() => { void handleConfirmReceipt(); }}
-              >
-                <CheckCircle className="h-3.5 w-3.5" />
-                {receivingFee ? "Acknowledging..." : "Confirm Receipt"}
-              </Button>
-            </div>
-          )}
-
-          {mapEmbedUrl && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" /> Task Location
-              </h3>
-              <div className="w-full h-48 rounded-xl overflow-hidden border border-border relative bg-muted shadow-sm">
-                <iframe
-                  title="Task Location Map"
-                  width="100%"
-                  height="100%"
-                  src={mapEmbedUrl}
-                  className="absolute inset-0"
-                  frameBorder="0"
-                />
-              </div>
-            </div>
-          )}
-
           {hasPhotos && (
             <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <ImageIcon className="h-3.5 w-3.5" /> Attached Media ({request.photoUrls.length})
-              </h3>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <ImageIcon className="h-3.5 w-3.5" /> Attached Imagery / Context
+              </h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {request.photoUrls.map((url, i) => (
-                  <a
-                    key={`${url}-${i}`}
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group relative block aspect-video rounded-xl overflow-hidden border border-border bg-muted hover:opacity-95 transition-all shadow-sm"
+                {request.photoUrls.map((url, index) => (
+                  <a 
+                    key={index} 
+                    href={url} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="aspect-video rounded-xl overflow-hidden border border-border/60 bg-muted block group relative"
                   >
-                    <img src={url} alt="Attachment reference" className="object-cover w-full h-full" />
+                    <img src={url} alt={`Attachment ${index + 1}`} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-200" />
                   </a>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5 text-accent" />
-              {request.locationLabel}
-            </span> 
-            <span suppressHydrationWarning className="inline-flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" /> 
-              Posted {isMounted && request.createdAt ? new Date(request.createdAt).toLocaleDateString() : "Recently"} 
-            </span>
-          </div>
+          {mapEmbedUrl && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" /> Geographic Location Indicator
+              </h4>
+              <div className="rounded-2xl overflow-hidden border border-border/60 aspect-[21/9] w-full bg-muted">
+                <iframe title="Request target map pointer" width="100%" height="100%" src={mapEmbedUrl} style={{ border: 0 }} />
+              </div>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3 w-3 shrink-0" /> {request.locationLabel}
+              </p>
+            </div>
+          )}
 
-          {request.completedAt && (isOwner || isAssignedHelper) && (
-            <div className="space-y-4 pt-4 border-t border-border">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Mutual Performance Evaluation
-              </h3>
-              
-              {mySubmittedReview ? (
-                <div className="p-3 bg-muted/40 rounded-xl text-xs space-y-1">
-                  <p className="font-semibold text-green-600">✓ Your evaluation has been saved successfully:</p>
-                  <div className="flex gap-0.5 text-amber-500">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`h-3 w-3 ${i < mySubmittedReview.stars ? "fill-current" : "text-muted"}`} />
-                    ))}
+          {user && request.takenBy && (isOwner || isAssignedHelper) && (
+            <div className="border-t border-border/60 pt-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-border/40 pb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                    <MessageSquare className="h-4 w-4" />
                   </div>
-                  {mySubmittedReview.comment && (
-                    <p className="italic text-foreground mt-1">"{mySubmittedReview.comment}"</p>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Interactive Workspace Hub</h3>
+                    <p className="text-[11px] text-muted-foreground">Secure session channels for participant milestone logging</p>
+                  </div>
+                </div>
+
+                {isOwner && bids.length > 1 && (
+                  <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border">
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground px-2">Channel Context:</label>
+                    <select 
+                      value={selectedBidId || ""} 
+                      onChange={(e) => setSelectedBidId(e.target.value)}
+                      className="text-xs bg-background border rounded-lg px-2 py-1 outline-none font-medium"
+                    >
+                      {bids.map(b => (
+                        <option key={b.id} value={b.id}>{b.helper_name} (ID: {b.id.slice(0,4)})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex-1 bg-muted/20 border border-border/40 rounded-2xl p-4 flex flex-col h-[320px]">
+                  <ScrollArea className="flex-1 pr-3">
+                    <div className="space-y-3">
+                      {chatLoading ? (
+                        <div className="text-center py-8 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Gathering secured logs...
+                        </div>
+                      ) : chatMessages.length === 0 ? (
+                        <div className="text-center py-12 text-xs text-muted-foreground italic">
+                          No messages recorded in this workflow instance yet.
+                        </div>
+                      ) : (
+                        chatMessages.map((msg) => {
+                          const isMe = msg.author_id === user.id;
+                          return (
+                            <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                              <span className="text-[10px] text-muted-foreground px-1 mb-0.5">
+                                {msg.author_name} • {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <div className={`p-3 rounded-2xl text-xs max-w-[85%] whitespace-pre-wrap break-words ${
+                                isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-muted text-foreground rounded-tl-none"
+                              }`}>
+                                {msg.body}
+                                {msg.photo_urls && msg.photo_urls.length > 0 && (
+                                  <div className="grid grid-cols-2 gap-2 mt-2">
+                                    {msg.photo_urls.map((pUrl, pi) => (
+                                      <a key={pi} href={pUrl} target="_blank" rel="noreferrer" className="rounded-xl overflow-hidden block bg-black/10 aspect-video">
+                                        <img src={pUrl} alt="Chat inline attachment" className="object-cover w-full h-full" />
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={scrollRef} />
+                    </div>
+                  </ScrollArea>
+
+                  <form onSubmit={handleSendChatMessage} className="mt-3 pt-3 border-t border-border/40 space-y-2">
+                    {chatPhotos.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 p-1.5 bg-muted/50 rounded-xl border border-dashed">
+                        {chatPhotos.map((pUrl, pi) => (
+                          <div key={pi} className="relative h-10 w-14 rounded-lg overflow-hidden border bg-background group">
+                            <img src={pUrl} alt="Preview" className="object-cover w-full h-full" />
+                            <button 
+                              type="button" 
+                              onClick={() => setChatPhotos(prev => prev.filter((_, idx) => idx !== pi))}
+                              className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-3 w-3 text-white" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <label className={`cursor-pointer inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border bg-background text-muted-foreground hover:text-foreground transition-colors ${uploadingChatPhotos ? "opacity-50 pointer-events-none" : ""}`}>
+                        <Camera className="h-4 w-4" />
+                        <input type="file" accept="image/*" multiple onChange={handleChatPhotoUpload} className="hidden" disabled={uploadingChatPhotos} />
+                      </label>
+
+                      <Input 
+                        placeholder={uploadingChatPhotos ? "Uploading file blocks..." : "Type dynamic transaction logs..."}
+                        value={newMsgText}
+                        onChange={(e) => setNewMsgText(e.target.value)}
+                        className="rounded-xl h-9 text-xs"
+                        disabled={uploadingChatPhotos}
+                      />
+                      <Button type="submit" size="icon" className="h-9 w-9 rounded-xl shrink-0" disabled={uploadingChatPhotos}>
+                        <Send className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="w-full md:w-[220px] space-y-4">
+                  <div className="bg-muted/30 border border-border/40 rounded-2xl p-4 space-y-3">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workflow Progress Block</h4>
+                    
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                        <span className="text-muted-foreground">Task Assigned</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${request.takerCompletedAt ? "bg-green-500" : "bg-muted"}`} />
+                        <span className={request.takerCompletedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Helper Completed</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${request.completedAt ? "bg-green-500" : "bg-muted"}`} />
+                        <span className={request.completedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Owner Verified</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${request.feeSettledAt ? "bg-green-500" : "bg-muted"}`} />
+                        <span className={request.feeSettledAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Dispatched</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${request.feeReceivedAt ? "bg-green-500" : "bg-muted"}`} />
+                        <span className={request.feeReceivedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Receipts Locked</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-border/40 space-y-2">
+                      {isOwner && request.takerCompletedAt && !request.completedAt && (
+                        <Button onClick={() => { void handleVerifyCompletion(); }} disabled={verifyingCompletion} className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-green-600 hover:bg-green-700 text-white h-8">
+                          {verifyingCompletion ? "Processing..." : "Verify Task Completion"}
+                        </Button>
+                      )}
+
+                      {isOwner && request.completedAt && !request.feeSettledAt && (
+                        <Button onClick={() => { void handleConfirmPaid(); }} disabled={settlingFee} className="w-full rounded-xl text-xs font-semibold gap-1.5 h-8">
+                          {settlingFee ? "Processing..." : "Confirm Remittance Paid"}
+                        </Button>
+                      )}
+
+                      {isAssignedHelper && request.feeSettledAt && !request.feeReceivedAt && (
+                        <Button onClick={() => { void handleConfirmReceipt(); }} disabled={receivingFee} className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-purple-600 hover:bg-purple-700 text-white h-8">
+                          {receivingFee ? "Processing..." : "Confirm Clear Receipt"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {request.completedAt && (
+                    <div className="bg-accent/5 border border-accent/20 rounded-2xl p-4 space-y-3">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-accent flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-accent" /> Mutual Service Evaluation
+                      </h4>
+
+                      {mySubmittedReview ? (
+                        <div className="space-y-1.5 text-xs">
+                          <p className="text-[10px] font-bold text-muted-foreground/80 uppercase">Your scores submitted:</p>
+                          <StarRating rating={mySubmittedReview.stars} />
+                          {mySubmittedReview.comment && (
+                            <p className="text-muted-foreground italic bg-background/50 p-2 rounded-xl border border-dashed">
+                              "{mySubmittedReview.comment}"
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <form onSubmit={handleSubmitReview} className="space-y-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Star Count</label>
+                            <div className="flex gap-1">
+                              {[1, 2, 3, 4, 5].map((num) => (
+                                <button 
+                                  key={num} 
+                                  type="button" 
+                                  onClick={() => setRatingInput(num)}
+                                  className="p-0.5 border-none bg-transparent cursor-pointer"
+                                >
+                                  <Star className={`h-4 w-4 ${num <= ratingInput ? "fill-accent text-accent" : "text-muted-foreground/30"}`} />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Feedback Text</label>
+                            <Textarea 
+                              placeholder="Describe your collaborative session indicators..."
+                              value={commentInput}
+                              onChange={(e) => setCommentInput(e.target.value)}
+                              className="text-xs rounded-xl min-h-[60px]"
+                            />
+                          </div>
+
+                          <Button type="submit" disabled={submittingReview} className="w-full rounded-xl text-xs h-8">
+                            {submittingReview ? "Saving evaluation..." : "Submit Ratings Registry"}
+                          </Button>
+                        </form>
+                      )}
+                    </div>
                   )}
                 </div>
-              ) : (
-                <form onSubmit={handleSubmitReview} className="space-y-3 p-4 border rounded-xl bg-accent/5">
-                  <p className="text-xs font-medium">
-                    {isOwner 
-                      ? "Evaluate the speed and work quality of your assigned task helper:" 
-                      : "Rate your coordination experience with this assignment requester:"}
-                  </p>
-                  <div className="flex gap-1 items-center">
-                    {Array.from({ length: 5 }).map((_, idx) => {
-                      const starValue = idx + 1;
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setRatingInput(starValue)}
-                          className="text-amber-500 focus:outline-none cursor-pointer"
-                        >
-                          <Star className={`h-5 w-5 ${starValue <= ratingInput ? "fill-current" : "text-muted"}`} />
-                        </button>
-                      );
-                    })}
+              </div>
+            </div>
+          )}
+
+          {user && !isOwner && !request.takenBy && (
+            <div className="border-t border-dashed pt-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-full bg-accent/10 text-accent flex items-center justify-center">
+                  <CreditCard className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    {hasAlreadyBid ? "Your Active Configuration Bid Proposal" : "Submit Service Execution Bid"}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Specify your target cost overhead margins to lock this item card</p>
+                </div>
+              </div>
+
+              {hasAlreadyBid && !isEditingBid ? (
+                <div className="bg-muted/30 border border-border/40 p-4 rounded-2xl space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-foreground">Proposed Asset Cost Margin:</span>
+                    <span className="text-sm font-black text-accent bg-accent/10 px-3 py-1 rounded-xl">${bidAmount}</span>
                   </div>
-                  <Textarea
-                    placeholder={isOwner ? "How well did they perform?" : "Was instructions clear and payment seamless?"}
-                    value={commentInput}
-                    onChange={(e) => setCommentInput(e.target.value)}
-                    className="rounded-xl min-h-[60px] text-xs resize-none"
-                    maxLength={200}
-                  />
-                  <div className="flex justify-end">
-                    <Button type="submit" size="sm" className="rounded-full text-xs" disabled={submittingReview}>
-                      {submittingReview ? "Saving evaluation..." : "Submit Score"}
+                  {bidNote && (
+                    <div className="text-xs text-muted-foreground bg-background p-2.5 rounded-xl border border-dashed">
+                      <span className="font-semibold block text-[10px] uppercase text-muted-foreground/70 mb-1">Proposal Statement parameters:</span>
+                      {bidNote}
+                    </div>
+                  )}
+                  {uploadedBidUrls.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground/70 block">Attached Verification Blocks:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {uploadedBidUrls.map((pUrl, pi) => (
+                          <a key={pi} href={pUrl} target="_blank" rel="noreferrer" className="h-12 w-20 rounded-lg overflow-hidden bg-black/5 border block">
+                            <img src={pUrl} alt="Bid evidence attachment" className="object-cover w-full h-full" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end pt-1">
+                    <Button variant="outline" size="sm" onClick={() => setIsEditingBid(true)} className="rounded-xl text-xs h-8 gap-1">
+                      <Edit2 className="h-3 w-3" /> Revise Proposal Configuration
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handlePlaceOrUpdateBid} className="space-y-4 bg-muted/10 border border-dashed p-4 rounded-2xl">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div className="sm:col-span-1">
+                      <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Bidding Amount ($)</label>
+                      <Input type="number" placeholder="Value" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} required className="rounded-xl h-9 text-xs" />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Proposal Notes / Capabilities Overview</label>
+                      <Input placeholder="Detail your exact alignment plans, completion timelines, or task specifics..." value={bidNote} onChange={(e) => setBidNote(e.target.value)} className="rounded-xl h-9 text-xs" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Validation & Reference Attachments (Max 5)</label>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      {uploadedBidUrls.map((u, ui) => (
+                        <div key={ui} className="relative h-12 w-20 rounded-xl overflow-hidden bg-black/10 border group">
+                          <img src={u} alt="Form preview block" className="object-cover w-full h-full" />
+                          <button 
+                            type="button" 
+                            onClick={() => setUploadedBidUrls(prev => prev.filter((_, idx) => idx !== ui))}
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {uploadedBidUrls.length < 5 && (
+                        <label className={`h-12 w-20 border-2 border-dashed border-muted-foreground/30 hover:border-accent/40 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] text-muted-foreground cursor-pointer transition-colors ${uploadingBidPhotos ? "opacity-50 pointer-events-none" : ""}`}>
+                          {uploadingBidPhotos ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                          ) : (
+                            <Camera className="h-3.5 w-3.5 text-accent" />
+                          )}
+                          {uploadingBidPhotos ? "Uploading..." : "Attach Media"}
+                          <input type="file" accept="image/*" multiple onChange={handleBidPhotoUpload} className="hidden" disabled={uploadingBidPhotos} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    {isEditingBid && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingBid(false)} className="rounded-full text-xs">
+                        Cancel Modification
+                      </Button>
+                    )}
+                    <Button type="submit" size="sm" className="rounded-full px-5 gap-2 text-xs" disabled={submittingBid || uploadingBidPhotos}>
+                      <Send className="h-3.5 w-3.5" />
+                      {submittingBid ? "Submitting Offer..." : isEditingBid ? "Update Proposal Bid" : "Submit Proposal Bid"}
                     </Button>
                   </div>
                 </form>
@@ -1026,278 +1213,69 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {user && (isOwner || hasAlreadyBid) && (
-            <div className="space-y-3 pt-4 border-t border-border">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1">
-                  <MessageSquare className="w-3.5 h-3.5 text-primary" />
-                  {isOwner ? `Current Proposals (${bids.length})` : "Your Private Proposal Channel"}
-                </label>
-                
-                {!isOwner && hasAlreadyBid && !request.takenBy && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setIsEditingBid(!isEditingBid)}
-                    className="rounded-xl h-7 text-[11px]"
-                  >
-                    {isEditingBid ? "View Private Chat" : "Modify My Proposal Bid"}
-                  </Button>
-                )}
+          {isOwner && !request.takenBy && (
+            <div className="border-t border-dashed pt-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-full bg-accent/10 text-accent flex items-center justify-center">
+                  <User className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Active Dynamic Bid Proposals Queue</h3>
+                  <p className="text-[11px] text-muted-foreground">Select an operational workflow partner matching your specific safety credentials</p>
+                </div>
               </div>
 
-              {isEditingBid ? (
-                <form onSubmit={handlePlaceOrUpdateBid} className="space-y-4 p-4 border rounded-xl bg-muted/20">
-                  <h4 className="text-xs font-bold uppercase text-muted-foreground">Edit Your Bid Information</h4>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Required Compensation Reward ($)</label>
-                    <Input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} required className="rounded-xl max-w-[200px]" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Introduction or Service Note</label>
-                    <Textarea value={bidNote} onChange={(e) => setBidNote(e.target.value)} maxLength={300} className="rounded-xl min-h-[80px] text-xs resize-none" />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingBid(false)} className="rounded-full text-xs">Cancel</Button>
-                    <Button type="submit" size="sm" disabled={submittingBid} className="rounded-full text-xs px-4">
-                      {submittingBid ? "Saving bid..." : "Save Bid Changes"}
-                    </Button>
-                  </div>
-                </form>
-              ) : bids.length === 0 ? (
-                <div className="border border-dashed rounded-xl p-6 text-center text-xs text-muted-foreground italic bg-muted/5">
-                  No active bids currently listed for this notice.
-                </div>
+              {bids.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 rounded-xl text-center border border-dashed">
+                  No competitive deployment options have indexed onto this post node yet.
+                </p>
               ) : (
-                <div className="space-y-4">
-                  {bids.map((b) => (
-                    <div 
-                      key={b.id} 
-                      onClick={() => setSelectedBidId(b.id)}
-                      className={`p-4 border rounded-xl transition-all cursor-pointer space-y-4 ${
-                        selectedBidId === b.id ? "border-primary bg-primary/5 shadow-sm" : "hover:bg-muted/40"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start gap-2 flex-wrap">
-                        {/* Interactive Clickable Profile Area */}
-                        <div 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            if (b.helper_id) {
-                              void fetchBidderHistory(b.helper_id, b.helper_name || "Helper"); 
-                            }
-                          }} 
-                          className="cursor-pointer group flex flex-col"
-                        >
-                          <div className="text-xs font-semibold text-foreground flex items-center gap-2 group-hover:text-primary transition-colors">
-                            <span>{b.helper_name}</span>
-                            <StarRating rating={b.averageRating || 0} />
+                <div className="space-y-2.5">
+                  {bids.map((bid) => (
+                    <div key={bid.id} className="bg-muted/30 border border-border/40 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-muted-foreground/20 transition-colors">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button 
+                            type="button"
+                            onClick={() => void fetchBidderHistory(bid.helper_id, bid.helper_name || "User")}
+                            className="text-xs font-bold text-foreground hover:underline transition bg-transparent border-none p-0 cursor-pointer text-left"
+                          >
+                            {bid.helper_name}
+                          </button>
+                          <span className="text-muted/40">•</span>
+                          <StarRating rating={bid.averageRating || 0} />
+                          <Badge variant="outline" className="rounded-md text-[10px] px-1 bg-background font-mono text-muted-foreground">
+                            ID: {bid.helper_id.slice(0, 5)}
+                          </Badge>
+                        </div>
+                        {bid.note && <p className="text-xs text-muted-foreground break-words italic">"{bid.note}"</p>}
+                        
+                        {bid.photo_urls && bid.photo_urls.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {bid.photo_urls.map((pUrl, pi) => (
+                              <a key={pi} href={pUrl} target="_blank" rel="noreferrer" className="h-10 w-16 rounded-lg overflow-hidden border bg-background block">
+                                <img src={pUrl} alt="Bid parameter contextual layout" className="object-cover w-full h-full" />
+                              </a>
+                            ))}
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">{b.note}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs font-bold text-accent">${b.amount}</span>
-                          <span className={`block text-[10px] uppercase font-bold tracking-wider mt-0.5 ${
-                            b.status === "accepted" ? "text-green-600" : b.status === "rejected" ? "text-red-500" : "text-amber-500"
-                          }`}>
-                            {b.status}
-                          </span>
-                        </div>
+                        )}
                       </div>
 
-                      {b.photo_urls && b.photo_urls.length > 0 && (
-                        <div className="flex gap-1.5 overflow-x-auto pb-1">
-                          {b.photo_urls.map((pUrl, pIdx) => (
-                            <a 
-                              key={pIdx} 
-                              href={pUrl} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="w-10 h-10 border rounded overflow-hidden flex-shrink-0"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <img src={pUrl} alt="Bid reference" className="object-cover w-full h-full" />
-                            </a>
-                          ))}
-                        </div>
-                      )}
-
-                      {selectedBidId === b.id && (
-                        <div className="pt-3 border-t border-border/60 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
-                              Secure Communication Sandbox
-                            </h4>
-                            {chatLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-                          </div>
-
-                          <ScrollArea className="h-52 border rounded-xl p-3 bg-background">
-                            <div className="space-y-3">
-                              {chatMessages.map((msg) => {
-                                const isMe = msg.author_id === user.id;
-                                return (
-                                  <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                                    <div className={`max-w-[85%] rounded-2xl p-2.5 text-xs ${
-                                      isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-muted text-foreground rounded-tl-none"
-                                    }`}>
-                                      <p className="font-bold text-[9px] opacity-80 mb-0.5">{msg.author_name}</p>
-                                      <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-                                      
-                                      {msg.photo_urls && msg.photo_urls.length > 0 && (
-                                        <div className="grid grid-cols-2 gap-1.5 mt-2">
-                                          {msg.photo_urls.map((img, idx) => (
-                                            <a key={idx} href={img} target="_blank" rel="noreferrer" className="rounded overflow-hidden border">
-                                              <img src={img} alt="Chat attachment" className="object-cover w-full h-20" />
-                                            </a>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <span className="text-[9px] text-muted-foreground mt-0.5 px-1">
-                                      {isMounted ? new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                              <div ref={scrollRef} />
-                            </div>
-                          </ScrollArea>
-
-                          <form onSubmit={handleSendChatMessage} className="space-y-2">
-                            {chatPhotos.length > 0 && (
-                              <div className="flex gap-2 p-1.5 border rounded-xl bg-muted/40 flex-wrap">
-                                {chatPhotos.map((url, idx) => (
-                                  <div key={idx} className="relative w-10 h-10 border rounded overflow-hidden">
-                                    <img src={url} alt="Draft" className="object-cover w-full h-full" />
-                                    <button
-                                      type="button"
-                                      onClick={() => setChatPhotos(prev => prev.filter((_, i) => i !== idx))}
-                                      className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5"
-                                    >
-                                      <X className="h-2 w-2" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="flex gap-2 items-center">
-                              <label className="inline-flex h-8 w-8 items-center justify-center border rounded-xl bg-background hover:bg-muted/50 cursor-pointer transition-colors flex-shrink-0 shadow-sm">
-                                <input type="file" accept="image/*" multiple className="hidden" onChange={handleChatPhotoUpload} disabled={uploadingChatPhotos} />
-                                {uploadingChatPhotos ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Camera className="h-3.5 w-3.5 text-muted-foreground" />}
-                              </label>
-
-                              <Input
-                                placeholder="Type encrypted contract response..."
-                                value={newMsgText}
-                                onChange={(e) => setNewMsgText(e.target.value)}
-                                className="rounded-xl text-xs h-8"
-                              />
-
-                              <Button type="submit" size="icon" className="h-8 w-8 rounded-xl flex-shrink-0" disabled={!newMsgText.trim() && chatPhotos.length === 0}>
-                                <Send className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </form>
-                        </div>
-                      )}
-
-                      {isOwner && b.status === "pending" && !request.takenBy && (
-                        <div className="mt-3 flex justify-end">
-                          <Button 
-                            size="sm" 
-                            className="rounded-full text-[11px] h-7" 
-                            disabled={!!assigningBidId}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void handleAcceptBid(b);
-                            }}
-                          >
-                            {assigningBidId === b.id ? "Assigning..." : "Accept Proposal"}
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                        <span className="text-sm font-black text-accent bg-accent/10 px-3 py-1 rounded-xl">${bid.amount}</span>
+                        <Button 
+                          size="sm" 
+                          onClick={() => { void handleAcceptBid(bid); }} 
+                          disabled={assigningBidId !== null || bid.status !== "pending"}
+                          className="rounded-full px-4 text-xs font-semibold h-8"
+                        >
+                          {assigningBidId === bid.id ? "Assigning..." : bid.status === "accepted" ? "Assigned" : "Accept Offer"}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {user && !isOwner && !hasAlreadyBid && (
-            <div className="pt-4 border-t border-border">
-              <h3 className="text-xs font-bold uppercase text-muted-foreground tracking-wider mb-3">
-                Submit Configuration Proposal
-              </h3>
-              <form onSubmit={handlePlaceOrUpdateBid} className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                    Your Required Compensation Reward ($)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 25"
-                    value={bidAmount}
-                    onChange={(e) => setBidAmount(e.target.value)}
-                    className="rounded-xl max-w-[200px]"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                    Introduction or Service Note
-                  </label>
-                  <Textarea
-                    placeholder="Explain your timeline or offer details..."
-                    value={bidNote}
-                    onChange={(e) => setBidNote(e.target.value)}
-                    className="rounded-xl min-h-[80px] resize-none text-xs"
-                    maxLength={300}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Bid Document/Reference Photos ({uploadedBidUrls.length}/5)
-                  </label>
-                  {uploadedBidUrls.length > 0 && (
-                    <div className="flex gap-2 pb-1 flex-wrap">
-                      {uploadedBidUrls.map((url, idx) => (
-                        <div key={idx} className="relative w-12 h-12 rounded overflow-hidden border bg-muted">
-                          <img src={url} alt="Thumbnail" className="object-cover w-full h-full" />
-                          <button
-                            type="button"
-                            onClick={() => setUploadedBidUrls(p => p.filter((_, i) => i !== idx))}
-                            className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5 scale-90"
-                          >
-                            <X className="h-2 w-2" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {uploadedBidUrls.length < 5 && (
-                    <label className="inline-flex items-center gap-1.5 text-xs text-accent hover:text-accent/90 font-medium cursor-pointer bg-accent/5 hover:bg-accent/10 px-3 py-1.5 border border-dashed border-accent/30 rounded-xl transition-all">
-                      <input type="file" accept="image/*" multiple className="hidden" onChange={handleBidPhotoUpload} disabled={uploadingBidPhotos} />
-                      {uploadingBidPhotos ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                      ) : (
-                        <Camera className="h-3.5 w-3.5 text-accent" />
-                      )}
-                      {uploadingBidPhotos ? "Uploading..." : "Attach Media"}
-                    </label>
-                  )}
-                </div>
-
-                <div className="flex justify-end">
-                  <Button type="submit" className="rounded-full px-6 gap-2 text-xs" disabled={submittingBid || uploadingBidPhotos}>
-                    <Send className="h-3.5 w-3.5" />
-                    {submittingBid ? "Submitting Offer..." : "Submit Proposal Bid"}
-                  </Button>
-                </div>
-              </form>
             </div>
           )}
 
@@ -1318,7 +1296,6 @@ function RequestDetailPage() {
         </Card>
       </section>
 
-      {/* History Dialog Modal View */}
       <Dialog open={historyDialog.open} onOpenChange={(open) => setHistoryDialog(prev => ({ ...prev, open }))}>
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
@@ -1349,7 +1326,6 @@ function RequestDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
-
       <SiteFooter />
     </div>
   );
