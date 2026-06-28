@@ -689,10 +689,11 @@ function RequestDetailPage() {
 
     setSubmittingReview(true);
     try {
+      // FIXED: Swapped roles mapping depending on who is authoring the submit review payload
       const insertPayload = {
         request_id: request.id,
-        requester_id: request.userId,
-        taker_id: request.takenBy,
+        requester_id: isOwner ? request.userId : request.takenBy,
+        taker_id: isOwner ? request.takenBy : request.userId,
         stars: ratingInput,
         comment: commentInput.trim()
       };
@@ -708,7 +709,6 @@ function RequestDetailPage() {
     } catch (err: any) {
       toast.error(err.message || "Failed to save review parameters.");
     } finally {
-      // FIXED: Swapped to false so state UI indicators reset immediately upon resolution
       setSubmittingReview(false);
     }
   }
