@@ -154,24 +154,25 @@ function NewRequestPage() {
       lng = 2.3522;
     }
 
-    try {
+try {
       const uploadedUrls: string[] = [];
       
-      // Upload execution targets the structural 'request-attachments' bucket configured in your Supabase storage engine
+      // FIXED: Using your verified active 'task-photos' bucket with a subfolder routing prefix
       if (selectedFiles.length > 0) {
         setUploadingImages(true);
         for (const file of selectedFiles) {
           const fileExt = file.name.split('.').pop();
-          const uniquePath = `${user?.id || 'anonymous'}/${crypto.randomUUID()}.${fileExt}`;
+          // Organizing request attachments into their own clear folder path schema
+          const uniquePath = `request-attachments/${user?.id || 'anonymous'}/${crypto.randomUUID()}.${fileExt}`;
           
           const { error: uploadError } = await supabase.storage
-            .from('request-attachments')
+            .from('task-photos') // Changed to your existing bucket
             .upload(uniquePath, file);
 
           if (uploadError) throw uploadError;
 
           const { data: { publicUrl } } = supabase.storage
-            .from('request-attachments')
+            .from('task-photos') // Changed to your existing bucket
             .getPublicUrl(uniquePath);
 
           uploadedUrls.push(publicUrl);
@@ -189,7 +190,7 @@ function NewRequestPage() {
         lng,
         reward: reward.trim(),
         isSecret,
-        images: uploadedUrls, // Updated from photoUrls to match input config property mapping!
+        images: uploadedUrls, 
       });
       
       void navigate({ to: "/request/$id", params: { id: created.id } });
