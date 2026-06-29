@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, BadgeCheck, MessageSquare, AlertCircle, RefreshCw } from "lucide-react";
+import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateCcw, BadgeCheck, MessageSquare, AlertCircle, RefreshCw, Star } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
@@ -71,20 +71,35 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
-      // 1. Fetch tasks where you are explicitly marked as the taker
+      // 1. Fetch tasks where you are explicitly marked as the taker, joining profiles table
       const { data: directData, error: directError } = await supabase
         .from("requests")
-        .select("*")
+        .select(`
+          *,
+          profiles!requests_user_id_fkey (
+            display_name,
+            average_rating
+          )
+        `)
         .eq("taken_by", userId);
 
       if (directError) throw directError;
 
-      // 2. Fallback: Fetch tasks via request_bids table where bid is accepted
+      // 2. Fetch tasks via request_bids table where bid is accepted, joining profiles table nestedly
       const { data: bidData, error: bidError } = await supabase
         .from("request_bids")
-        .select("request_id, requests(*)")
+        .select(`
+          request_id, 
+          requests (
+            *,
+            profiles!requests_user_id_fkey (
+              display_name,
+              average_rating
+            )
+          )
+        `)
         .eq("helper_id", userId)
-        .eq("status", "accepted"); // Matches request_bids status field safely
+        .eq("status", "accepted");
 
       if (bidError) throw bidError;
 
@@ -116,13 +131,15 @@ export function MyTasksPage() {
         reward: item.reward,
         isSecret: item.is_secret || item.isSecret || false,
         userId: item.user_id || item.userId,
-        takenBy: item.taken_by || userId, // Fallback placeholder if column isn't written back yet
+        takenBy: item.taken_by || userId, 
         takenAt: item.taken_at || item.created_at,
         takerCompletedAt: item.taker_completed_at || item.takerCompletedAt,
         completedAt: item.completed_at || item.completedAt,
         feeSettledAt: item.fee_settled_at || item.feeSettledAt,
         photoUrls: item.photo_urls || item.photoUrls || [],
         paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
+        // Carry the relationship profile downward safely
+        requestorProfile: item.profiles
       }));
 
       setTasks(mapped);
@@ -164,7 +181,7 @@ export function MyTasksPage() {
         ? await takerReopenRequest(r.id)
         : await takerCompleteRequest(r.id);
       setTasks((prev) =>
-        prev ? prev.map((x) => (x.id === r.id ? updated : x)) : prev,
+        prev ? prev.map((x) => (x.id === r.id ? { ...updated, requestorProfile: x.requestorProfile } : x)) : prev,
       );
       toast.success(
         updated.takerCompletedAt
@@ -235,6 +252,7 @@ export function MyTasksPage() {
               const takerDone = !!takerCompletedAt;
               const fullySettled = !!completedAt && takerDone;
               const isChatOpen = activeChatTaskId === id;
+              const profile = (r as any).requestorProfile;
 
               return (
                 <Card key={id} className="p-4 sm:p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
@@ -285,6 +303,19 @@ export function MyTasksPage() {
                         <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-2">
                           {description}
                         </p>
+                      )}
+
+                      {/* Display profile: display_name and average_rating here */}
+                      {profile && (
+                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground bg-muted/30 py-1 px-2 rounded-md w-fit">
+                          <span>Requestor: <strong className="text-foreground">{profile.display_name || "Anonymous"}</strong></span>
+                          {profile.average_rating !== null && profile.average_rating !== undefined && (
+                            <span className="inline-flex items-center gap-0.5 text-amber-500 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded text-[10px]">
+                              <Star className="h-2.5 w-2.5 fill-amber-500 stroke-amber-500" />
+                              {Number(profile.average_rating).toFixed(1)}
+                            </span>
+                          )}
+                        </div>
                       )}
                       
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] sm:text-xs text-muted-foreground">
