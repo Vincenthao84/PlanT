@@ -46,7 +46,7 @@ export function BidDialog({
   };
 
   // Handle Photo Upload Matrix (Max 5)
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     e.stopPropagation();
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -67,16 +67,18 @@ export function BidDialog({
         const file = files[i];
         const fileExt = file.name.split(".").pop();
         const fileName = `${currentUserId}-${Date.now()}-${i}.${fileExt}`;
+        
+        // FIXED: Organizing bid attachments clearly within your existing "task-photos" bucket
         const filePath = `bid-attachments/${requestId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("request-photos")
+          .from("task-photos") // Matches your true bucket name
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
-          .from("request-photos")
+          .from("task-photos")
           .getPublicUrl(filePath);
 
         newUrls.push(publicUrl);
