@@ -24,6 +24,7 @@ import {
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
   feeReceivedAt?: string | null;
+  photo_urls?: string[]; // ✅ Explicitly defined matching database schema mapping array
 }
 
 interface BidRecord {
@@ -166,7 +167,7 @@ function RequestDetailPage() {
           completedAt: data.completed_at || data.completedAt,
           feeSettledAt: data.fee_settled_at || data.feeSettledAt,
           feeReceivedAt: data.fee_received_at || data.feeReceivedAt || null,
-          photoUrls: data.photo_urls || data.photoUrls || [],
+          photo_urls: data.photo_urls || data.photoUrls || [], // ✅ Correct fallback structure
           paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
           createdAt: data.created_at,
         };
@@ -735,7 +736,7 @@ function RequestDetailPage() {
 
   const t = getRequestType(request.type);
   const Icon = t?.icon ?? MapPin;
-  const hasPhotos = request.photoUrls && request.photoUrls.length > 0;
+  const hasPhotos = request.photo_urls && request.photo_urls.length > 0; // ✅ Updated configuration point
   const isOwner = user && user.id === request.userId;
   const isAssignedHelper = user && user.id === request.takenBy;
   
@@ -863,13 +864,14 @@ function RequestDetailPage() {
             </>
           )}
 
+          {/* Top attached photos list synced to database */}
           {hasPhotos && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                 <ImageIcon className="h-3.5 w-3.5" /> Attached Imagery / Context
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {request.photoUrls.map((url, index) => (
+                {request.photo_urls?.map((url, index) => (
                   <a 
                     key={index} 
                     href={url} 
@@ -884,45 +886,51 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {mapEmbedUrl && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" /> Geographic Location Indicator
-              </h4>
-              <div className="rounded-2xl overflow-hidden border border-border/60 aspect-[21/9] w-full bg-muted">
-                <iframe title="Request target map pointer" width="100%" height="100%" src={mapEmbedUrl} style={{ border: 0 }} />
-              </div>
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <MapPin className="h-3 w-3 shrink-0" /> {request.locationLabel}
-              </p>
+          {/* Dynamic Map Pin Box Section */}
+          <div className="space-y-2 pt-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" /> Fulfill Location Details
+            </h4>
+            <p className="text-sm font-medium text-foreground px-1">{request.locationLabel}</p>
+            
+            {mapEmbedUrl && (
+              <Card className="p-0 rounded-2xl border bg-muted/20 overflow-hidden relative aspect-[21/9] w-full min-h-[180px]">
+                <iframe
+                  title="Dynamic Request Location Grid"
+                  width="100%"
+                  height="100%"
+                  className="border-none absolute inset-0"
+                  src={mapEmbedUrl}
+                />
+              </Card>
+            )}
 
-              {/* 📸 Reference Photo Gallery Box Injected Directly below the Iframe indicators */}
-              {request.photoUrls && request.photoUrls.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <ImageIcon className="h-3.5 w-3.5 text-accent" /> Reference Gallery Layout
-                  </h4>
-                  <div className={`grid gap-2.5 ${
-                    request.photoUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'
-                  }`}>
-                    {request.photoUrls.map((url, index) => (
-                      <div 
-                        key={index} 
-                        className="relative aspect-[4/3] rounded-xl overflow-hidden border bg-muted group cursor-pointer"
-                        onClick={() => window.open(url, '_blank')}
-                      >
-                        <img 
-                          src={url} 
-                          alt={`Reference layout attachment slot ${index + 1}`} 
-                          className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
-                        />
-                      </div>
-                    ))}
-                  </div>
+            {/* 📸 Reference Photo Gallery Injected Cleanly Below The Map Frame */}
+            {request.photo_urls && request.photo_urls.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 px-1">
+                  <ImageIcon className="h-3.5 w-3.5 text-accent" /> Reference Photos
+                </h3>
+                <div className={`grid gap-2 ${
+                  request.photo_urls.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'
+                }`}>
+                  {request.photo_urls.map((url: string, index: number) => (
+                    <div 
+                      key={index} 
+                      className="relative aspect-[4/3] rounded-xl overflow-hidden border bg-muted group cursor-pointer"
+                      onClick={() => window.open(url, '_blank')}
+                    >
+                      <img 
+                        src={url} 
+                        alt={`Reference Layout Attachment ${index + 1}`} 
+                        className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
          {user && (isOwner || isAssignedHelper || (hasAlreadyBid && selectedBidId)) && (
             <div className="border-t border-border/60 pt-6 space-y-4">
