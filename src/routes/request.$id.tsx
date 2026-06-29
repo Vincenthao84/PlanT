@@ -900,7 +900,7 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {user && request.takenBy && (isOwner || isAssignedHelper) && (
+         {user && (isOwner || isAssignedHelper || (hasAlreadyBid && selectedBidId)) && (
             <div className="border-t border-border/60 pt-6 space-y-4">
               <div className="flex items-center justify-between border-b border-border/40 pb-3 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
@@ -909,7 +909,7 @@ function RequestDetailPage() {
                   </div>
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Interactive Workspace Hub</h3>
-                    <p className="text-[11px] text-muted-foreground">Secure session channels for participant milestone logging</p>
+                    <p className="text-[11px] text-muted-foreground">Secure Chat Box for Details and Logistics</p>
                   </div>
                 </div>
 
