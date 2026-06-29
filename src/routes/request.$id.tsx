@@ -443,13 +443,13 @@ function RequestDetailPage() {
         const filePath = `bid-attachments/${id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("request-photos")
+          .from("task-photos")
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
-          .from("request-photos")
+          .from("task-photos")
           .getPublicUrl(filePath);
 
         newUrls.push(publicUrl);
