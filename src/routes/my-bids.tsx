@@ -82,7 +82,7 @@ function MyBidsPage() {
             id, amount, note, status, created_at,
             requests:request_id (
               id, title, location_label, user_id, type,
-              profiles!requests_user_id_fkey (
+              profiles (
                 display_name,
                 average_rating
               )
@@ -161,7 +161,6 @@ function MyBidsPage() {
                         
                         <h3 className="font-semibold text-base mt-1.5 tracking-tight">{req.title}</h3>
                         
-                        {/* Display profile: display_name and average_rating here */}
                         {requestorProfile && (
                           <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground bg-muted/40 py-0.5 px-2 rounded w-fit">
                             <span>Requestor: <span className="font-semibold text-foreground">{requestorProfile.display_name || "User"}</span></span>
