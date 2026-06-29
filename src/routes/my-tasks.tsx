@@ -76,7 +76,7 @@ export function MyTasksPage() {
         .from("requests")
         .select(`
           *,
-          profiles (
+          profiles:user_id (
             display_name,
             average_rating
           )
@@ -92,7 +92,7 @@ export function MyTasksPage() {
           request_id, 
           requests (
             *,
-            profiles (
+            profiles:user_id (
               display_name,
               average_rating
             )
