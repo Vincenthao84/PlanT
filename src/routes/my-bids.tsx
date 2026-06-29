@@ -82,7 +82,7 @@ function MyBidsPage() {
             id, amount, note, status, created_at,
             requests:request_id (
               id, title, location_label, user_id, type,
-              profiles (
+              profiles:user_id (
                 display_name,
                 average_rating
               )
