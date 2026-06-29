@@ -154,10 +154,10 @@ function NewRequestPage() {
       lng = 2.3522;
     }
 
-try {
+    try {
       const uploadedUrls: string[] = [];
       
-      // FIXED: Using your verified active 'task-photos' bucket with a subfolder routing prefix
+      // FIXED: Using verified active 'task-photos' bucket with a subfolder routing prefix
       if (selectedFiles.length > 0) {
         setUploadingImages(true);
         for (const file of selectedFiles) {
@@ -166,13 +166,13 @@ try {
           const uniquePath = `request-attachments/${user?.id || 'anonymous'}/${crypto.randomUUID()}.${fileExt}`;
           
           const { error: uploadError } = await supabase.storage
-            .from('task-photos') // Changed to your existing bucket
+            .from('task-photos') 
             .upload(uniquePath, file);
 
           if (uploadError) throw uploadError;
 
           const { data: { publicUrl } } = supabase.storage
-            .from('task-photos') // Changed to your existing bucket
+            .from('task-photos') 
             .getPublicUrl(uniquePath);
 
           uploadedUrls.push(publicUrl);
