@@ -397,6 +397,7 @@ function RequestDetailPage() {
         const file = files[i];
         const fileExt = file.name.split(".").pop();
         const fileName = `${user?.id}-${Date.now()}-${i}.${fileExt}`;
+        // CHANGED: Fixed destination path to use the explicit 'chat-attachments' folder structure
         const filePath = `chat-attachments/${id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
