@@ -18,7 +18,8 @@ import {
   Package,
   Key,
   MoreHorizontal,
-  HelpCircle
+  HelpCircle,
+  Star
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,6 +39,10 @@ interface BidWithRequestContext {
     location_label: string;
     user_id: string;
     type?: string; 
+    profiles?: {
+      display_name: string | null;
+      average_rating: number | null;
+    } | null;
   };
 }
 
@@ -75,7 +80,13 @@ function MyBidsPage() {
           .from("request_bids")
           .select(`
             id, amount, note, status, created_at,
-            requests:request_id (id, title, location_label, user_id, type)
+            requests:request_id (
+              id, title, location_label, user_id, type,
+              profiles!requests_user_id_fkey (
+                display_name,
+                average_rating
+              )
+            )
           `) 
           .eq("helper_id", user.id)
           .neq("status", "accepted") 
@@ -126,6 +137,8 @@ function MyBidsPage() {
               
               if (!req) return null;
 
+              const requestorProfile = req.profiles;
+
               return (
                 <Card key={b.id} className="p-5 transition-shadow hover:shadow-md">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -148,13 +161,26 @@ function MyBidsPage() {
                         
                         <h3 className="font-semibold text-base mt-1.5 tracking-tight">{req.title}</h3>
                         
+                        {/* Display profile: display_name and average_rating here */}
+                        {requestorProfile && (
+                          <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground bg-muted/40 py-0.5 px-2 rounded w-fit">
+                            <span>Requestor: <span className="font-semibold text-foreground">{requestorProfile.display_name || "User"}</span></span>
+                            {requestorProfile.average_rating !== null && requestorProfile.average_rating !== undefined && (
+                              <span className="inline-flex items-center gap-0.5 text-amber-500 font-medium ml-1">
+                                <Star className="h-3 w-3 fill-amber-500 stroke-amber-500" />
+                                {Number(requestorProfile.average_rating).toFixed(1)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
                         {b.note && (
                           <p className="text-xs text-muted-foreground bg-muted/40 p-2 rounded-lg my-1.5 italic">
                             "{b.note}"
                           </p>
                         )}
                         
-                        <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                        <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-accent" /> {req.location_label}
                           <span className="mx-1">•</span>
                           <Clock className="h-3 w-3" /> Sent {new Date(b.created_at).toLocaleDateString()}
@@ -183,7 +209,6 @@ function MyBidsPage() {
 
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
-                      {/* 🛠️ Safe prop passing: Mapping both bidId and camelCase bidId properties explicitly */}
                       <TaskThread
                         requestId={req.id}
                         currentUserId={user!.id}
