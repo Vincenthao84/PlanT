@@ -397,17 +397,18 @@ function RequestDetailPage() {
         const file = files[i];
         const fileExt = file.name.split(".").pop();
         const fileName = `${user?.id}-${Date.now()}-${i}.${fileExt}`;
-        // CHANGED: Fixed destination path to use the explicit 'chat-attachments' folder structure
-        const filePath = `chat-attachments/${id}/${fileName}`;
+        
+        // FIXED: Using request ID as a folder directly in the "chat-attachments" bucket root
+        const filePath = `${id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("request-photos")
+          .from("chat-attachments") // Matches your true bucket name
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
-          .from("request-photos")
+          .from("chat-attachments")
           .getPublicUrl(filePath);
 
         updatedUrls.push(publicUrl);
@@ -415,12 +416,13 @@ function RequestDetailPage() {
       setChatPhotos(updatedUrls);
       toast.success("Image attached.");
     } catch (err) {
+      console.error(err);
       toast.error("Could not upload chat attachment.");
     } finally {
       setUploadingChatPhotos(false);
     }
   }
-
+  
   async function handleBidPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
