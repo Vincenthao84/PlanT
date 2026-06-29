@@ -39,11 +39,11 @@ interface BidWithRequestContext {
     location_label: string;
     user_id: string;
     type?: string; 
-    profiles?: {
-      display_name: string | null;
-      average_rating: number | null;
-    } | null;
   };
+  requestorProfile?: {
+    display_name: string | null;
+    average_rating: number | null;
+  } | null;
 }
 
 function getCategoryIcon(typeSlug?: string) {
@@ -76,16 +76,13 @@ function MyBidsPage() {
 
     async function fetchMyPendingBids() {
       try {
+        // 1. Get raw bids data joining requests info
         const { data, error } = await supabase
           .from("request_bids")
           .select(`
             id, amount, note, status, created_at,
             requests:request_id (
-              id, title, location_label, user_id, type,
-              profiles:user_id (
-                display_name,
-                average_rating
-              )
+              id, title, location_label, user_id, type
             )
           `) 
           .eq("helper_id", user.id)
@@ -93,7 +90,33 @@ function MyBidsPage() {
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        setBids((data as any) || []);
+        
+        const rawBids = (data as any) || [];
+
+        // 2. Perform safe batch look-up of profile objects matching distinct request user_ids
+        const requestorUserIds = Array.from(
+          new Set(rawBids.map((b: any) => b.requests?.user_id).filter(Boolean))
+        ) as string[];
+
+        let profilesMap = new Map<string, any>();
+        if (requestorUserIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from("profiles")
+            .select("id, display_name, average_rating")
+            .in("id", requestorUserIds);
+
+          if (!profilesError && profilesData) {
+            profilesData.forEach((p) => profilesMap.set(p.id, p));
+          }
+        }
+
+        // 3. Map values together safely
+        const completeBids: BidWithRequestContext[] = rawBids.map((b: any) => ({
+          ...b,
+          requestorProfile: b.requests?.user_id ? profilesMap.get(b.requests.user_id) : null
+        }));
+
+        setBids(completeBids);
       } catch (err) {
         console.error("Error loading pending bid rows:", err);
         toast.error("Could not load bid negotiation records.");
@@ -137,7 +160,7 @@ function MyBidsPage() {
               
               if (!req) return null;
 
-              const requestorProfile = req.profiles;
+              const requestorProfile = b.requestorProfile;
 
               return (
                 <Card key={b.id} className="p-5 transition-shadow hover:shadow-md">
