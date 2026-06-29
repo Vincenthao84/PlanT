@@ -908,14 +908,14 @@ function RequestDetailPage() {
                     <MessageSquare className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Interactive Workspace Hub</h3>
-                    <p className="text-[11px] text-muted-foreground">Secure Chat Box for Details and Logistics</p>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Interactions with Helpers</h3>
+                    <p className="text-[11px] text-muted-foreground">Chat Box for Details and Logistics</p>
                   </div>
                 </div>
 
                 {isOwner && bids.length > 1 && (
                   <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border">
-                    <label className="text-[10px] uppercase font-bold text-muted-foreground px-2">Channel Context:</label>
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground px-2">Chat with Bidders:</label>
                     <select 
                       value={selectedBidId || ""} 
                       onChange={(e) => setSelectedBidId(e.target.value)}
