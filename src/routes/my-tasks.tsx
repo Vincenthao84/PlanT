@@ -71,12 +71,12 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
-      // 1. Fetch tasks where you are explicitly marked as the taker, joining profiles table
+      // 1. Fetch tasks where you are explicitly marked as the taker
       const { data: directData, error: directError } = await supabase
         .from("requests")
         .select(`
           *,
-          profiles!requests_user_id_fkey (
+          profiles (
             display_name,
             average_rating
           )
@@ -85,14 +85,14 @@ export function MyTasksPage() {
 
       if (directError) throw directError;
 
-      // 2. Fetch tasks via request_bids table where bid is accepted, joining profiles table nestedly
+      // 2. Fallback: Fetch tasks via request_bids table where bid is accepted
       const { data: bidData, error: bidError } = await supabase
         .from("request_bids")
         .select(`
           request_id, 
           requests (
             *,
-            profiles!requests_user_id_fkey (
+            profiles (
               display_name,
               average_rating
             )
@@ -138,7 +138,6 @@ export function MyTasksPage() {
         feeSettledAt: item.fee_settled_at || item.feeSettledAt,
         photoUrls: item.photo_urls || item.photoUrls || [],
         paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
-        // Carry the relationship profile downward safely
         requestorProfile: item.profiles
       }));
 
@@ -305,7 +304,6 @@ export function MyTasksPage() {
                         </p>
                       )}
 
-                      {/* Display profile: display_name and average_rating here */}
                       {profile && (
                         <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground bg-muted/30 py-1 px-2 rounded-md w-fit">
                           <span>Requestor: <strong className="text-foreground">{profile.display_name || "Anonymous"}</strong></span>
