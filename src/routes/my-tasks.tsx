@@ -74,28 +74,18 @@ export function MyTasksPage() {
       // 1. Fetch tasks where you are explicitly marked as the taker
       const { data: directData, error: directError } = await supabase
         .from("requests")
-        .select(`
-          *,
-          profiles:user_id (
-            display_name,
-            average_rating
-          )
-        `)
+        .select("*")
         .eq("taken_by", userId);
 
       if (directError) throw directError;
 
-      // 2. Fallback: Fetch tasks via request_bids table where bid is accepted
+      // 2. Fetch tasks via request_bids table where bid is accepted
       const { data: bidData, error: bidError } = await supabase
         .from("request_bids")
         .select(`
           request_id, 
           requests (
-            *,
-            profiles:user_id (
-              display_name,
-              average_rating
-            )
+            *
           )
         `)
         .eq("helper_id", userId)
@@ -120,6 +110,21 @@ export function MyTasksPage() {
 
       const unifiedData = Array.from(combinedMap.values());
 
+      // 3. Extract all unique user_ids of the requesters to fetch profiles separately
+      const requestorUserIds = Array.from(new Set(unifiedData.map((item) => item.user_id).filter(Boolean)));
+      
+      let profilesMap = new Map<string, any>();
+      if (requestorUserIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, display_name, average_rating")
+          .in("id", requestorUserIds);
+
+        if (!profilesError && profilesData) {
+          profilesData.forEach((p) => profilesMap.set(p.id, p));
+        }
+      }
+
       const mapped: StoredRequest[] = unifiedData.map((item: any) => ({
         id: item.id,
         type: item.type || "general",
@@ -138,7 +143,7 @@ export function MyTasksPage() {
         feeSettledAt: item.fee_settled_at || item.feeSettledAt,
         photoUrls: item.photo_urls || item.photoUrls || [],
         paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
-        requestorProfile: item.profiles
+        requestorProfile: profilesMap.get(item.user_id) || null
       }));
 
       setTasks(mapped);
