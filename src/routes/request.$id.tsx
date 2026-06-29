@@ -398,11 +398,10 @@ function RequestDetailPage() {
         const fileExt = file.name.split(".").pop();
         const fileName = `${user?.id}-${Date.now()}-${i}.${fileExt}`;
         
-        // FIXED: Using request ID as a folder directly in the "chat-attachments" bucket root
         const filePath = `${id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("chat-attachments") // Matches your true bucket name
+          .from("chat-attachments") 
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
@@ -692,7 +691,6 @@ function RequestDetailPage() {
 
     setSubmittingReview(true);
     try {
-      // FIXED: Swapped roles mapping depending on who is authoring the submit review payload
       const insertPayload = {
         request_id: request.id,
         requester_id: isOwner ? request.userId : request.takenBy,
@@ -897,6 +895,32 @@ function RequestDetailPage() {
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <MapPin className="h-3 w-3 shrink-0" /> {request.locationLabel}
               </p>
+
+              {/* 📸 Reference Photo Gallery Box Injected Directly below the Iframe indicators */}
+              {request.photoUrls && request.photoUrls.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <ImageIcon className="h-3.5 w-3.5 text-accent" /> Reference Gallery Layout
+                  </h4>
+                  <div className={`grid gap-2.5 ${
+                    request.photoUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'
+                  }`}>
+                    {request.photoUrls.map((url, index) => (
+                      <div 
+                        key={index} 
+                        className="relative aspect-[4/3] rounded-xl overflow-hidden border bg-muted group cursor-pointer"
+                        onClick={() => window.open(url, '_blank')}
+                      >
+                        <img 
+                          src={url} 
+                          alt={`Reference layout attachment slot ${index + 1}`} 
+                          className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
