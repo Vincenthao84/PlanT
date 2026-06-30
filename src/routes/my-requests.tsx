@@ -22,7 +22,7 @@ interface ExtendedStoredRequest extends StoredRequest {
   fee_settled_at?: string | null;
   feeReceivedAt?: string | null;
   fee_received_at?: string | null;
-  hasOwnerReview?: boolean;
+  hasMyReviewRow?: boolean; // True if the current user left a row in request_ratings
 }
 
 export const Route = createFileRoute("/my-requests")({
@@ -40,17 +40,17 @@ function MyRequestsPage() {
     
     async function loadData() {
       try {
-        // 1. Fetch requests created by the user
+        // 1. Fetch base requests created by this user
         const baseData = await fetchMyRequests(user.id);
         
-        if (baseData.length === 0) {
+        if (!baseData || baseData.length === 0) {
           setRequests([]);
           return;
         }
 
         const requestIds = baseData.map(r => r.id);
 
-        // 2. Query to look up reviews left by this Request owner
+        // 2. Query request_ratings table where requester_id is the current user (the person who wrote the review)
         const { data: ratingsData } = await supabase
           .from("request_ratings")
           .select("request_id")
@@ -59,10 +59,10 @@ function MyRequestsPage() {
 
         const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
 
-        // 3. Merge flags, adapting to both camelCase and snake_case API mappings
+        // 3. Enrich with database mapping fallbacks for safety
         const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => ({
           ...r,
-          hasOwnerReview: reviewedRequestIds.has(r.id)
+          hasMyReviewRow: reviewedRequestIds.has(r.id)
         }));
 
         setRequests(enrichedRequests);
@@ -83,13 +83,13 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests: true finalized items drop to the bottom
+  // Sort requests: Finalized items drop to the bottom of the list
   const sortedRequests = [...requests].sort((a, b) => {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
     
-    const aFinalized = aHasFee && !!a.hasOwnerReview;
-    const bFinalized = bHasFee && !!b.hasOwnerReview;
+    const aFinalized = aHasFee && !!a.hasMyReviewRow;
+    const bFinalized = bHasFee && !!b.hasMyReviewRow;
     
     if (aFinalized && !bFinalized) return 1;
     if (!aFinalized && bFinalized) return -1;
@@ -106,7 +106,7 @@ function MyRequestsPage() {
         {sortedRequests.length === 0 ? (
           <Card className="p-8 text-center space-y-4 border-dashed">
             <p className="text-muted-foreground text-sm">You haven't posted any help requests yet.</p>
-            <Button asChild className="rounded-full">
+            <Button asChild rounded-full>
               <Link to="/">Create Your First Request</Link>
             </Button>
           </Card>
@@ -116,25 +116,27 @@ function MyRequestsPage() {
               const typeMeta = getRequestType(r.type);
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
-              
-              // Resolve status flags supporting safe fallbacks for either snake or camel naming structures
+
+              // Safely handle database camelCase vs snake_case parsing variations
+              const takenBy = r.takenBy || r.taken_by;
+              const reward = r.reward;
               const freshFeeReceived = r.feeReceivedAt || r.fee_received_at;
               const freshFeeSettled = r.feeSettledAt || r.fee_settled_at;
               const freshCompleted = r.completedAt || r.completed_at;
               const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
               const freshCreatedAt = r.createdAt || r.created_at;
 
-              // Combined Finalization Rule: Receipt Confirmed + Evaluated by Owner
-              const isFinalized = !!(freshFeeReceived && r.hasOwnerReview);
+              // Finalized Status Checklist Rule: Confirmed Receipt + Review Written by Requestor
+              const isFinalized = !!(freshFeeReceived && r.hasMyReviewRow);
 
-              // Compute the correct active status flag dynamically based on running phases
+              // Compute stages seamlessly matching Task workflows
               let statusBadge = (
                 <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
                   Open Board
                 </Badge>
               );
 
-              if (r.takenBy || r.taken_by) {
+              if (takenBy) {
                 if (freshFeeReceived) {
                   statusBadge = (
                     <Badge className="bg-teal-500/10 text-teal-600 border-none rounded-full text-[11px] font-medium">
@@ -181,9 +183,9 @@ function MyRequestsPage() {
                             {typeMeta?.label || "Request"}
                           </Badge>
                           {statusBadge}
-                          {r.reward !== undefined && (
+                          {reward !== undefined && reward !== null && (
                             <Badge variant="secondary" className="bg-accent/10 text-accent rounded-full text-[11px] font-medium gap-1">
-                              <Gift className="h-3 w-3" /> ${r.reward}
+                              <Gift className="h-3 w-3" /> ${reward}
                             </Badge>
                           )}
                         </div>
@@ -205,7 +207,7 @@ function MyRequestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-                      {(r.takenBy || r.taken_by) && (
+                      {takenBy && (
                         <Button
                           variant={isChatOpen ? "secondary" : "outline"}
                           size="sm"
