@@ -206,9 +206,9 @@ function NewRequestPage() {
 
           uploadedUrls.push(publicUrl);
         }
-        setUploadingImages(false);
       }
 
+      // ✅ FIXED: Changed 'images: uploadedUrls' to 'photoUrls: uploadedUrls' to match database mapping handler
       const created = await createRequest({
         type: type.slug,
         title: title.trim(),
@@ -218,7 +218,7 @@ function NewRequestPage() {
         lng,
         reward: reward.trim(),
         isSecret,
-        images: uploadedUrls, 
+        photoUrls: uploadedUrls, 
       });
       
       void navigate({ to: "/request/$id", params: { id: created.id } });
@@ -226,12 +226,12 @@ function NewRequestPage() {
       console.error(err);
       const msg = err instanceof Error ? err.message : "Could not post request";
       toast.error(msg);
+    } finally {
       setSubmitting(false);
       setUploadingImages(false);
     }
   };
 
-  // Build embedded map URL if coordinates exist
   const mapEmbedUrl = coords
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${coords.lng - 0.005}%2C${coords.lat - 0.003}%2C${coords.lng + 0.005}%2C${coords.lat + 0.003}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`
     : null;
@@ -296,7 +296,6 @@ function NewRequestPage() {
                   />
                 </label>
 
-                {/* FIXED: Removed extra wrapper brackets around this .map loop expression */}
                 {selectedFiles.map((file, idx) => (
                   <div key={idx} className="relative w-28 h-24 rounded-xl overflow-hidden border bg-muted group animate-in fade-in zoom-in-95 duration-150">
                     <img 
