@@ -585,7 +585,7 @@ function RequestDetailPage() {
     }
   }
 
- async function handleUpdateRequest(e: React.FormEvent) {
+async function handleUpdateRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!request || updatingRequest) return;
 
@@ -618,7 +618,7 @@ function RequestDetailPage() {
         }
       }
 
-      // Check current task status inline
+      // Check current task assignment status inline
       const { data: freshRecord, error: fetchError } = await supabase
         .from("requests")
         .select("taken_by")
@@ -636,10 +636,14 @@ function RequestDetailPage() {
       const targetLat = editCoords?.lat ?? request.lat ?? 48.8566;
       const targetLng = editCoords?.lng ?? request.lng ?? 2.3522;
       
-      // Explicitly convert value to strict boolean primitive to prevent constraint blocks
-      const safeSecretFlag = Boolean(request.is_secret || request.isSecret);
+      // Strict extraction to guard against object references tripping Postgres boolean filters
+      const safeSecretFlag = typeof request.is_secret === 'boolean' 
+        ? request.is_secret 
+        : typeof request.isSecret === 'boolean' 
+          ? request.isSecret 
+          : false;
 
-      // Cleaned update payload matching Postgres columns explicitly
+      // Update payload matching Postgres columns directly
       const { error } = await supabase
         .from("requests")
         .update({
