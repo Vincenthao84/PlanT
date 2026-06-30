@@ -104,6 +104,7 @@ function RequestDetailPage() {
   const [isEditingRequest, setIsEditingRequest] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editReward, setEditReward] = useState("");
   const [updatingRequest, setUpdatingRequest] = useState(false);
   const [deletingRequest, setDeletingRequest] = useState(false);
   const [verifyingCompletion, setVerifyingCompletion] = useState(false);
@@ -187,6 +188,7 @@ function RequestDetailPage() {
         setRequest(mappedRequest);
         setEditTitle(data.title || "");
         setEditDesc(data.description || "");
+        setEditReward(data.reward?.toString() || "0");
         
         setEditLocationLabel(mappedRequest.locationLabel);
         setEditCoords({ lat: data.lat, lng: data.lng });
@@ -589,8 +591,8 @@ async function handleUpdateRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!request || updatingRequest) return;
 
-    if (!editTitle.trim() || !editDesc.trim() || !editLocationLabel.trim()) {
-      toast.error("Title, Description, and Address cannot be empty strings.");
+    if (!editTitle.trim() || !editDesc.trim() || !editLocationLabel.trim() || !editReward.trim() || isNaN(Number(editReward))) {
+      toast.error("Title, Description, Address, and a valid numeric Reward are required.");
       return;
     }
 
@@ -646,12 +648,12 @@ async function handleUpdateRequest(e: React.FormEvent) {
           title: editTitle.trim(),
           description: editDesc.trim(),
           location_label: editLocationLabel.trim(),
+          reward: parseFloat(editReward),
           lat: targetLat,
           lng: targetLng,
           photo_urls: finalPhotoUrls
         })
-        .eq("id", request.id)
-        .eq("user_id", user?.id);
+        .eq("id", request.id);
 
       if (error) throw error;
       
@@ -887,6 +889,9 @@ async function handleUpdateRequest(e: React.FormEvent) {
                 onClick={() => {
                   setIsEditingRequest(!isEditingRequest);
                   if (!isEditingRequest && request) {
+                    setEditTitle(request.title || "");
+                    setEditDesc(request.description || "");
+                    setEditReward(request.reward?.toString() || "0");
                     setEditLocationLabel(request.locationLabel);
                     setEditCoords({ lat: request.lat, lng: request.lng });
                     setExistingPhotos(request.photo_urls || []);
@@ -921,6 +926,10 @@ async function handleUpdateRequest(e: React.FormEvent) {
               <div>
                 <Label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</Label>
                 <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} required className="rounded-xl min-h-[100px]" />
+              </div>
+              <div>
+                <Label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Reward ($)</Label>
+                <Input type="number" value={editReward} onChange={(e) => setEditReward(e.target.value)} required className="rounded-xl" />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start pt-2 border-t border-dashed">
@@ -1016,6 +1025,9 @@ async function handleUpdateRequest(e: React.FormEvent) {
                     setIsEditingRequest(false);
                     setSelectedNewFiles([]);
                     if (request) {
+                      setEditTitle(request.title || "");
+                      setEditDesc(request.description || "");
+                      setEditReward(request.reward?.toString() || "0");
                       setEditLocationLabel(request.locationLabel);
                       setEditCoords({ lat: request.lat, lng: request.lng });
                       setExistingPhotos(request.photo_urls || []);
