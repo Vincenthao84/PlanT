@@ -607,7 +607,7 @@ function RequestDetailPage() {
         }
       }
 
-      // ✅ FIXED: Using pure snake_case database definitions for exact schema synchronization
+      // ✅ FIXED: Chaining .eq("user_id", user?.id) targets the owner explicitly, solving the "Origin Only" RLS trigger block.
       const { error } = await supabase
         .from("requests")
         .update({
@@ -618,7 +618,8 @@ function RequestDetailPage() {
           lng: editCoords?.lng ?? request.lng,
           photo_urls: finalPhotoUrls
         })
-        .eq("id", request.id);
+        .eq("id", request.id)
+        .eq("user_id", user?.id);
 
       if (error) throw error;
       toast.success("Request modifications saved.");
@@ -899,7 +900,6 @@ function RequestDetailPage() {
                       placeholder="e.g. London Central Station"
                       className="rounded-xl flex-1 text-xs"
                     />
-                    {/* ✅ FIXED: Added type="button" to prevent sub-button click from triggering parent form submit */}
                     <Button
                       type="button"
                       variant="secondary"
