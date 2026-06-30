@@ -23,6 +23,7 @@ interface ExtendedStoredRequest extends StoredRequest {
   feeReceivedAt?: string | null;
   fee_received_at?: string | null;
   hasMyReview?: boolean;
+  accepted_bid_id?: string | null;
 }
 
 export const Route = createFileRoute("/my-requests")({
@@ -77,7 +78,9 @@ function MyRequestsPage() {
           return {
             ...r,
             id: currentId,
-            hasMyReview: reviewedRequestIds.has(currentId)
+            hasMyReview: reviewedRequestIds.has(currentId),
+            // Explicitly preserve or map snake_case accepted_bid_id field data safely
+            accepted_bid_id: r.accepted_bid_id || r.acceptedBidId || null
           };
         });
 
@@ -88,6 +91,7 @@ function MyRequestsPage() {
         setLoading(false);
       }
     }
+
     void loadData();
   }, [user]);
 
@@ -103,121 +107,110 @@ function MyRequestsPage() {
   const sortedRequests = [...requests].sort((a, b) => {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
+    if (aHasFee && !bHasFee) return 1;
+    if (!aHasFee && bHasFee) return -1;
     
-    const aFinalized = aHasFee && !!a.hasMyReview;
-    const bFinalized = bHasFee && !!b.hasMyReview;
-    
-    if (aFinalized && !bFinalized) return 1;
-    if (!aFinalized && bFinalized) return -1;
-    return 0;
+    const aTime = new Date(a.createdAt || a.created_at || 0).getTime();
+    const bTime = new Date(b.createdAt || b.created_at || 0).getTime();
+    return bTime - aTime;
   });
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       <SiteHeader />
-      <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">My Requests</h1>
-        <p className="text-muted-foreground text-sm mb-8">Track status updates and review chat matrices for issues you posted.</p>
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 sm:py-12">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight">My Requests</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Manage your posts, accept helper offers, monitor payouts, and track mutual status milestones.
+          </p>
+        </div>
 
         {sortedRequests.length === 0 ? (
-          <Card className="p-8 text-center space-y-4 border-dashed">
-            <p className="text-muted-foreground text-sm">You haven't posted any help requests yet.</p>
-            <Button asChild rounded-full>
-              <Link to="/">Create Your First Request</Link>
+          <div className="text-center py-16 border border-dashed rounded-2xl bg-muted/30">
+            <p className="text-sm text-muted-foreground">You haven't posted any assistance requests yet.</p>
+            <Button asChild size="sm" className="mt-4 rounded-xl">
+              <Link to="/post-request">Post a Request</Link>
             </Button>
-          </Card>
+          </div>
         ) : (
           <div className="space-y-4">
             {sortedRequests.map((r) => {
-              const typeMeta = getRequestType(r.type);
-              const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
-
+              const typeConfig = getRequestType(r.type);
+              
               const takenBy = r.takenBy || r.taken_by;
-              const reward = r.reward;
-              const freshFeeReceived = r.feeReceivedAt || r.fee_received_at;
-              const freshFeeSettled = r.feeSettledAt || r.fee_settled_at;
-              const freshCompleted = r.completedAt || r.completed_at;
-              const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
-              const freshCreatedAt = r.createdAt || r.created_at;
+              const takerCompleted = !!(r.takerCompletedAt || r.taker_completed_at);
+              const completed = !!(r.completedAt || r.completed_at);
+              const feeSettled = !!(r.feeSettledAt || r.fee_settled_at);
+              const feeReceived = !!(r.feeReceivedAt || r.fee_received_at);
 
-              // Finalized display condition
-              const isFinalized = !!(freshFeeReceived && r.hasMyReview);
-
-              let statusBadge = (
-                <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
-                  Open Board
-                </Badge>
-              );
-
-              if (takenBy) {
-                if (freshFeeReceived) {
-                  statusBadge = (
-                    <Badge className="bg-teal-500/10 text-teal-600 border-none rounded-full text-[11px] font-medium">
-                      Fee Settlement Done
-                    </Badge>
-                  );
-                } else if (freshFeeSettled) {
-                  statusBadge = (
-                    <Badge className="bg-blue-500/10 text-blue-600 border-none rounded-full text-[11px]">
-                      Paid
-                    </Badge>
-                  );
-                } else if (freshCompleted) {
-                  statusBadge = (
-                    <Badge className="bg-green-500/10 text-green-600 border-none rounded-full text-[11px]">
-                      Verified Complete
-                    </Badge>
-                  );
-                } else if (freshTakerCompleted) {
-                  statusBadge = (
-                    <Badge className="bg-amber-500/10 text-amber-600 border-none rounded-full text-[11px]">
-                      Helper Completed
-                    </Badge>
-                  );
-                } else {
-                  statusBadge = (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-none rounded-full text-[11px]">
-                      Assigned
-                    </Badge>
-                  );
-                }
+              let statusLabel = "Open";
+              let statusColor = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20";
+              
+              if (feeReceived) {
+                statusLabel = "Archived & Closed";
+                statusColor = "bg-muted text-muted-foreground border-transparent";
+              } else if (completed) {
+                statusLabel = "Awaiting Payout Transfer";
+                statusColor = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20";
+              } else if (feeSettled) {
+                statusLabel = "Processing Payout Approval";
+                statusColor = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20";
+              } else if (takerCompleted) {
+                statusLabel = "Pending Your Verification";
+                statusColor = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 animate-pulse";
+              } else if (takenBy) {
+                statusLabel = "Assigned & In Progress";
+                statusColor = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
               }
 
               return (
-                <Card key={r.id} className={`p-5 transition-all ${isFinalized ? "opacity-60 bg-muted/20 border-muted/60 shadow-none" : ""}`}>
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="flex gap-3">
-                      <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
-                        <Icon className="h-5 w-5" />
+                <Card key={r.id} className={`p-5 sm:p-6 rounded-2xl transition-all shadow-sm ${feeReceived ? 'opacity-70 bg-muted/20 hover:opacity-90' : 'hover:shadow-md bg-card border-border/60'}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className={`rounded-lg font-medium text-[10px] ${typeConfig.color} bg-background/50 border-current/20`}>
+                          {typeConfig.label}
+                        </Badge>
+                        <Badge variant="outline" className={`rounded-lg text-[10px] font-medium ${statusColor}`}>
+                          {statusLabel}
+                        </Badge>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="secondary" className="text-[11px] rounded-full">
-                            {typeMeta?.label || "Request"}
-                          </Badge>
-                          {statusBadge}
-                          {reward !== undefined && reward !== null && (
-                            <Badge variant="secondary" className="bg-accent/10 text-accent rounded-full text-[11px] font-medium gap-1">
-                              <Gift className="h-3 w-3" /> ${reward}
-                            </Badge>
-                          )}
-                        </div>
-                        <h3 className={`font-semibold text-base mt-1 tracking-tight transition-all ${isFinalized ? "line-through text-muted-foreground/50 select-none" : ""}`}>
-                          {r.title}
-                        </h3>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
-                          <p className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-accent shrink-0" /> {r.locationLabel || r.location_label}
-                          </p>
-                          {freshCreatedAt && (
-                            <p className="flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-muted-foreground shrink-0" /> 
-                              {new Date(freshCreatedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                            </p>
-                          )}
-                        </div>
+                      <h3 className="text-sm font-semibold text-foreground truncate pr-4">
+                        {r.title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {r.description}
+                      </p>
+                    </div>
+
+                    <div className="text-left sm:text-right shrink-0">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Allocated Reward</div>
+                      <div className="text-sm font-bold text-primary flex items-center sm:justify-end gap-1 mt-0.5">
+                        <Gift className="h-3.5 w-3.5" />
+                        <span>${r.reward ?? 0}</span>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 mt-4 border-t border-border/40 text-[11px] sm:text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                      <span className="truncate">{r.locationLabel || r.location_label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                      <span className="truncate">
+                        Created {r.createdAt || r.created_at ? new Date(r.createdAt || r.created_at || "").toLocaleDateString() : ""}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-1">
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                      {takerCompleted && !completed && "⚠️ Helper flagged task done. Check details to verify."}
+                      {completed && !feeSettled && "👉 Verified! Complete payout processing steps via details."}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
@@ -232,7 +225,7 @@ function MyRequestsPage() {
                           Chat
                         </Button>
                       )}
-                      <Button asChild size="sm" variant="ghost" className="rounded-xl h-9">
+                      <Button asChild size="sm" className="rounded-xl h-9" variant="ghost">
                         <Link to="/request/$id" params={{ id: r.id }}>
                           Details <ArrowRight className="h-3.5 w-3.5 ml-1" />
                         </Link>
@@ -246,6 +239,7 @@ function MyRequestsPage() {
                         requestId={r.id}
                         currentUserId={user!.id}
                         requestOwnerId={r.userId || r.user_id}
+                        bidId={r.accepted_bid_id} // Fixed to sync seamlessly with Single Request Page chats
                       />
                     </div>
                   )}
