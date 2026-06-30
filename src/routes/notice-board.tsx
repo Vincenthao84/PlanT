@@ -265,7 +265,7 @@ function NoticeBoardPage() {
                 {r.reward && (
                   <span className="inline-flex items-center gap-1 font-medium text-foreground shrink-0">
                     <Gift className="h-3 w-3 text-accent" />
-                    Suggested: {r.reward}
+                    Suggested: ${r.reward}
                   </span>
                 )}
               </div>
