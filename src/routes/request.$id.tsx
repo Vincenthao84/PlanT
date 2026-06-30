@@ -587,7 +587,7 @@ function RequestDetailPage() {
     }
   }
 
-async function handleUpdateRequest(e: React.FormEvent) {
+  async function handleUpdateRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!request || updatingRequest) return;
 
@@ -640,8 +640,6 @@ async function handleUpdateRequest(e: React.FormEvent) {
       const targetLng = editCoords?.lng ?? request.lng ?? 2.3522;
 
       // 3. Clean Update Payload
-      // We ONLY send core columns to satisfy the check_secret_request_on_update trigger.
-      // NO duplicate camelCase properties (like locationLabel or photoUrls) are included.
       const { error } = await supabase
         .from("requests")
         .update({
