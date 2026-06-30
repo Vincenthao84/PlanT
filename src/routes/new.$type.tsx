@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, MapPin, Loader2, EyeOff, Image as ImageIcon, X } from "lucide-react";
+import { ArrowLeft, MapPin, Loader2, EyeOff, Image as ImageIcon, X, Map } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { getRequestType, createRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
@@ -85,6 +85,7 @@ function NewRequestPage() {
   const [isSecret, setIsSecret] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [searchingMap, setSearchingMap] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // 📸 Media Storage Hooks
@@ -112,6 +113,36 @@ function NewRequestPage() {
       },
       { enableHighAccuracy: true, timeout: 8000 },
     );
+  };
+
+  // 🗺️ Dynamic Preview Lookup Event Handler
+  const handleShowMapLookup = async () => {
+    if (!locationLabel.trim()) {
+      toast.error("Please enter an address or region first before showing the map.");
+      return;
+    }
+    setSearchingMap(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(locationLabel)}`,
+        { headers: { "Accept-Language": "en", "User-Agent": "PlanT-Notice-Board-App" } },
+      );
+      const data = (await res.json()) as Array<{ lat: string; lon: string }>;
+      if (data && data[0]) {
+        setCoords({
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        });
+        toast.success("Location pinpointed on preview map!");
+      } else {
+        toast.error("Could not find coordinates for this address text. Try typing a broader neighborhood name.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred during geocoding lookup.");
+    } finally {
+      setSearchingMap(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,12 +188,10 @@ function NewRequestPage() {
     try {
       const uploadedUrls: string[] = [];
       
-      // FIXED: Using verified active 'task-photos' bucket with a subfolder routing prefix
       if (selectedFiles.length > 0) {
         setUploadingImages(true);
         for (const file of selectedFiles) {
           const fileExt = file.name.split('.').pop();
-          // Organizing request attachments into their own clear folder path schema
           const uniquePath = `request-attachments/${user?.id || 'anonymous'}/${crypto.randomUUID()}.${fileExt}`;
           
           const { error: uploadError } = await supabase.storage
@@ -180,8 +209,6 @@ function NewRequestPage() {
         setUploadingImages(false);
       }
 
-      // Passes the output arrays to your input interface rules
-      // ✅ CHANGED: Named the parameter key 'photoUrls' instead of 'images' to match NewRequestInput schema mapping requirements
       const created = await createRequest({
         type: type.slug,
         title: title.trim(),
@@ -191,7 +218,7 @@ function NewRequestPage() {
         lng,
         reward: reward.trim(),
         isSecret,
-        photoUrls: uploadedUrls, 
+        images: uploadedUrls, 
       });
       
       void navigate({ to: "/request/$id", params: { id: created.id } });
@@ -203,6 +230,11 @@ function NewRequestPage() {
       setUploadingImages(false);
     }
   };
+
+  // Build embedded map URL if coordinates exist
+  const mapEmbedUrl = coords
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${coords.lng - 0.005}%2C${coords.lat - 0.003}%2C${coords.lng + 0.005}%2C${coords.lat + 0.003}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`
+    : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -246,7 +278,7 @@ function NewRequestPage() {
               />
             </div>
 
-            {/* 📸 INSERTED IMAGE ATTACHMENT BOX BLOCK */}
+            {/* 📸 IMAGE ATTACHMENT BOX BLOCK */}
             <div className="space-y-2">
               <Label>Attach Photos Reference (Optional)</Label>
               <div className="flex items-center gap-3 flex-wrap">
@@ -264,8 +296,7 @@ function NewRequestPage() {
                   />
                 </label>
 
-                {/* Local preview arrays rendering mapping container */}
-                {selectedFiles.map((file, idx) => (
+                {{selectedFiles.map((file, idx) => (
                   <div key={idx} className="relative w-28 h-24 rounded-xl overflow-hidden border bg-muted group animate-in fade-in zoom-in-95 duration-150">
                     <img 
                       src={URL.createObjectURL(file)} 
@@ -280,51 +311,92 @@ function NewRequestPage() {
                       <X className="h-3 w-3" />
                     </button>
                   </div>
-                ))}
+                ))}}
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-5">
+            {/* Dynamic Map Placement Layout Split Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={locationLabel}
-                  onChange={(e) => {
-                    setLocationLabel(e.target.value);
-                    setCoords(null);
-                  }}
-                  placeholder="Address, neighborhood or city"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  onClick={useMyLocation}
-                  disabled={locating}
-                >
-                  {locating ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MapPin className="h-3 w-3 mr-1" />}
-                  Use my current location
-                </Button>
-                <p className="text-xs text-muted-foreground">
+                <div className="flex gap-2">
+                  <Input
+                    id="location"
+                    value={locationLabel}
+                    onChange={(e) => {
+                      setLocationLabel(e.target.value);
+                      setCoords(null);
+                    }}
+                    placeholder="Address, neighborhood or city"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0 gap-1 rounded-xl text-xs h-10 px-3"
+                    onClick={handleShowMapLookup}
+                    disabled={searchingMap || locating}
+                  >
+                    {searchingMap ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Map className="h-3.5 w-3.5" />}
+                    Show Map
+                  </Button>
+                </div>
+                
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={useMyLocation}
+                    disabled={locating || searchingMap}
+                  >
+                    {locating ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MapPin className="h-3 w-3 mr-1" />}
+                    Use my current location
+                  </Button>
+                </div>
+                
+                <p className="text-xs text-muted-foreground pt-1">
                   Please type in the exact address including name of the street, district and country/region.
                 </p>
                 {coords && (
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Pinned at {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+                  <p className="text-[11px] text-muted-foreground font-mono bg-muted/40 p-1.5 rounded-lg inline-block">
+                    Coordinates Locked: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
                   </p>
                 )}
               </div>
+
+              {/* Real-time map preview box next to inputs */}
               <div className="space-y-2">
-                <Label htmlFor="reward">Reward (optional)</Label>
-                <Input
-                  id="reward"
-                  value={reward}
-                  onChange={(e) => setReward(e.target.value)}
-                  placeholder="e.g. €10"
-                />
+                <Label>Map Pin Preview</Label>
+                <Card className="aspect-video w-full rounded-2xl border bg-muted/10 overflow-hidden relative flex items-center justify-center min-h-[140px]">
+                  {mapEmbedUrl ? (
+                    <iframe
+                      title="New Request Realtime Map Preview"
+                      width="100%"
+                      height="100%"
+                      className="border-none absolute inset-0"
+                      src={mapEmbedUrl}
+                    />
+                  ) : (
+                    <div className="text-center p-4 text-xs text-muted-foreground max-w-[200px] space-y-1">
+                      <MapPin className="h-5 w-5 mx-auto opacity-30 text-muted-foreground mb-1" />
+                      <p>Type an address and click <strong className="text-foreground/80">"Show Map"</strong> to view layout verification pin layout.</p>
+                    </div>
+                  )}
+                </Card>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="reward">Reward (optional)</Label>
+              <Input
+                id="reward"
+                value={reward}
+                onChange={(e) => setReward(e.target.value)}
+                placeholder="e.g. €10"
+                className="max-w-xs"
+              />
             </div>
 
             <div className="flex items-start justify-between gap-4 rounded-xl border p-4">
@@ -333,7 +405,7 @@ function NewRequestPage() {
                   <EyeOff className="h-4 w-4 text-muted-foreground" /> Secret Request
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Hide your username on the notice board. Helpers will see "Secret Request" instead.
+                  Hide your username on the notice board. Helpers will see \"Secret Request\" instead.
                 </p>
               </div>
               <Switch id="secret" checked={isSecret} onCheckedChange={setIsSecret} />
