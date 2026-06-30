@@ -22,7 +22,7 @@ interface ExtendedStoredRequest extends StoredRequest {
   fee_settled_at?: string | null;
   feeReceivedAt?: string | null;
   fee_received_at?: string | null;
-  is_finalized_by_history?: boolean; 
+  hasMyReview?: boolean;
 }
 
 export const Route = createFileRoute("/my-requests")({
@@ -50,27 +50,20 @@ function MyRequestsPage() {
 
         const requestIds = baseData.map(r => r.id);
 
-        // 2. Bypass request_ratings RLS filter by checking request_history entries 
-        // generated when the requester leaves a rating/comment milestone action
-        const { data: historyLogs } = await supabase
-          .from("request_history")
-          .select("request_id, action")
+        // 2. Query request_ratings table where requester_id is the current user (the author of the comment)
+        const { data: ratingsData } = await supabase
+          .from("request_ratings")
+          .select("request_id")
           .in("request_id", requestIds)
-          .textSearch("action", "'rate' | 'review' | 'comment' | 'complete'");
+          .eq("requester_id", user.id);
 
-        const finalizedHistoryIds = new Set(historyLogs?.map(h => h.request_id) || []);
+        const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
 
-        // 3. Map status onto data array objects securely
-        const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => {
-          const hasFeeReceived = !!(r.feeReceivedAt || r.fee_received_at);
-          // Fallback: If fee is received and history contains the completion action, it's finalized
-          const isFinalizedLog = finalizedHistoryIds.has(r.id) || (hasFeeReceived && (r as any).status === "completed");
-          
-          return {
-            ...r,
-            is_finalized_by_history: isFinalizedLog
-          };
-        });
+        // 3. Map review statuses onto data array objects securely
+        const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => ({
+          ...r,
+          hasMyReview: reviewedRequestIds.has(r.id)
+        }));
 
         setRequests(enrichedRequests);
       } catch (err) {
@@ -95,8 +88,8 @@ function MyRequestsPage() {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
     
-    const aFinalized = aHasFee && !!a.is_finalized_by_history;
-    const bFinalized = bHasFee && !!b.is_finalized_by_history;
+    const aFinalized = aHasFee && !!a.hasMyReview;
+    const bFinalized = bHasFee && !!b.hasMyReview;
     
     if (aFinalized && !bFinalized) return 1;
     if (!aFinalized && bFinalized) return -1;
@@ -124,7 +117,7 @@ function MyRequestsPage() {
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
 
-              // Parsing helper flags supporting snake_case / camelCase database definitions
+              // Support both snake_case / camelCase database variants seamlessly
               const takenBy = r.takenBy || r.taken_by;
               const reward = r.reward;
               const freshFeeReceived = r.feeReceivedAt || r.fee_received_at;
@@ -133,10 +126,10 @@ function MyRequestsPage() {
               const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
               const freshCreatedAt = r.createdAt || r.created_at;
 
-              // Finalized display validation rule
-              const isFinalized = !!(freshFeeReceived && r.is_finalized_by_history);
+              // Cross out condition: Helper confirmed receipt + you submitted review
+              const isFinalized = !!(freshFeeReceived && r.hasMyReview);
 
-              // Workflow Status Pipeline Rendering Engine
+              // Step workflow status badges
               let statusBadge = (
                 <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
                   Open Board
@@ -233,7 +226,7 @@ function MyRequestsPage() {
                     </div>
                   </div>
 
-                  {/* Chat interface dropdown layer block */}
+                  {/* Chat interface dropdown block */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
                       <TaskThread
