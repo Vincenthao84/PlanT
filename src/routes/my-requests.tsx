@@ -22,7 +22,7 @@ interface ExtendedStoredRequest extends StoredRequest {
   fee_settled_at?: string | null;
   feeReceivedAt?: string | null;
   fee_received_at?: string | null;
-  hasMyReviewRow?: boolean; // True if the current user left a row in request_ratings
+  hasMyReviewRow?: boolean;
 }
 
 export const Route = createFileRoute("/my-requests")({
@@ -40,7 +40,7 @@ function MyRequestsPage() {
     
     async function loadData() {
       try {
-        // 1. Fetch base requests created by this user
+        // 1. Fetch requests created by this user
         const baseData = await fetchMyRequests(user.id);
         
         if (!baseData || baseData.length === 0) {
@@ -50,7 +50,7 @@ function MyRequestsPage() {
 
         const requestIds = baseData.map(r => r.id);
 
-        // 2. Query request_ratings table where requester_id is the current user (the person who wrote the review)
+        // 2. Look up review rows submitted by you (the request creator)
         const { data: ratingsData } = await supabase
           .from("request_ratings")
           .select("request_id")
@@ -59,7 +59,7 @@ function MyRequestsPage() {
 
         const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
 
-        // 3. Enrich with database mapping fallbacks for safety
+        // 3. Inject review completed status into state data mapping
         const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => ({
           ...r,
           hasMyReviewRow: reviewedRequestIds.has(r.id)
@@ -83,7 +83,7 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests: Finalized items drop to the bottom of the list
+  // Sort requests: Finalized items (Fee receipt confirmed + Owner review submitted) move to the bottom
   const sortedRequests = [...requests].sort((a, b) => {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
@@ -117,7 +117,7 @@ function MyRequestsPage() {
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
 
-              // Safely handle database camelCase vs snake_case parsing variations
+              // Safe normalization fallbacks for backend snake_case or frontend camelCase values
               const takenBy = r.takenBy || r.taken_by;
               const reward = r.reward;
               const freshFeeReceived = r.feeReceivedAt || r.fee_received_at;
@@ -126,10 +126,10 @@ function MyRequestsPage() {
               const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
               const freshCreatedAt = r.createdAt || r.created_at;
 
-              // Finalized Status Checklist Rule: Confirmed Receipt + Review Written by Requestor
+              // True closure check: Receipt confirmed + Review submitted by request owner
               const isFinalized = !!(freshFeeReceived && r.hasMyReviewRow);
 
-              // Compute stages seamlessly matching Task workflows
+              // Step workflow status badges matching system pipelines
               let statusBadge = (
                 <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
                   Open Board
