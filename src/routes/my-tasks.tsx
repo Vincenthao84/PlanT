@@ -71,6 +71,7 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
+      // 1. Fetch tasks where you are explicitly marked as the taker
       const { data: directData, error: directError } = await supabase
         .from("requests")
         .select(`
@@ -81,6 +82,7 @@ export function MyTasksPage() {
 
       if (directError) throw directError;
 
+      // 2. Fetch tasks via request_bids table where bid is accepted
       const { data: bidData, error: bidError } = await supabase
         .from("request_bids")
         .select(`
@@ -96,6 +98,7 @@ export function MyTasksPage() {
 
       if (bidError) throw bidError;
 
+      // Unify entries into a single map keyed by request ID to prevent duplicate listings
       const combinedMap = new Map<string, any>();
 
       if (directData) {
@@ -114,6 +117,8 @@ export function MyTasksPage() {
       }
 
       const unifiedData = Array.from(combinedMap.values());
+
+      // 3. Extract all unique user_ids of the requesters to fetch profiles separately
       const requestorUserIds = Array.from(new Set(unifiedData.map((item) => item.user_id).filter(Boolean)));
       
       let profilesMap = new Map<string, any>();
@@ -148,7 +153,7 @@ export function MyTasksPage() {
           takerCompletedAt: item.taker_completed_at || item.takerCompletedAt,
           completedAt: item.completed_at || item.completedAt,
           feeSettledAt: item.fee_settled_at || item.feeSettledAt,
-          photoUrls: item.photo_urls || item.photoUrls || [], 
+          photoUrls: item.photo_urls || item.photoUrls || [],
           paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
           requestorProfile: profilesMap.get(item.user_id) || null,
           bidId: resolvedBidId
@@ -173,320 +178,246 @@ export function MyTasksPage() {
     setRefreshing(true);
     await getAssignedTasks(user.id);
     setRefreshing(false);
-    toast.success("Task list synchronized.");
+    toast.success("Tasks refreshed");
   };
 
-  if (authLoading) {
+  if (authLoading || !isMounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-sm text-muted-foreground">
-        Verifying credential scopes...
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
+        Loading…
       </div>
     );
   }
 
-  if (isMounted && !user) {
-    return <Navigate to="/" replace />;
+  if (!user) {
+    return <Navigate to="/login" />;
   }
 
-  const activeTasks = tasks?.filter(t => !t.completedAt) || [];
-  const completedTasks = tasks?.filter(t => !!t.completedAt) || [];
-
-  const handleCompleteClick = async (requestId: string) => {
+  const handleToggleComplete = async (r: StoredRequest) => {
     try {
-      const success = await takerCompleteRequest(requestId);
-      if (success) {
-        toast.success("Marked task as completed! Awaiting requester verification.");
-        if (user?.id) void getAssignedTasks(user.id);
-      }
-    } catch {
-      toast.error("Could not update task state.");
-    }
-  };
-
-  const handleReopenClick = async (requestId: string) => {
-    try {
-      const success = await takerReopenRequest(requestId);
-      if (success) {
-        toast.success("Task marked back as in-progress.");
-        if (user?.id) void getAssignedTasks(user.id);
-      }
-    } catch {
-      toast.error("Could not reopen task.");
+      const updated = r.takerCompletedAt
+        ? await takerReopenRequest(r.id)
+        : await takerCompleteRequest(r.id);
+      setTasks((prev) =>
+        prev ? prev.map((x) => (x.id === r.id ? { ...updated, requestorProfile: x.requestorProfile } : x)) : prev,
+      );
+      toast.success(
+        updated.takerCompletedAt
+          ? "Marked complete — waiting for requester to confirm"
+          : "Reopened",
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not update";
+      toast.error(msg);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background selection:bg-primary/10">
+    <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
-      
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 sm:py-12">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-              My Tasks
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track real-time updates on tasks you are completing for other members.
+            <Badge variant="secondary" className="rounded-full mb-2">My tasks</Badge>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Requests you've taken</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Tasks you've claimed from the notice board.
             </p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleManualRefresh} 
-            disabled={refreshing}
-            className="rounded-xl h-9 text-xs w-full sm:w-auto"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 mr-2 ${refreshing ? "animate-spin text-primary" : ""}`} />
-            Refresh Feeds
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button 
+              onClick={handleManualRefresh} 
+              variant="outline" 
+              size="icon" 
+              className="rounded-full shrink-0"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            </Button>
+            <Button asChild variant="outline" className="rounded-full flex-1 sm:flex-none text-xs sm:text-sm">
+              <Link to="/notice-board">Browse notice board</Link>
+            </Button>
+          </div>
         </div>
 
         {tasks === null ? (
-          <div className="space-y-4">
-            {[1, 2].map((i) => (
-              <div key={i} className="h-44 w-full bg-muted/40 animate-pulse rounded-2xl border" />
-            ))}
-          </div>
+          <p className="text-muted-foreground text-sm">Loading tasks…</p>
         ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center py-20 border border-dashed rounded-2xl bg-muted/20 px-4">
-            <div className="p-3 bg-muted rounded-2xl mb-4 text-muted-foreground">
-              <ClipboardList className="h-6 w-6" />
+          <Card className="p-8 sm:p-12 text-center" style={{ boxShadow: "var(--shadow-soft)" }}>
+            <div className="inline-flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
+              <Inbox className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
-            <h3 className="text-sm font-semibold">No assigned tasks</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              Browse the Notice Board to find active listings and place bids to help others.
+            <h2 className="text-lg sm:text-xl font-semibold">No tasks yet</h2>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-1 mb-6 max-w-sm mx-auto">
+              You haven't taken any requests. Browse the notice board to find one or try refreshing if you accepted a bid.
             </p>
-            <Button asChild size="sm" className="mt-4 rounded-xl">
-              <Link to="/notice-board">Go to Notice Board</Link>
+            <Button asChild className="rounded-full text-xs">
+              <Link to="/notice-board">Go to notice board</Link>
             </Button>
-          </div>
+          </Card>
         ) : (
-          <div className="space-y-10">
-            {activeTasks.length > 0 && (
-              <div>
-                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                  In Progress ({activeTasks.length})
-                </h2>
-                <div className="space-y-4">
-                  {activeTasks.map((task) => (
-                    <TaskCard 
-                      key={task.id} 
-                      task={task} 
-                      user={user!} 
-                      activeChatTaskId={activeChatTaskId}
-                      setActiveChatTaskId={setActiveChatTaskId}
-                      onComplete={handleCompleteClick}
-                      onReopen={handleReopenClick}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="space-y-4">
+            {tasks.map((r) => {
+              if (!r) return null;
 
-            {completedTasks.length > 0 && (
-              <div>
-                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                  Completed ({completedTasks.length})
-                </h2>
-                <div className="space-y-4">
-                  {completedTasks.map((task) => (
-                    <TaskCard 
-                      key={task.id} 
-                      task={task} 
-                      user={user!} 
-                      activeChatTaskId={activeChatTaskId}
-                      setActiveChatTaskId={setActiveChatTaskId}
-                      onComplete={handleCompleteClick}
-                      onReopen={handleReopenClick}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              const typeString = r.type || "general";
+              const t = getRequestType(typeString);
+              const Icon = t && t.icon ? t.icon : MapPin;
+              const typeLabel = t && t.label ? t.label : "Request";
+              
+              const { takerCompletedAt, completedAt, feeSettledAt, takenAt, id, title, description, locationLabel, reward, userId, takenBy, bidId } = r;
+              
+              const takerDone = !!takerCompletedAt;
+              const fullySettled = !!completedAt && takerDone;
+              const isChatOpen = activeChatTaskId === id;
+              const profile = (r as any).requestorProfile;
+
+              return (
+                <Card key={id} className="p-4 sm:p-5" style={{ boxShadow: "var(--shadow-soft)" }}>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="inline-flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent self-start">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <Badge variant="secondary" className="rounded-full text-[10px] sm:text-xs px-2 py-0">
+                          {typeLabel}
+                        </Badge>
+                        <Badge className="rounded-full text-[10px] sm:text-xs px-2 py-0">
+                          <ClipboardList className="h-2.5 w-2.5 mr-1" /> Taken
+                        </Badge>
+                        {takerDone && !fullySettled && (
+                          <Badge variant="outline" className="rounded-full text-[10px] sm:text-xs px-2 py-0 bg-amber-500/5 text-amber-600 border-amber-500/20 dark:text-amber-400">
+                            <Clock className="h-2.5 w-2.5 mr-1" /> Awaiting requester
+                          </Badge>
+                        )}
+                        {fullySettled && (
+                          <Badge variant="outline" className="rounded-full text-[10px] sm:text-xs px-2 py-0 bg-emerald-500/5 text-emerald-600 border-emerald-500/20 dark:text-emerald-400">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-1" /> Done
+                          </Badge>
+                        )}
+                        {feeSettledAt && (
+                          <Badge className="rounded-full text-[10px] sm:text-xs px-2 py-0 bg-primary text-primary-foreground">
+                            <BadgeCheck className="h-2.5 w-2.5 mr-1" /> Fee Settlement Done
+                          </Badge>
+                        )}
+                        {takenAt && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
+                            <Clock className="h-2.5 w-2.5" /> <TimeAgoText dateString={takenAt} />
+                          </span>
+                        )}
+                      </div>
+                      
+                      <Link
+                        to="/request/$id"
+                        params={{ id }}
+                        className={`font-semibold text-base sm:text-lg leading-tight hover:underline block truncate ${fullySettled ? "line-through text-muted-foreground" : ""}`}
+                      >
+                        {title || "Untitled Task"}
+                      </Link>
+                      
+                      {description && (
+                        <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {description}
+                        </p>
+                      )}
+
+                      {profile && (
+                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground bg-muted/30 py-1 px-2 rounded-md w-fit">
+                          <span>Requestor: <strong className="text-foreground">{profile.display_name || "Anonymous"}</strong></span>
+                          {profile.average_rating !== null && profile.average_rating !== undefined && (
+                            <span className="inline-flex items-center gap-0.5 text-amber-500 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded text-[10px]">
+                              <Star className="h-2.5 w-2.5 fill-amber-500 stroke-amber-500" />
+                              {Number(profile.average_rating).toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] sm:text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-accent" />
+                          {locationLabel || "Pinned location"}
+                        </span>
+                        {reward && (
+                          <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                            <Gift className="h-3 w-3 text-accent" />
+                            {reward}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto shrink-0 justify-stretch sm:justify-start pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
+                      <Button asChild size="sm" variant="outline" className="rounded-full flex-1 sm:flex-none text-xs h-8 sm:h-9">
+                        <Link to="/request/$id" params={{ id }}>View</Link>
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant={isChatOpen ? "secondary" : "outline"}
+                        className="rounded-full gap-1 flex-1 sm:flex-none text-xs h-8 sm:h-9"
+                        onClick={() => setActiveChatTaskId(isChatOpen ? null : id)}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {isChatOpen ? "Close" : "Chat"}
+                      </Button>
+
+                      {!fullySettled && (
+                        <Button
+                          size="sm"
+                          variant={takerDone ? "outline" : "default"}
+                          className="rounded-full gap-1 flex-1 sm:flex-none text-xs h-8 sm:h-9"
+                          onClick={() => void handleToggleComplete(r)}
+                        >
+                          {takerDone ? (
+                            <>
+                              <RotateCcw className="h-3.5 w-3.5" /> Reopen
+                            </>
+                          ) : (
+                            <>
+                              <Check className="h-3.5 w-3.5" /> Complete
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Realtime Chat Thread Container */}
+                  {isChatOpen && (
+                    <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                      <TaskThread 
+                        requestId={id} 
+                        currentUserId={user.id} 
+                        requestOwnerId={userId} 
+                        bidId={bidId}
+                      />
+                    </div>
+                  )}
+
+                  {/* Payment Settlement Container */}
+                  {(takerDone || fullySettled) && takenBy && (
+                    <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                      <p className="text-[11px] sm:text-xs text-muted-foreground mb-3 flex items-start gap-1.5 bg-muted/50 p-2.5 rounded-lg">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <span>Upload your receipt or payment payout QR code here to finalize settlement details with the requester.</span>
+                      </p>
+                      <PaymentQRUpload
+                        requestId={id}
+                        takerId={takenBy}
+                        currentUserId={user.id}
+                      />
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         )}
-      </main>
-
+      </section>
       <SiteFooter />
     </div>
-  );
-}
-
-interface TaskCardProps {
-  task: StoredRequest & { bidId?: string };
-  user: any;
-  activeChatTaskId: string | null;
-  setActiveChatTaskId: (id: string | null) => void;
-  onComplete: (id: string) => void;
-  onReopen: (id: string) => void;
-}
-
-function TaskCard({ task, user, activeChatTaskId, setActiveChatTaskId, onComplete, onReopen }: TaskCardProps) {
-  const { id, title, description, reward, locationLabel, type, takerCompletedAt, completedAt, userId, takenBy, feeSettledAt, requestorProfile, bidId } = task;
-  const isChatOpen = activeChatTaskId === id;
-  const reqType = getRequestType(type);
-
-  const takerDone = !!takerCompletedAt;
-  const fullySettled = !!completedAt;
-
-  return (
-    <Card className="p-5 sm:p-6 rounded-2xl border border-border/50 hover:border-border/90 transition-all shadow-sm hover:shadow-md bg-card flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Orange-themed customized Request Type badge structure */}
-            <Badge variant="outline" className="rounded-lg font-bold text-xs bg-[#FFF3EB] text-[#FF6B00] border-[#FFE0CC] px-2.5 py-0.5">
-              {reqType.label}
-            </Badge>
-            
-            {fullySettled ? (
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20 rounded-lg text-xs font-medium flex items-center gap-1 px-2 py-0.5">
-                <BadgeCheck className="h-3.5 w-3.5" /> Settled & Closed
-              </Badge>
-            ) : takerDone ? (
-              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/20 rounded-lg text-xs font-medium flex items-center gap-1 px-2 py-0.5">
-                <Check className="h-3.5 w-3.5" /> Verification Pending
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="rounded-lg text-xs font-medium bg-muted/60 text-muted-foreground border border-border/40 px-2 py-0.5">
-                In Progress
-              </Badge>
-            )}
-          </div>
-          
-          {/* Scaled-up text settings matching legacy interface */}
-          <h3 className="text-base font-bold text-foreground pr-2 leading-snug">
-            {title}
-          </h3>
-          
-          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-            {description || <span className="italic opacity-50">No structural details specified.</span>}
-          </p>
-        </div>
-
-        <div className="text-right shrink-0">
-          <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Reward</div>
-          <div className="text-base font-black text-[#FF6B00] flex items-center justify-end gap-1 mt-0.5">
-            <Gift className="h-4 w-4" />
-            <span>${reward}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40 text-sm text-muted-foreground">
-        {/* Customized Orange Location Pin Container layout */}
-        <div className="flex items-center gap-2 min-w-0 bg-[#FFF3EB]/30 p-2.5 rounded-xl border border-[#FFE0CC]/40">
-          <MapPin className="h-4 w-4 text-[#FF6B00] shrink-0" />
-          <span className="truncate text-foreground font-medium">{locationLabel}</span>
-        </div>
-        
-        <div className="flex items-center gap-2 bg-muted/30 p-2.5 rounded-xl border border-border/20">
-          <Clock className="h-4 w-4 text-muted-foreground/70 shrink-0" />
-          <div className="truncate">
-            {fullySettled ? (
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Finished task</span>
-            ) : takerDone ? (
-              <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                Finished <TimeAgoText dateString={takerCompletedAt ?? undefined} />
-              </span>
-            ) : (
-              <span>Accepted task <TimeAgoText dateString={task.takenAt ?? undefined} /></span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {requestorProfile && (
-        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/20 border border-border/30 text-sm">
-          <div className="w-5.5 h-5.5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-            {requestorProfile.display_name?.slice(0,1).toUpperCase() || "R"}
-          </div>
-          <span className="text-muted-foreground font-medium">Requester:</span>
-          <span className="text-foreground font-semibold">{requestorProfile.display_name || "Anonymous Member"}</span>
-          {requestorProfile.average_rating > 0 && (
-            <div className="flex items-center gap-0.5 ml-auto text-amber-500 font-medium text-xs">
-              <Star className="h-3.5 w-3.5 fill-current" />
-              <span>{Number(requestorProfile.average_rating).toFixed(1)}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1 pt-1">
-        <div className="text-xs text-muted-foreground italic">
-          {feeSettledAt && !fullySettled && "⚠️ Requester paid transaction fees. Task closing shortly."}
-        </div>
-        
-        <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-          <Button
-            variant={isChatOpen ? "secondary" : "outline"}
-            size="sm"
-            className="rounded-xl h-9 text-xs"
-            onClick={() => setActiveChatTaskId(isChatOpen ? null : id)}
-          >
-            <MessageSquare className="h-4 w-4 mr-1.5" />
-            Chat
-          </Button>
-          
-          <Button asChild variant="ghost" size="sm" className="rounded-xl h-9 text-xs">
-            <Link to="/request/$id" params={{ id }}>
-              View Details
-            </Link>
-          </Button>
-
-          {!fullySettled && (
-            <>
-              {takerDone ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl h-9 text-xs border-amber-500/30 hover:bg-amber-500/5 text-amber-600 dark:text-amber-400"
-                  onClick={() => onReopen(id)}
-                >
-                  <RotateCcw className="h-4 w-4 mr-1.5" />
-                  Reopen Task
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  className="rounded-xl h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm font-semibold"
-                  onClick={() => onComplete(id)}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                  Mark Completed
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {isChatOpen && (
-        <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
-          <TaskThread 
-            requestId={id} 
-            currentUserId={user.id} 
-            requestOwnerId={userId} 
-            bidId={bidId} 
-          />
-        </div>
-      )}
-
-      {(takerDone || fullySettled) && takenBy && (
-        <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
-          <p className="text-sm text-muted-foreground mb-3 flex items-start gap-1.5 bg-muted/50 p-2.5 rounded-lg">
-            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-            <span>Upload your receipt or payment payout QR code here to finalize settlement details with the requester.</span>
-          </p>
-          <PaymentQRUpload
-            requestId={id}
-            takerId={takenBy}
-            currentUserId={user.id}
-          />
-        </div>
-      )}
-    </Card>
   );
 }
