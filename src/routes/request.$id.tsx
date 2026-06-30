@@ -26,6 +26,7 @@ interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
   feeReceivedAt?: string | null;
   photo_urls?: string[]; 
+  is_secret?: boolean; // Safeguard property mapping
 }
 
 interface BidRecord {
@@ -158,6 +159,9 @@ function RequestDetailPage() {
       if (error) throw error;
       
       if (data) {
+        // Enforce safe parsing from database snake_case naming structures 
+        const safeIsSecret = data.is_secret ?? data.isSecret ?? false;
+
         const mappedRequest: ExtendedStoredRequest = {
           id: data.id,
           type: data.type,
@@ -167,7 +171,8 @@ function RequestDetailPage() {
           lat: data.lat,
           lng: data.lng,
           reward: data.reward,
-          isSecret: data.is_secret || data.isSecret || false,
+          isSecret: safeIsSecret,
+          is_secret: safeIsSecret,
           userId: data.user_id || data.userId,
           takenBy: data.taken_by || data.takenBy,
           takenAt: data.taken_at || data.takenAt,
@@ -257,7 +262,7 @@ function RequestDetailPage() {
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } finally {
+    } finaly {
       setLoading(false);
     }
   }
@@ -627,10 +632,12 @@ function RequestDetailPage() {
         return;
       }
 
-      // 🛠️ FIX: Explicitly include all relational mapping fields, coordinates, and is_secret parameters 
-      // into the update query to fully pass database table structural CHECK constraints.
       const targetLat = editCoords?.lat ?? request.lat ?? 48.8566;
       const targetLng = editCoords?.lng ?? request.lng ?? 2.3522;
+      
+      // 🛠️ SAFE PARSING PRIMITIVE BOOLEAN FALLBACK
+      // Forces evaluated boolean type so the update payload satisfies Postgres NOT NULL constraints.
+      const safeSecretFlag = request.is_secret ?? request.isSecret ?? false;
 
       const { error } = await supabase
         .from("requests")
@@ -643,8 +650,8 @@ function RequestDetailPage() {
           lng: targetLng,
           photo_urls: finalPhotoUrls,
           photoUrls: finalPhotoUrls,
-          is_secret: request.isSecret,
-          isSecret: request.isSecret
+          is_secret: safeSecretFlag,
+          isSecret: safeSecretFlag
         })
         .eq("id", request.id)
         .eq("user_id", user?.id)
@@ -1254,7 +1261,7 @@ function RequestDetailPage() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className={`h-2 w-2 rounded-full ${request.feeReceivedAt ? "bg-green-500" : "bg-muted"}`} />
-                        <span className={request.feeReceivedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Receipts Locked</span>
+                        <span className={request.feeReceivedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Receipts Locks</span>
                       </div>
                     </div>
 
