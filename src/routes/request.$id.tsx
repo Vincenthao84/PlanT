@@ -253,6 +253,7 @@ function RequestDetailPage() {
         }
 
         try {
+          // ✅ FIXED LOGIC: Query by request_id column to load all evaluations for this request instance
           const { data: reviewData } = await supabase
             .from("request_ratings")
             .select("id, request_id, requester_id, taker_id, stars, comment")
@@ -853,9 +854,14 @@ function RequestDetailPage() {
     ? "Secret Request" 
     : (ownerProfile?.display_name || `User_${request.userId?.slice(0, 5)}`);
 
-  // Separate current user's review and the partner's review seamlessly
-  const myReview = reviews.find(r => r.requester_id === user?.id);
-  const partnerReview = reviews.find(r => r.requester_id !== user?.id && r.id !== undefined);
+  // Evaluates whether the active viewing user has logged their specific side of the review row
+  const mySubmittedReview = reviews.find(r => {
+    if (isOwner) {
+      return r.requester_id === request.userId && r.taker_id === request.takenBy;
+    } else {
+      return r.requester_id === request.takenBy && r.taker_id === request.userId;
+    }
+  });
 
   const mapEmbedUrl = editCoords
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${editCoords.lng - 0.005}%2C${editCoords.lat - 0.003}%2C${editCoords.lng + 0.005}%2C${editCoords.lat + 0.003}&layer=mapnik&marker=${editCoords.lat}%2C${editCoords.lng}`
@@ -863,7 +869,6 @@ function RequestDetailPage() {
       ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
       : null;
 
-// 🔴 PLACE THE LOG CODE HERE RIGHT BEFORE THE RETURN:
   console.log("DEBUG WORKFLOW PANEL STATE:", {
     hasUser: !!user,
     currentUserId: user?.id,
@@ -1292,8 +1297,6 @@ function RequestDetailPage() {
                     </div>
 
                     <div className="pt-2 border-t border-border/40 space-y-2">
-
-                    {/* 1. New Button: Allows you (the helper) to signal that you finished the work */}
                       {isAssignedHelper && !request.takerCompletedAt && (
                         <Button 
                           onClick={async () => {
@@ -1341,31 +1344,38 @@ function RequestDetailPage() {
                         <Star className="h-3 w-3 fill-accent" /> Mutual Service Evaluation
                       </h4>
 
-                      {/* Display the assessment provided by the opposite party if it exists */}
-                      {partnerReview && (
-                        <div className="space-y-1.5 text-xs border-b border-border/40 pb-3">
-                          <p className="text-[10px] font-bold text-accent uppercase tracking-wider">Feedback Received:</p>
-                          <StarRating rating={partnerReview.stars} />
-                          {partnerReview.comment && (
-                            <p className="text-muted-foreground italic bg-background/50 p-2 rounded-xl border border-dashed">
-                              "{partnerReview.comment}"
-                            </p>
-                          )}
+                      {/* ✅ CHANGED DISPLAY LAYOUT: Map and display both comments / rows side by side if existing */}
+                      {reviews.length > 0 && (
+                        <div className="space-y-3">
+                          {reviews.map((rev) => {
+                            const isRequesterReview = rev.requester_id === request.userId;
+                            const labelName = isRequesterReview 
+                              ? (request.isSecret ? "Requester (Anonymous)" : ownerProfile?.display_name || "Requester")
+                              : (bids.find(b => b.helper_id === request.takenBy)?.helper_name || "Helper");
+
+                            return (
+                              <div key={rev.id} className="text-xs bg-background p-3 rounded-xl border border-border/60 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-[10px] uppercase text-muted-foreground">
+                                    Review from {labelName}:
+                                  </span>
+                                  <StarRating rating={rev.stars} />
+                                </div>
+                                {rev.comment ? (
+                                  <p className="text-foreground italic mt-1">"{rev.comment}"</p>
+                                ) : (
+                                  <p className="text-[11px] text-muted-foreground/50 italic">No text comment left.</p>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
-                      {myReview ? (
-                        <div className="space-y-1.5 text-xs">
-                          <p className="text-[10px] font-bold text-muted-foreground/80 uppercase">Your scores submitted:</p>
-                          <StarRating rating={myReview.stars} />
-                          {myReview.comment && (
-                            <p className="text-muted-foreground italic bg-background/50 p-2 rounded-xl border border-dashed">
-                              "{myReview.comment}"
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <form onSubmit={handleSubmitReview} className="space-y-3">
+                      {/* Render input form logic only if current user's rating row hasn't recorded into data array */}
+                      {!mySubmittedReview && (
+                        <form onSubmit={handleSubmitReview} className="space-y-3 pt-2 border-t border-dashed border-border/60">
+                          <p className="text-[10px] font-bold uppercase text-accent">Write Your Evaluation</p>
                           <div>
                             <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Star Count</label>
                             <div className="flex gap-1">
