@@ -16,6 +16,8 @@ interface ExtendedStoredRequest extends StoredRequest {
   completedAt?: string | null;
   feeSettledAt?: string | null;
   feeReceivedAt?: string | null;
+  rating?: number | null;
+  comment?: string | null;
 }
 
 export const Route = createFileRoute("/my-requests")({
@@ -52,6 +54,16 @@ function MyRequestsPage() {
     );
   }
 
+  // Sort requests so that fully closed/finalized items are placed at the bottom
+  const sortedRequests = [...requests].sort((a, b) => {
+    const aFinalized = !!(a.feeReceivedAt && a.rating && a.comment);
+    const bFinalized = !!(b.feeReceivedAt && b.rating && b.comment);
+    
+    if (aFinalized && !bFinalized) return 1;
+    if (!aFinalized && bFinalized) return -1;
+    return 0;
+  });
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <SiteHeader />
@@ -59,7 +71,7 @@ function MyRequestsPage() {
         <h1 className="text-3xl font-bold tracking-tight mb-2">My Requests</h1>
         <p className="text-muted-foreground text-sm mb-8">Track status updates and review chat matrices for issues you posted.</p>
 
-        {requests.length === 0 ? (
+        {sortedRequests.length === 0 ? (
           <Card className="p-8 text-center space-y-4 border-dashed">
             <p className="text-muted-foreground text-sm">You haven't posted any help requests yet.</p>
             <Button asChild rounded-full>
@@ -68,10 +80,13 @@ function MyRequestsPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {requests.map((r) => {
+            {sortedRequests.map((r) => {
               const typeMeta = getRequestType(r.type);
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
+              
+              // Check if the item meets all completion parameters to be crossed out
+              const isFinalized = !!(r.feeReceivedAt && r.rating && r.comment);
 
               // Compute the correct active status flag dynamically based on running phases
               let statusBadge = (
@@ -83,8 +98,8 @@ function MyRequestsPage() {
               if (r.takenBy) {
                 if (r.feeReceivedAt) {
                   statusBadge = (
-                    <Badge className="bg-purple-500/10 text-purple-600 border-none rounded-full text-[11px]">
-                      Cleared
+                    <Badge className="bg-teal-500/10 text-teal-600 border-none rounded-full text-[11px] font-medium">
+                      Fee Settlement Done
                     </Badge>
                   );
                 } else if (r.feeSettledAt) {
@@ -115,7 +130,7 @@ function MyRequestsPage() {
               }
 
               return (
-                <Card key={r.id} className="p-5 transition-shadow hover:shadow-md">
+                <Card key={r.id} className={`p-5 transition-shadow hover:shadow-md ${isFinalized ? "opacity-75" : ""}`}>
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex gap-3">
                       <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
@@ -133,7 +148,9 @@ function MyRequestsPage() {
                             </Badge>
                           )}
                         </div>
-                        <h3 className="font-semibold text-base mt-1 tracking-tight">{r.title}</h3>
+                        <h3 className={`font-semibold text-base mt-1 tracking-tight ${isFinalized ? "line-through text-muted-foreground/70" : ""}`}>
+                          {r.title}
+                        </h3>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
                           <p className="flex items-center gap-1">
                             <MapPin className="h-3 w-3 text-accent shrink-0" /> {r.locationLabel}
