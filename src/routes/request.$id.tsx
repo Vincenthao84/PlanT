@@ -599,6 +599,7 @@ async function handleUpdateRequest(e: React.FormEvent) {
     try {
       const finalPhotoUrls = [...existingPhotos];
 
+      // 1. Process and upload any newly staged file attachments to storage
       if (selectedNewFiles.length > 0) {
         for (const file of selectedNewFiles) {
           const fileExt = file.name.split(".").pop();
@@ -618,10 +619,10 @@ async function handleUpdateRequest(e: React.FormEvent) {
         }
       }
 
-      // Check current task status inline
+      // 2. Safeguard check: ensure task hasn't been accepted by a helper while editing
       const { data: freshRecord, error: fetchError } = await supabase
         .from("requests")
-        .select("taken_by, is_secret")
+        .select("taken_by")
         .eq("id", request.id)
         .single();
 
@@ -635,14 +636,10 @@ async function handleUpdateRequest(e: React.FormEvent) {
 
       const targetLat = editCoords?.lat ?? request.lat ?? 48.8566;
       const targetLng = editCoords?.lng ?? request.lng ?? 2.3522;
-      
-      // ✅ READ DIRECTLY FROM THE DATABASE RECORD FETCHED ABOVE
-      // This bypasses the corrupted local React state object issue completely
-      const safeSecretFlag = freshRecord && typeof freshRecord.is_secret === 'boolean' 
-        ? freshRecord.is_secret 
-        : false;
 
-      // Cleaned update payload matching Postgres columns explicitly
+      // 3. Clean Update Payload
+      // We ONLY send core columns to satisfy the check_secret_request_on_update trigger.
+      // NO duplicate camelCase properties (like locationLabel or photoUrls) are included.
       const { error } = await supabase
         .from("requests")
         .update({
@@ -651,8 +648,7 @@ async function handleUpdateRequest(e: React.FormEvent) {
           location_label: editLocationLabel.trim(),
           lat: targetLat,
           lng: targetLng,
-          photo_urls: finalPhotoUrls,
-          is_secret: safeSecretFlag // ✅ Guarantees a clean true/false boolean literal value
+          photo_urls: finalPhotoUrls
         })
         .eq("id", request.id)
         .eq("user_id", user?.id);
