@@ -172,7 +172,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
           placeholder="Type your message here..."
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          className=\"rounded-xl h-9 text-xs\"
+          className="rounded-xl h-9 text-xs" // 👈 Clean fixed line without backslashes
           disabled={sending}
           maxLength={1000}
         />
