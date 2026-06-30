@@ -250,7 +250,7 @@ function RequestDetailPage() {
           const { data: reviewData } = await supabase
             .from("request_ratings")
             .select("id, request_id, requester_id, taker_id, stars, comment")
-            .eq("request_id", data.id);
+            .eq("id", data.id);
           if (reviewData) setReviews(reviewData);
         } catch (e) {
           console.warn("Could not load mutual records from request_ratings:", e);
@@ -258,7 +258,7 @@ function RequestDetailPage() {
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } finally {
+    } finaly {
       setLoading(false);
     }
   }
@@ -612,16 +612,18 @@ function RequestDetailPage() {
         }
       }
 
-      // Sync parameters cleanly to targeted row
+      // Sync parameters cleanly supporting standard camelCase properties alongside DB snake_case naming structures 
       const { error } = await supabase
         .from("requests")
         .update({
           title: editTitle.trim(),
           description: editDesc.trim(),
           location_label: editLocationLabel.trim(),
+          locationLabel: editLocationLabel.trim(),
           lat: editCoords?.lat ?? request.lat,
           lng: editCoords?.lng ?? request.lng,
           photo_urls: finalPhotoUrls,
+          photoUrls: finalPhotoUrls
         })
         .eq("id", request.id);
 
@@ -631,6 +633,7 @@ function RequestDetailPage() {
       setSelectedNewFiles([]);
       void fetchRequestDetails();
     } catch (err: any) {
+      console.error("Save failure log details:", err);
       toast.error(err.message || "Failed to update listing configuration.");
     } finally {
       setUpdatingRequest(false);
@@ -815,7 +818,7 @@ function RequestDetailPage() {
 
   const t = getRequestType(request.type);
   const Icon = t?.icon ?? MapPin;
-  const hasPhotos = request.photo_urls && request.photo_urls.length > 0; // ✅ Updated configuration point
+  const hasPhotos = request.photo_urls && request.photo_urls.length > 0; 
   const isOwner = user && user.id === request.userId;
   const isAssignedHelper = user && user.id === request.takenBy;
   
@@ -831,7 +834,6 @@ function RequestDetailPage() {
     }
   });
 
-  // Reactive verification iframe logic mapping current form data
   const mapEmbedUrl = editCoords
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${editCoords.lng - 0.005}%2C${editCoords.lat - 0.003}%2C${editCoords.lng + 0.005}%2C${editCoords.lat + 0.003}&layer=mapnik&marker=${editCoords.lat}%2C${editCoords.lng}`
     : request.lat && request.lng
@@ -883,7 +885,7 @@ function RequestDetailPage() {
           )}
 
           {isEditingRequest ? (
-            <form onSubmit={handleUpdateRequest} className="space-y-4 pt-2">
+            <form onSubmit={(e) => { e.preventDefault(); void handleUpdateRequest(e); }} className="space-y-4 pt-2">
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Modify Request Information</h3>
               <div>
                 <Label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Title</Label>
@@ -909,7 +911,7 @@ function RequestDetailPage() {
                       type="button"
                       variant="secondary"
                       className="shrink-0 gap-1 rounded-xl text-xs h-10 px-3"
-                      onClick={handleShowMapLookup}
+                      onClick={() => { void handleShowMapLookup(); }}
                       disabled={searchingMap}
                     >
                       {searchingMap ? <Loader2 className="h-3 w-3 animate-spin" /> : <Map className="h-3.5 w-3.5" />}
@@ -1060,7 +1062,6 @@ function RequestDetailPage() {
             </>
           )}
 
-          {/* Top attached photos list synced to database */}
           {!isEditingRequest && hasPhotos && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -1082,7 +1083,6 @@ function RequestDetailPage() {
             </div>
           )}
 
-          {/* Dynamic Map Pin Box Section */}
           {!isEditingRequest && (
             <div className="space-y-2 pt-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -1175,7 +1175,7 @@ function RequestDetailPage() {
                     </div>
                   </ScrollArea>
 
-                  <form onSubmit={handleSendChatMessage} className="mt-3 pt-3 border-t border-border/40 space-y-2">
+                  <form onSubmit={(e) => { e.preventDefault(); void handleSendChatMessage(e); }} className="mt-3 pt-3 border-t border-border/40 space-y-2">
                     {chatPhotos.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 p-1.5 bg-muted/50 rounded-xl border border-dashed">
                         {chatPhotos.map((pUrl, pi) => (
@@ -1278,7 +1278,7 @@ function RequestDetailPage() {
                           )}
                         </div>
                       ) : (
-                        <form onSubmit={handleSubmitReview} className="space-y-3">
+                        <form onSubmit={(e) => { e.preventDefault(); void handleSubmitReview(e); }} className="space-y-3">
                           <div>
                             <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Star Count</label>
                             <div className="flex gap-1">
@@ -1362,7 +1362,7 @@ function RequestDetailPage() {
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handlePlaceOrUpdateBid} className="space-y-4 bg-muted/10 border border-dashed p-4 rounded-2xl">
+                <form onSubmit={(e) => { e.preventDefault(); void handlePlaceOrUpdateBid(e); }} className="space-y-4 bg-muted/10 border border-dashed p-4 rounded-2xl">
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div className="sm:col-span-1">
                       <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Bidding Amount ($)</label>
@@ -1443,7 +1443,7 @@ function RequestDetailPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <button 
                             type="button"
-                            onClick={() => void fetchBidderHistory(bid.helper_id, bid.helper_name || "User")}
+                            onClick={() => { void fetchBidderHistory(bid.helper_id, bid.helper_name || "User"); }}
                             className="text-xs font-bold text-foreground hover:underline transition bg-transparent border-none p-0 cursor-pointer text-left"
                           >
                             {bid.helper_name}
