@@ -49,7 +49,6 @@ function MyRequestsPage() {
           return;
         }
 
-        // Handle both camelCase and snake_case object formats safely
         const requestIds = baseData
           .map((r: any) => r.id || r.request_id)
           .filter(Boolean);
@@ -70,16 +69,35 @@ function MyRequestsPage() {
           console.error("Supabase ratings fetch error:", ratingsError);
         }
 
-        const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
+        // 3. FIX: Fetch accepted bids for these requests to sync up the bid ID with TaskThread
+        const { data: bidsData, error: bidsError } = await supabase
+          .from("request_bids")
+          .select("id, request_id")
+          .in("request_id", requestIds)
+          .eq("status", "accepted");
 
-        // 3. Enrich payload mapping arrays accurately
+        if (bidsError) {
+          console.error("Supabase bids fetch error:", bidsError);
+        }
+
+        const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
+        
+        // Map request_id -> accepted bid_id
+        const bidMap = new Map<string, string>();
+        if (bidsData) {
+          bidsData.forEach((b) => {
+            if (b.request_id) bidMap.set(b.request_id, b.id);
+          });
+        }
+
+        // 4. Enrich payload mapping arrays accurately with the synchronized bid ID
         const enrichedRequests: ExtendedStoredRequest[] = baseData.map((r: any) => {
           const currentId = r.id || r.request_id;
           return {
             ...r,
             id: currentId,
             hasMyReview: reviewedRequestIds.has(currentId),
-            accepted_bid_id: r.accepted_bid_id || r.acceptedBidId || null
+            accepted_bid_id: bidMap.get(currentId) || r.accepted_bid_id || r.acceptedBidId || null
           };
         });
 
