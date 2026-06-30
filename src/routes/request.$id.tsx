@@ -25,7 +25,7 @@ import {
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
   feeReceivedAt?: string | null;
-  photo_urls?: string[]; // ✅ Explicitly defined matching database schema mapping array
+  photo_urls?: string[]; 
 }
 
 interface BidRecord {
@@ -109,7 +109,7 @@ function RequestDetailPage() {
   const [settlingFee, setSettlingFee] = useState(false);
   const [receivingFee, setReceivingFee] = useState(false);
 
-  // 🗺️ Added Location & Multi-Image Editing States
+  // Location & Multi-Image Editing States
   const [editLocationLabel, setEditLocationLabel] = useState("");
   const [editCoords, setEditCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [searchingMap, setSearchingMap] = useState(false);
@@ -175,7 +175,7 @@ function RequestDetailPage() {
           completedAt: data.completed_at || data.completedAt,
           feeSettledAt: data.fee_settled_at || data.feeSettledAt,
           feeReceivedAt: data.fee_received_at || data.feeReceivedAt || null,
-          photo_urls: data.photo_urls || data.photoUrls || [], // ✅ Correct fallback structure
+          photo_urls: data.photo_urls || data.photoUrls || [], 
           paymentQrUrl: data.payment_qr_url || data.paymentQrUrl,
           createdAt: data.created_at,
         };
@@ -183,7 +183,6 @@ function RequestDetailPage() {
         setEditTitle(data.title || "");
         setEditDesc(data.description || "");
         
-        // Hydrate location inputs & image fields for edit workflows
         setEditLocationLabel(mappedRequest.locationLabel);
         setEditCoords({ lat: data.lat, lng: data.lng });
         setExistingPhotos(mappedRequest.photo_urls || []);
@@ -253,12 +252,12 @@ function RequestDetailPage() {
             .eq("id", data.id);
           if (reviewData) setReviews(reviewData);
         } catch (e) {
-          console.warn("Could not load mutual records from request_ratings:", e);
+          console.warn("Could not load mutual records:", e);
         }
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } finaly {
+    } finally {
       setLoading(false);
     }
   }
@@ -394,7 +393,6 @@ function RequestDetailPage() {
     };
   }, [request, user, selectedBidId]);
 
-  // 🗺️ Live lookup handler for editing location coordinates via text geocoding
   const handleShowMapLookup = async () => {
     if (!editLocationLabel.trim()) {
       toast.error("Please enter an address or location name first.");
@@ -448,7 +446,6 @@ function RequestDetailPage() {
         const file = files[i];
         const fileExt = file.name.split(".").pop();
         const fileName = `${user?.id}-${Date.now()}-${i}.${fileExt}`;
-        
         const filePath = `${id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -583,7 +580,6 @@ function RequestDetailPage() {
     }
   }
 
-  // 💾 Enhanced request updater to cleanly commit map inputs and append photo arrays
   async function handleUpdateRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!request || updatingRequest) return;
@@ -592,7 +588,6 @@ function RequestDetailPage() {
     try {
       const finalPhotoUrls = [...existingPhotos];
 
-      // Upload newly attached file streams if any are appended to state arrays
       if (selectedNewFiles.length > 0) {
         for (const file of selectedNewFiles) {
           const fileExt = file.name.split(".").pop();
@@ -612,18 +607,16 @@ function RequestDetailPage() {
         }
       }
 
-      // Sync parameters cleanly supporting standard camelCase properties alongside DB snake_case naming structures 
+      // ✅ FIXED: Using pure snake_case database definitions for exact schema synchronization
       const { error } = await supabase
         .from("requests")
         .update({
           title: editTitle.trim(),
           description: editDesc.trim(),
           location_label: editLocationLabel.trim(),
-          locationLabel: editLocationLabel.trim(),
           lat: editCoords?.lat ?? request.lat,
           lng: editCoords?.lng ?? request.lng,
-          photo_urls: finalPhotoUrls,
-          photoUrls: finalPhotoUrls
+          photo_urls: finalPhotoUrls
         })
         .eq("id", request.id);
 
@@ -885,7 +878,7 @@ function RequestDetailPage() {
           )}
 
           {isEditingRequest ? (
-            <form onSubmit={(e) => { e.preventDefault(); void handleUpdateRequest(e); }} className="space-y-4 pt-2">
+            <form onSubmit={handleUpdateRequest} className="space-y-4 pt-2">
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Modify Request Information</h3>
               <div>
                 <Label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Title</Label>
@@ -896,7 +889,6 @@ function RequestDetailPage() {
                 <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} required className="rounded-xl min-h-[100px]" />
               </div>
 
-              {/* 🗺️ LOCATION AND GEO MAP EDIT SPLIT DESIGN BLOCK */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start pt-2 border-t border-dashed">
                 <div className="space-y-1.5">
                   <Label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Edit Address Label</Label>
@@ -907,6 +899,7 @@ function RequestDetailPage() {
                       placeholder="e.g. London Central Station"
                       className="rounded-xl flex-1 text-xs"
                     />
+                    {/* ✅ FIXED: Added type="button" to prevent sub-button click from triggering parent form submit */}
                     <Button
                       type="button"
                       variant="secondary"
@@ -941,19 +934,16 @@ function RequestDetailPage() {
                 </div>
               </div>
 
-              {/* 📸 IMAGE ATTACHMENTS RE-QUEUE MANAGER DESIGN BLOCK */}
               <div className="space-y-2 border-t border-dashed pt-3">
                 <Label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Manage Request Imagery</Label>
                 <div className="flex flex-wrap gap-3 items-center">
                   
-                  {/* File Upload Selector Action Grid Node */}
                   <label className="flex flex-col items-center justify-center w-24 h-16 border border-dashed rounded-xl cursor-pointer hover:bg-muted/40 transition-colors border-muted-foreground/30 text-muted-foreground">
                     <ImageIcon className="h-4 w-4 mb-0.5" />
                     <span className="text-[9px] font-semibold">Add Photo</span>
                     <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
                   </label>
 
-                  {/* Render Existing Database Photos with Delete Option */}
                   {existingPhotos.map((url, index) => (
                     <div key={`exist-${index}`} className="relative w-24 h-16 rounded-xl overflow-hidden border bg-muted group shadow-sm">
                       <img src={url} alt="Reference Attachment" className="object-cover w-full h-full" />
@@ -967,7 +957,6 @@ function RequestDetailPage() {
                     </div>
                   ))}
 
-                  {/* Render Appended New Files Cached locally */}
                   {selectedNewFiles.map((file, index) => (
                     <div key={`new-file-${index}`} className="relative w-24 h-16 rounded-xl overflow-hidden border border-primary/40 bg-muted/60 animate-pulse group">
                       <img src={URL.createObjectURL(file)} alt="Appended cache" className="object-cover w-full h-full" />
@@ -1175,7 +1164,7 @@ function RequestDetailPage() {
                     </div>
                   </ScrollArea>
 
-                  <form onSubmit={(e) => { e.preventDefault(); void handleSendChatMessage(e); }} className="mt-3 pt-3 border-t border-border/40 space-y-2">
+                  <form onSubmit={handleSendChatMessage} className="mt-3 pt-3 border-t border-border/40 space-y-2">
                     {chatPhotos.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 p-1.5 bg-muted/50 rounded-xl border border-dashed">
                         {chatPhotos.map((pUrl, pi) => (
@@ -1278,7 +1267,7 @@ function RequestDetailPage() {
                           )}
                         </div>
                       ) : (
-                        <form onSubmit={(e) => { e.preventDefault(); void handleSubmitReview(e); }} className="space-y-3">
+                        <form onSubmit={handleSubmitReview} className="space-y-3">
                           <div>
                             <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Star Count</label>
                             <div className="flex gap-1">
@@ -1362,7 +1351,7 @@ function RequestDetailPage() {
                   </div>
                 </div>
               ) : (
-                <form onSubmit={(e) => { e.preventDefault(); void handlePlaceOrUpdateBid(e); }} className="space-y-4 bg-muted/10 border border-dashed p-4 rounded-2xl">
+                <form onSubmit={handlePlaceOrUpdateBid} className="space-y-4 bg-muted/10 border border-dashed p-4 rounded-2xl">
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div className="sm:col-span-1">
                       <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Bidding Amount ($)</label>
