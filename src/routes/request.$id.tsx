@@ -904,32 +904,6 @@ function RequestDetailPage() {
                 />
               </Card>
             )}
-
-            {/* 📸 Reference Photo Gallery Injected Cleanly Below The Map Frame */}
-            {request.photo_urls && request.photo_urls.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 px-1">
-                  <ImageIcon className="h-3.5 w-3.5 text-accent" /> Reference Photos
-                </h3>
-                <div className={`grid gap-2 ${
-                  request.photo_urls.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'
-                }`}>
-                  {request.photo_urls.map((url: string, index: number) => (
-                    <div 
-                      key={index} 
-                      className="relative aspect-[4/3] rounded-xl overflow-hidden border bg-muted group cursor-pointer"
-                      onClick={() => window.open(url, '_blank')}
-                    >
-                      <img 
-                        src={url} 
-                        alt={`Reference Layout Attachment ${index + 1}`} 
-                        className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
          {user && (isOwner || isAssignedHelper || (hasAlreadyBid && selectedBidId)) && (
