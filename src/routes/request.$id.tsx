@@ -867,6 +867,21 @@ function RequestDetailPage() {
       ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
       : null;
 
+// 🔴 PLACE THE LOG CODE HERE RIGHT BEFORE THE RETURN:
+  console.log("DEBUG WORKFLOW PANEL STATE:", {
+    hasUser: !!user,
+    currentUserId: user?.id,
+    taskOwnerId: request?.userId,
+    assignedHelperId: request?.takenBy,
+    isOwner,
+    isAssignedHelper,
+    hasAlreadyBid,
+    selectedBidId,
+    takerCompletedAt: request?.takerCompletedAt,
+    completedAt: request?.completedAt
+  });
+
+  
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
