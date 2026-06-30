@@ -39,6 +39,8 @@ interface BidWithRequestContext {
     location_label: string;
     user_id: string;
     type?: string; 
+    is_secret?: boolean;
+    isSecret?: boolean;
   };
   requestorProfile?: {
     display_name: string | null;
@@ -49,19 +51,19 @@ interface BidWithRequestContext {
 function getCategoryIcon(typeSlug?: string) {
   switch (typeSlug?.toLowerCase()) {
     case "snap":
-      return <Camera className="h-5 w-5" />;
-    case "knowledge":
-      return <Brain className="h-5 w-5" />;
-    case "action":
-      return <Hand className="h-5 w-5" />;
-    case "object":
-      return <Package className="h-5 w-5" />;
-    case "rental":
-      return <Key className="h-5 w-5" />;
-    case "anything":
-      return <MoreHorizontal className="h-5 w-5" />;
+      return Camera;
+    case "study":
+      return Brain;
+    case "lend":
+      return Hand;
+    case "delivery":
+      return Package;
+    case "queue":
+      return Key;
+    case "other":
+      return MoreHorizontal;
     default:
-      return <HelpCircle className="h-5 w-5" />; 
+      return HelpCircle;
   }
 }
 
@@ -74,64 +76,76 @@ function MyBidsPage() {
   useEffect(() => {
     if (!user) return;
 
-    async function fetchMyPendingBids() {
+    async function loadBids() {
       try {
-        // 1. Get raw bids data joining requests info
         const { data, error } = await supabase
           .from("request_bids")
           .select(`
-            id, amount, note, status, created_at,
-            requests:request_id (
-              id, title, location_label, user_id, type
+            id,
+            amount,
+            note,
+            status,
+            created_at,
+            requests (
+              id,
+              title,
+              location_label,
+              user_id,
+              type,
+              is_secret,
+              isSecret
             )
-          `) 
+          `)
           .eq("helper_id", user.id)
           .neq("status", "accepted") 
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        
-        const rawBids = (data as any) || [];
 
-        // 2. Perform safe batch look-up of profile objects matching distinct request user_ids
-        const requestorUserIds = Array.from(
-          new Set(rawBids.map((b: any) => b.requests?.user_id).filter(Boolean))
+        const rawBids = (data || []) as any[];
+
+        const creatorIds = Array.from(
+          new Set(rawBids.map((b) => b.requests?.user_id).filter(Boolean))
         ) as string[];
 
         let profilesMap = new Map<string, any>();
-        if (requestorUserIds.length > 0) {
-          const { data: profilesData, error: profilesError } = await supabase
+        if (creatorIds.length > 0) {
+          const { data: profilesData } = await supabase
             .from("profiles")
             .select("id, display_name, average_rating")
-            .in("id", requestorUserIds);
+            .in("id", creatorIds);
 
-          if (!profilesError && profilesData) {
+          if (profilesData) {
             profilesData.forEach((p) => profilesMap.set(p.id, p));
           }
         }
 
-        // 3. Map values together safely
-        const completeBids: BidWithRequestContext[] = rawBids.map((b: any) => ({
-          ...b,
-          requestorProfile: b.requests?.user_id ? profilesMap.get(b.requests.user_id) : null
+        const enriched: BidWithRequestContext[] = rawBids.map((b) => ({
+          id: b.id,
+          amount: b.amount,
+          note: b.note,
+          status: b.status,
+          created_at: b.created_at,
+          requests: b.requests,
+          requestorProfile: b.requests?.user_id ? profilesMap.get(b.requests.user_id) : null,
         }));
 
-        setBids(completeBids);
+        setBids(enriched);
       } catch (err) {
-        console.error("Error loading pending bid rows:", err);
-        toast.error("Could not load bid negotiation records.");
+        console.error("Error loading bids:", err);
+        toast.error("Failed to load your offers/bids");
       } finally {
         setLoading(false);
       }
     }
 
-    void fetchMyPendingBids();
+    void loadBids();
   }, [user]);
 
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-sm text-muted-foreground">
-        Assembling bid applications…
+        Loading bids and offers…
       </div>
     );
   }
@@ -140,77 +154,92 @@ function MyBidsPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <SiteHeader />
       <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">My Placed Bids</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">My Offers &amp; Bids</h1>
         <p className="text-muted-foreground text-sm mb-8">
-          Review negotiations, proposals, and chat with Requestors before acceptance.
+          Review or manage your ongoing bids sent out to notice board requests.
         </p>
 
         {bids.length === 0 ? (
           <Card className="p-8 text-center space-y-4 border-dashed">
-            <p className="text-muted-foreground text-sm">No active or pending bids found.</p>
+            <p className="text-muted-foreground text-sm">You haven't placed any offers on requests yet.</p>
             <Button asChild className="rounded-full">
-              <Link to="/notice-board">Explore Requests Notice Board</Link>
+              <Link to="/notice-board">Browse Notice Board</Link>
             </Button>
           </Card>
         ) : (
           <div className="space-y-4">
             {bids.map((b) => {
               const req = b.requests;
-              const isChatOpen = activeChatId === b.id;
-              
               if (!req) return null;
 
-              const requestorProfile = b.requestorProfile;
+              const isChatOpen = activeChatId === b.id;
+              const IconComponent = getCategoryIcon(req.type);
+              
+              // Determine if the parent request is marked confidential/secret
+              const isSecretRequest = req.is_secret || req.isSecret;
+
+              let statusColor = "bg-amber-500/10 text-amber-600 border-none";
+              if (b.status === "rejected") statusColor = "bg-destructive/10 text-destructive border-none";
+              if (b.status === "withdrawn") statusColor = "bg-muted text-muted-foreground border-none";
 
               return (
-                <Card key={b.id} className="p-5 transition-shadow hover:shadow-md">
+                <Card key={b.id} className="p-5 transition-all">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="flex gap-3">
-                      <div className="h-10 w-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center shrink-0">
-                        {getCategoryIcon(req.type)}
+                    <div className="flex gap-3 min-w-0 flex-1">
+                      <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
+                        <IconComponent className="h-5 w-5" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge 
-                            variant={b.status === "pending" ? "secondary" : "destructive"} 
-                            className="text-[10px] rounded-full uppercase tracking-wider px-2 py-0.5"
-                          >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                          <Badge variant="secondary" className="text-[11px] rounded-full uppercase tracking-wider">
+                            Bid: ${b.amount}
+                          </Badge>
+                          <Badge className={`rounded-full text-[11px] capitalize ${statusColor}`}>
                             {b.status}
                           </Badge>
-                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
-                            Offer: ${b.amount}
-                          </span>
                         </div>
-                        
-                        <h3 className="font-semibold text-base mt-1.5 tracking-tight">{req.title}</h3>
-                        
-                        {requestorProfile && (
-                          <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground bg-muted/40 py-0.5 px-2 rounded w-fit">
-                            <span>Requestor: <span className="font-semibold text-foreground">{requestorProfile.display_name || "User"}</span></span>
-                            {requestorProfile.average_rating !== null && requestorProfile.average_rating !== undefined && (
-                              <span className="inline-flex items-center gap-0.5 text-amber-500 font-medium ml-1">
-                                <Star className="h-3 w-3 fill-amber-500 stroke-amber-500" />
-                                {Number(requestorProfile.average_rating).toFixed(1)}
+
+                        <h3 className="font-semibold text-base tracking-tight truncate text-foreground">
+                          {req.title}
+                        </h3>
+
+                        {/* Mask name and score securely if it is a Secret Request */}
+                        {b.requestorProfile && (
+                          <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground bg-muted/40 py-0.5 px-2 rounded w-fit">
+                            <span>
+                              Requestor:{" "}
+                              <strong className="text-foreground">
+                                {isSecretRequest ? "Secret Request" : (b.requestorProfile.display_name || "Anonymous")}
+                              </strong>
+                            </span>
+                            {!isSecretRequest && b.requestorProfile.average_rating !== null && b.requestorProfile.average_rating !== undefined && (
+                              <span className="inline-flex items-center gap-0.5 text-amber-500 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded text-[10px]">
+                                <Star className="h-2.5 w-2.5 fill-amber-500 stroke-amber-500" />
+                                {Number(b.requestorProfile.average_rating).toFixed(1)}
                               </span>
                             )}
                           </div>
                         )}
 
                         {b.note && (
-                          <p className="text-xs text-muted-foreground bg-muted/40 p-2 rounded-lg my-1.5 italic">
+                          <p className="text-xs text-muted-foreground mt-2 bg-muted/20 p-2 rounded-lg italic line-clamp-2">
                             "{b.note}"
                           </p>
                         )}
-                        
-                        <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-accent" /> {req.location_label}
-                          <span className="mx-1">•</span>
-                          <Clock className="h-3 w-3" /> Sent {new Date(b.created_at).toLocaleDateString()}
-                        </p>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-3 text-[11px] text-muted-foreground">
+                          <p className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-accent shrink-0" /> {req.location_label || "Pinned Location"}
+                          </p>
+                          <p className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                            Offered {new Date(b.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-auto sm:ml-0">
+                    <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
                       <Button
                         variant={isChatOpen ? "secondary" : "outline"}
                         size="sm"
