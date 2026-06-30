@@ -71,8 +71,6 @@ export function MyTasksPage() {
 
   const getAssignedTasks = useCallback(async (userId: string) => {
     try {
-      // 1. Fetch tasks where you are explicitly marked as the taker
-      // Modified to select request_bids nested items so we can find your specific tracking bid id
       const { data: directData, error: directError } = await supabase
         .from("requests")
         .select(`
@@ -83,7 +81,6 @@ export function MyTasksPage() {
 
       if (directError) throw directError;
 
-      // 2. Fetch tasks via request_bids table where bid is accepted
       const { data: bidData, error: bidError } = await supabase
         .from("request_bids")
         .select(`
@@ -99,7 +96,6 @@ export function MyTasksPage() {
 
       if (bidError) throw bidError;
 
-      // Unify entries into a single map keyed by request ID to prevent duplicate listings
       const combinedMap = new Map<string, any>();
 
       if (directData) {
@@ -111,7 +107,6 @@ export function MyTasksPage() {
           if (bid.requests && !combinedMap.has(bid.requests.id)) {
             combinedMap.set(bid.requests.id, {
               ...bid.requests,
-              // Pre-inject bid object helper mapping context if needed
               _forcedBidId: bid.id
             });
           }
@@ -119,8 +114,6 @@ export function MyTasksPage() {
       }
 
       const unifiedData = Array.from(combinedMap.values());
-
-      // 3. Extract all unique user_ids of the requesters to fetch profiles separately
       const requestorUserIds = Array.from(new Set(unifiedData.map((item) => item.user_id).filter(Boolean)));
       
       let profilesMap = new Map<string, any>();
@@ -136,7 +129,6 @@ export function MyTasksPage() {
       }
 
       const mapped: (StoredRequest & { bidId?: string })[] = unifiedData.map((item: any) => {
-        // Trace your custom bid ID for this request
         const matchedBid = item.request_bids?.find((b: any) => b.helper_id === userId);
         const resolvedBidId = item._forcedBidId || matchedBid?.id;
 
@@ -159,7 +151,7 @@ export function MyTasksPage() {
           photoUrls: item.photo_urls || item.photoUrls || [], 
           paymentQrUrl: item.payment_qr_url || item.paymentQrUrl,
           requestorProfile: profilesMap.get(item.user_id) || null,
-          bidId: resolvedBidId // Injected to synchronize with Single Request chat
+          bidId: resolvedBidId
         };
       });
 
@@ -186,7 +178,7 @@ export function MyTasksPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-xs text-muted-foreground">
+      <div className="min-h-screen flex items-center justify-center bg-background text-sm text-muted-foreground">
         Verifying credential scopes...
       </div>
     );
@@ -233,7 +225,7 @@ export function MyTasksPage() {
             <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               My Tasks
             </h1>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Track real-time updates on tasks you are completing for other members.
             </p>
           </div>
@@ -338,58 +330,60 @@ function TaskCard({ task, user, activeChatTaskId, setActiveChatTaskId, onComplet
 
   const takerDone = !!takerCompletedAt;
   const fullySettled = !!completedAt;
-  const pointsPayable = !!feeSettledAt;
 
   return (
     <Card className="p-5 sm:p-6 rounded-2xl border border-border/50 hover:border-border/90 transition-all shadow-sm hover:shadow-md bg-card flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1.5 flex-1 min-w-0">
+        <div className="space-y-2 flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className={`rounded-lg font-medium text-[10px] ${reqType.color} bg-background/50 border-current/20`}>
+            {/* Orange-themed customized Request Type badge structure */}
+            <Badge variant="outline" className="rounded-lg font-bold text-xs bg-[#FFF3EB] text-[#FF6B00] border-[#FFE0CC] px-2.5 py-0.5">
               {reqType.label}
             </Badge>
             
             {fullySettled ? (
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20 rounded-lg text-[10px] font-medium flex items-center gap-1">
-                <BadgeCheck className="h-3 w-3" /> Settled & Closed
+              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20 rounded-lg text-xs font-medium flex items-center gap-1 px-2 py-0.5">
+                <BadgeCheck className="h-3.5 w-3.5" /> Settled & Closed
               </Badge>
             ) : takerDone ? (
-              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/20 rounded-lg text-[10px] font-medium flex items-center gap-1">
-                <Check className="h-3 w-3" /> Verification Pending
+              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/20 rounded-lg text-xs font-medium flex items-center gap-1 px-2 py-0.5">
+                <Check className="h-3.5 w-3.5" /> Verification Pending
               </Badge>
             ) : (
-              <Badge variant="secondary" className="rounded-lg text-[10px] font-medium bg-muted/60 text-muted-foreground border border-border/40">
+              <Badge variant="secondary" className="rounded-lg text-xs font-medium bg-muted/60 text-muted-foreground border border-border/40 px-2 py-0.5">
                 In Progress
               </Badge>
             )}
           </div>
           
-          <h3 className="text-sm font-semibold truncate text-foreground pr-2">
+          {/* Scaled-up text settings matching legacy interface */}
+          <h3 className="text-base font-bold text-foreground pr-2 leading-snug">
             {title}
           </h3>
           
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
             {description || <span className="italic opacity-50">No structural details specified.</span>}
           </p>
         </div>
 
         <div className="text-right shrink-0">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Reward</div>
-          <div className="text-sm font-bold text-primary flex items-center justify-end gap-1 mt-0.5">
-            <Gift className="h-3.5 w-3.5" />
+          <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Reward</div>
+          <div className="text-base font-black text-[#FF6B00] flex items-center justify-end gap-1 mt-0.5">
+            <Gift className="h-4 w-4" />
             <span>${reward}</span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40 text-[11px] sm:text-xs text-muted-foreground">
-        <div className="flex items-center gap-2 min-w-0 bg-muted/30 p-2 rounded-xl border border-border/20">
-          <MapPin className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
-          <span className="truncate">{locationLabel}</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40 text-sm text-muted-foreground">
+        {/* Customized Orange Location Pin Container layout */}
+        <div className="flex items-center gap-2 min-w-0 bg-[#FFF3EB]/30 p-2.5 rounded-xl border border-[#FFE0CC]/40">
+          <MapPin className="h-4 w-4 text-[#FF6B00] shrink-0" />
+          <span className="truncate text-foreground font-medium">{locationLabel}</span>
         </div>
         
-        <div className="flex items-center gap-2 bg-muted/30 p-2 rounded-xl border border-border/20">
-          <Clock className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+        <div className="flex items-center gap-2 bg-muted/30 p-2.5 rounded-xl border border-border/20">
+          <Clock className="h-4 w-4 text-muted-foreground/70 shrink-0" />
           <div className="truncate">
             {fullySettled ? (
               <span className="text-emerald-600 dark:text-emerald-400 font-medium">Finished task</span>
@@ -405,15 +399,15 @@ function TaskCard({ task, user, activeChatTaskId, setActiveChatTaskId, onComplet
       </div>
 
       {requestorProfile && (
-        <div className="flex items-center gap-2 p-2 rounded-xl bg-muted/20 border border-border/30 text-xs">
-          <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/20 border border-border/30 text-sm">
+          <div className="w-5.5 h-5.5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
             {requestorProfile.display_name?.slice(0,1).toUpperCase() || "R"}
           </div>
           <span className="text-muted-foreground font-medium">Requester:</span>
           <span className="text-foreground font-semibold">{requestorProfile.display_name || "Anonymous Member"}</span>
           {requestorProfile.average_rating > 0 && (
-            <div className="flex items-center gap-0.5 ml-auto text-amber-500 font-medium text-[11px]">
-              <Star className="h-3 w-3 fill-current" />
+            <div className="flex items-center gap-0.5 ml-auto text-amber-500 font-medium text-xs">
+              <Star className="h-3.5 w-3.5 fill-current" />
               <span>{Number(requestorProfile.average_rating).toFixed(1)}</span>
             </div>
           )}
@@ -421,8 +415,8 @@ function TaskCard({ task, user, activeChatTaskId, setActiveChatTaskId, onComplet
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1 pt-1">
-        <div className="text-[10px] text-muted-foreground italic">
-          {pointsPayable && !fullySettled && "⚠️ Requester paid transaction fees. Task closing shortly."}
+        <div className="text-xs text-muted-foreground italic">
+          {feeSettledAt && !fullySettled && "⚠️ Requester paid transaction fees. Task closing shortly."}
         </div>
         
         <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
@@ -432,7 +426,7 @@ function TaskCard({ task, user, activeChatTaskId, setActiveChatTaskId, onComplet
             className="rounded-xl h-9 text-xs"
             onClick={() => setActiveChatTaskId(isChatOpen ? null : id)}
           >
-            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+            <MessageSquare className="h-4 w-4 mr-1.5" />
             Chat
           </Button>
           
@@ -451,16 +445,16 @@ function TaskCard({ task, user, activeChatTaskId, setActiveChatTaskId, onComplet
                   className="rounded-xl h-9 text-xs border-amber-500/30 hover:bg-amber-500/5 text-amber-600 dark:text-amber-400"
                   onClick={() => onReopen(id)}
                 >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  <RotateCcw className="h-4 w-4 mr-1.5" />
                   Reopen Task
                 </Button>
               ) : (
                 <Button
                   size="sm"
-                  className="rounded-xl h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                  className="rounded-xl h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm font-semibold"
                   onClick={() => onComplete(id)}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
                   Mark Completed
                 </Button>
               )}
@@ -469,23 +463,21 @@ function TaskCard({ task, user, activeChatTaskId, setActiveChatTaskId, onComplet
         </div>
       </div>
 
-      {/* Realtime Chat Thread Container */}
       {isChatOpen && (
         <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
           <TaskThread 
             requestId={id} 
             currentUserId={user.id} 
             requestOwnerId={userId} 
-            bidId={bidId} // Fixed to synchronize seamlessly with Single Request Page
+            bidId={bidId} 
           />
         </div>
       )}
 
-      {/* Payment Settlement Container */}
       {(takerDone || fullySettled) && takenBy && (
         <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-1 duration-200">
-          <p className="text-[11px] sm:text-xs text-muted-foreground mb-3 flex items-start gap-1.5 bg-muted/50 p-2.5 rounded-lg">
-            <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground mb-3 flex items-start gap-1.5 bg-muted/50 p-2.5 rounded-lg">
+            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
             <span>Upload your receipt or payment payout QR code here to finalize settlement details with the requester.</span>
           </p>
           <PaymentQRUpload
