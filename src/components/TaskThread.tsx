@@ -69,22 +69,19 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
       .channel(`task-chat-${requestId}-${bidId || 'global'}`)
       .on(
         "postgres_changes",
-        { 
-          event: "INSERT", 
-          schema: "public", 
-          table: "request_messages" 
-        },
+        { event: "INSERT", schema: "public", table: "request_messages" },
         (payload) => {
           const msg = payload.new as Message;
-          
           if (msg.request_id !== requestId) return;
           if (bidId && msg.bid_id !== bidId) return;
           if (!bidId && msg.bid_id) return;
-          
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === msg.id)) return prev;
-            return [...prev, msg];
-          });
+
+          if (!cancelled) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
+          }
         }
       )
       .subscribe();
@@ -95,69 +92,55 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
     };
   }, [requestId, bidId]);
 
-  async function handleSendMessage(e: React.FormEvent) {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
 
     setSending(true);
-    const textToSend = newMessage.trim();
-    setNewMessage(""); 
-
     try {
-      const payload: Record<string, any> = {
+      const { error } = await supabase.from("request_messages").insert({
         request_id: requestId,
-        author_id: currentUserId, 
-        body: textToSend,          
-      };
-
-      if (bidId) {
-        payload.bid_id = bidId;
-      }
-
-      const { error } = await supabase
-        .from("request_messages") 
-        .insert(payload);
+        bid_id: bidId || null,
+        author_id: currentUserId,
+        body: newMessage.trim(),
+      });
 
       if (error) throw error;
+      setNewMessage("");
     } catch (err: any) {
-      console.error("Message send failure context:", err);
-      toast.error("Failed to send message.");
-      setNewMessage(textToSend); 
+      toast.error(err.message || "Failed to dispatch message.");
     } finally {
       setSending(false);
     }
-  }
+  };
 
-  // Safe time formatting helper function to protect against invalid date string parameters
-  const formatMessageTime = (dateString: string | undefined | null) => {
-    if (!dateString) return "Just now";
+  const formatMessageTime = (dateString: string) => {
     try {
-      const parsedDate = new Date(dateString);
-      if (isNaN(parsedDate.getTime())) return "Just now";
-      return parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return new Date(dateString).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } catch {
-      return "Just now";
+      return "";
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-6 text-xs text-muted-foreground gap-2">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading chat thread...
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4 bg-muted/30 p-4 rounded-xl border border-border/60">
-      <div className="h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-        {messages.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
-            No messages yet. Send a note to start the conversation!
+    <div className="flex flex-col h-[320px] bg-background border rounded-2xl overflow-hidden p-3 gap-3">
+      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0 custom-scrollbar">
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-xs text-muted-foreground gap-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            Synchronizing message history...
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-4">
+            <p className="text-xs text-muted-foreground italic">No chat activity found yet.</p>
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">Send a message below to start the conversation.</p>
           </div>
         ) : (
           messages.map((msg) => {
-            const isMe = msg.author_id === currentUserId; 
+            const isMe = msg.author_id === currentUserId;
             return (
               <div
                 key={msg.id}
@@ -189,7 +172,7 @@ export function TaskThread({ requestId, currentUserId, requestOwnerId, bidId }: 
           placeholder="Type your message here..."
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          className="rounded-xl h-9 text-xs"
+          className=\"rounded-xl h-9 text-xs\"
           disabled={sending}
           maxLength={1000}
         />
