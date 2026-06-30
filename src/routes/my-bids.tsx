@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,7 @@ function getCategoryIcon(typeSlug?: string) {
 
 function MyBidsPage() {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [bids, setBids] = useState<BidWithRequestContext[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -172,8 +173,6 @@ function MyBidsPage() {
 
               const isChatOpen = activeChatId === b.id;
               const IconComponent = getCategoryIcon(req.type);
-              
-              // Verify if the request is secret
               const isSecretRequest = !!req.is_secret;
 
               let statusColor = "bg-amber-500/10 text-amber-600 border-none";
@@ -181,13 +180,19 @@ function MyBidsPage() {
               if (b.status === "withdrawn") statusColor = "bg-muted text-muted-foreground border-none";
 
               return (
-                <Card key={b.id} className="p-5 transition-all">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex gap-3">
+                <Card 
+                  key={b.id} 
+                  className="p-5 transition-all select-none cursor-pointer sm:cursor-default"
+                  onDoubleClick={() => {
+                    void navigate({ to: "/request/$id", params: { id: req.id } });
+                  }}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="flex gap-3 min-w-0 flex-1">
                       <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
                         <IconComponent className="h-5 w-5" />
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="secondary" className="text-[11px] rounded-full uppercase tracking-wider">
                             Bid: ${b.amount}
@@ -236,18 +241,22 @@ function MyBidsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* Responsive button box fix */}
+                    <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto shrink-0 pt-3 sm:pt-0 border-t sm:border-0 border-border/40">
                       <Button
                         variant={isChatOpen ? "secondary" : "outline"}
                         size="sm"
-                        className="rounded-xl h-9"
-                        onClick={() => setActiveChatId(isChatOpen ? null : b.id)}
+                        className="rounded-xl h-9 flex-1 sm:flex-none text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveChatId(isChatOpen ? null : b.id);
+                        }}
                       >
                         <MessageSquare className="h-4 w-4 mr-1.5" />
                         Chat
                       </Button>
-                      <Button asChild size="sm" variant="ghost" className="rounded-xl h-9">
-                        <Link to="/request/$id" params={{ id: req.id }}>
+                      <Button asChild size="sm" variant="ghost" className="rounded-xl h-9 flex-1 sm:flex-none text-xs">
+                        <Link to="/request/$id" params={{ id: req.id }} onClick={(e) => e.stopPropagation()}>
                           Details <ExternalLink className="h-3.5 w-3.5 ml-1" />
                         </Link>
                       </Button>
