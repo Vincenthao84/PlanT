@@ -618,10 +618,10 @@ async function handleUpdateRequest(e: React.FormEvent) {
         }
       }
 
-      // Check current task assignment status inline
+      // Check current task status inline
       const { data: freshRecord, error: fetchError } = await supabase
         .from("requests")
-        .select("taken_by")
+        .select("taken_by, is_secret")
         .eq("id", request.id)
         .single();
 
@@ -636,14 +636,13 @@ async function handleUpdateRequest(e: React.FormEvent) {
       const targetLat = editCoords?.lat ?? request.lat ?? 48.8566;
       const targetLng = editCoords?.lng ?? request.lng ?? 2.3522;
       
-      // Strict extraction to guard against object references tripping Postgres boolean filters
-      const safeSecretFlag = typeof request.is_secret === 'boolean' 
-        ? request.is_secret 
-        : typeof request.isSecret === 'boolean' 
-          ? request.isSecret 
-          : false;
+      // ✅ READ DIRECTLY FROM THE DATABASE RECORD FETCHED ABOVE
+      // This bypasses the corrupted local React state object issue completely
+      const safeSecretFlag = freshRecord && typeof freshRecord.is_secret === 'boolean' 
+        ? freshRecord.is_secret 
+        : false;
 
-      // Update payload matching Postgres columns directly
+      // Cleaned update payload matching Postgres columns explicitly
       const { error } = await supabase
         .from("requests")
         .update({
@@ -653,7 +652,7 @@ async function handleUpdateRequest(e: React.FormEvent) {
           lat: targetLat,
           lng: targetLng,
           photo_urls: finalPhotoUrls,
-          is_secret: safeSecretFlag
+          is_secret: safeSecretFlag // ✅ Guarantees a clean true/false boolean literal value
         })
         .eq("id", request.id)
         .eq("user_id", user?.id);
