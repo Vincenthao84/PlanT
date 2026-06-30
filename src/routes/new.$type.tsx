@@ -296,7 +296,8 @@ function NewRequestPage() {
                   />
                 </label>
 
-                {{selectedFiles.map((file, idx) => (
+                {/* FIXED: Removed extra wrapper brackets around this .map loop expression */}
+                {selectedFiles.map((file, idx) => (
                   <div key={idx} className="relative w-28 h-24 rounded-xl overflow-hidden border bg-muted group animate-in fade-in zoom-in-95 duration-150">
                     <img 
                       src={URL.createObjectURL(file)} 
@@ -311,7 +312,7 @@ function NewRequestPage() {
                       <X className="h-3 w-3" />
                     </button>
                   </div>
-                ))}}
+                ))}
               </div>
             </div>
 
@@ -405,7 +406,7 @@ function NewRequestPage() {
                   <EyeOff className="h-4 w-4 text-muted-foreground" /> Secret Request
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Hide your username on the notice board. Helpers will see \"Secret Request\" instead.
+                  Hide your username on the notice board. Helpers will see "Secret Request" instead.
                 </p>
               </div>
               <Switch id="secret" checked={isSecret} onCheckedChange={setIsSecret} />
