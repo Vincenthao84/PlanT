@@ -486,7 +486,7 @@ function RequestDetailPage() {
       return;
     }
 
-    setUploadingBidPhotos(true);
+    setUploadingBidPhotos(true)
     const newUrls = [...uploadedBidUrls];
 
     try {
@@ -1080,7 +1080,7 @@ function RequestDetailPage() {
                       )}
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight mt-1">{request.title}</h1>
-                    <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground flex-wrap">
+                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
                       <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
                         <User className="h-3.5 w-3.5 text-muted-foreground" /> Posted by: {authorLabel}
                       </span>
@@ -1088,6 +1088,15 @@ function RequestDetailPage() {
                         <>
                           <span className="text-muted/60">•</span>
                           <StarRating rating={ownerProfile.average_rating || 0} />
+                        </>
+                      )}
+                      {request.createdAt && (
+                        <>
+                          <span className="text-muted/60">•</span>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" /> 
+                            {new Date(request.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                          </span>
                         </>
                       )}
                     </div>
