@@ -7,7 +7,16 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { fetchMyRequests, type StoredRequest, getRequestType } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
-import { MapPin, MessageSquare, Clock, ArrowRight } from "lucide-react";
+import { MapPin, MessageSquare, Clock, ArrowRight, Gift } from "lucide-react";
+
+interface ExtendedStoredRequest extends StoredRequest {
+  createdAt?: string;
+  reward?: number;
+  takerCompletedAt?: string | null;
+  completedAt?: string | null;
+  feeSettledAt?: string | null;
+  feeReceivedAt?: string | null;
+}
 
 export const Route = createFileRoute("/my-requests")({
   component: MyRequestsPage,
@@ -15,7 +24,7 @@ export const Route = createFileRoute("/my-requests")({
 
 function MyRequestsPage() {
   const { user, loading: authLoading } = useAuth();
-  const [requests, setRequests] = useState<StoredRequest[]>([]);
+  const [requests, setRequests] = useState<ExtendedStoredRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
@@ -64,6 +73,47 @@ function MyRequestsPage() {
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
 
+              // Compute the correct active status flag dynamically based on running phases
+              let statusBadge = (
+                <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
+                  Open Board
+                </Badge>
+              );
+
+              if (r.takenBy) {
+                if (r.feeReceivedAt) {
+                  statusBadge = (
+                    <Badge className="bg-purple-500/10 text-purple-600 border-none rounded-full text-[11px]">
+                      Cleared
+                    </Badge>
+                  );
+                } else if (r.feeSettledAt) {
+                  statusBadge = (
+                    <Badge className="bg-blue-500/10 text-blue-600 border-none rounded-full text-[11px]">
+                      Paid
+                    </Badge>
+                  );
+                } else if (r.completedAt) {
+                  statusBadge = (
+                    <Badge className="bg-green-500/10 text-green-600 border-none rounded-full text-[11px]">
+                      Verified Complete
+                    </Badge>
+                  );
+                } else if (r.takerCompletedAt) {
+                  statusBadge = (
+                    <Badge className="bg-amber-500/10 text-amber-600 border-none rounded-full text-[11px]">
+                      Helper Completed
+                    </Badge>
+                  );
+                } else {
+                  statusBadge = (
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-none rounded-full text-[11px]">
+                      Assigned
+                    </Badge>
+                  );
+                }
+              }
+
               return (
                 <Card key={r.id} className="p-5 transition-shadow hover:shadow-md">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -76,20 +126,25 @@ function MyRequestsPage() {
                           <Badge variant="secondary" className="text-[11px] rounded-full">
                             {typeMeta?.label || "Request"}
                           </Badge>
-                          {r.takenBy ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-600 border-none rounded-full text-[11px]">
-                              Assigned
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
-                              Open Board
+                          {statusBadge}
+                          {r.reward !== undefined && (
+                            <Badge variant="secondary" className="bg-accent/10 text-accent rounded-full text-[11px] font-medium gap-1">
+                              <Gift className="h-3 w-3" /> ${r.reward}
                             </Badge>
                           )}
                         </div>
                         <h3 className="font-semibold text-base mt-1 tracking-tight">{r.title}</h3>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-accent" /> {r.locationLabel}
-                        </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
+                          <p className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-accent shrink-0" /> {r.locationLabel}
+                          </p>
+                          {r.createdAt && (
+                            <p className="flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-muted-foreground shrink-0" /> 
+                              {new Date(r.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -116,7 +171,6 @@ function MyRequestsPage() {
                   {/* Chat interface dropdown layer block */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
-                      {/* Fixed: duplicate property parameter removed completely */}
                       <TaskThread
                         requestId={r.id}
                         currentUserId={user!.id}
