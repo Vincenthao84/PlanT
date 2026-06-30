@@ -26,7 +26,7 @@ interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string; 
   feeReceivedAt?: string | null;
   photo_urls?: string[]; 
-  is_secret?: boolean; // Safeguard property mapping
+  is_secret?: boolean; 
 }
 
 interface BidRecord {
@@ -86,11 +86,9 @@ function RequestDetailPage() {
   const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // History Dialog States
   const [historyDialog, setHistoryDialog] = useState<{ open: boolean; userId: string | null; name: string | null }>({ open: false, userId: null, name: null });
   const [bidderHistory, setBidderHistory] = useState<any[]>([]);
 
-  // Bid states
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
@@ -111,7 +109,6 @@ function RequestDetailPage() {
   const [settlingFee, setSettlingFee] = useState(false);
   const [receivingFee, setReceivingFee] = useState(false);
 
-  // Location & Multi-Image Editing States
   const [editLocationLabel, setEditLocationLabel] = useState("");
   const [editCoords, setEditCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [searchingMap, setSearchingMap] = useState(false);
@@ -160,7 +157,6 @@ function RequestDetailPage() {
       if (error) throw error;
       
       if (data) {
-        // Enforce safe parsing from database snake_case naming structures 
         const safeIsSecret = data.is_secret ?? data.isSecret ?? false;
 
         const mappedRequest: ExtendedStoredRequest = {
@@ -253,7 +249,6 @@ function RequestDetailPage() {
         }
 
         try {
-          // ✅ FIXED LOGIC: Query by request_id column to load all evaluations for this request instance
           const { data: reviewData } = await supabase
             .from("request_ratings")
             .select("id, request_id, requester_id, taker_id, stars, comment")
@@ -602,7 +597,6 @@ function RequestDetailPage() {
     try {
       const finalPhotoUrls = [...existingPhotos];
 
-      // 1. Process and upload any newly staged file attachments to storage
       if (selectedNewFiles.length > 0) {
         for (const file of selectedNewFiles) {
           const fileExt = file.name.split(".").pop();
@@ -622,7 +616,6 @@ function RequestDetailPage() {
         }
       }
 
-      // 2. Safeguard check: ensure task hasn't been accepted by a helper while editing
       const { data: freshRecord, error: fetchError } = await supabase
         .from("requests")
         .select("taken_by")
@@ -640,7 +633,6 @@ function RequestDetailPage() {
       const targetLat = editCoords?.lat ?? request.lat ?? 48.8566;
       const targetLng = editCoords?.lng ?? request.lng ?? 2.3522;
 
-      // 3. Clean Update Payload
       const { error } = await supabase
         .from("requests")
         .update({
@@ -854,7 +846,6 @@ function RequestDetailPage() {
     ? "Secret Request" 
     : (ownerProfile?.display_name || `User_${request.userId?.slice(0, 5)}`);
 
-  // Evaluates whether the active viewing user has logged their specific side of the review row
   const mySubmittedReview = reviews.find(r => {
     if (isOwner) {
       return r.requester_id === request.userId && r.taker_id === request.takenBy;
@@ -1269,147 +1260,148 @@ function RequestDetailPage() {
                   </form>
                 </div>
 
-                <div className="w-full md:w-[220px] space-y-4">
-                  <div className="bg-muted/30 border border-border/40 rounded-2xl p-4 space-y-3">
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workflow Progress Block</h4>
-                    
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                        <span className="text-muted-foreground">Task Assigned</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-2 w-2 rounded-full ${request.takerCompletedAt ? "bg-green-500" : "bg-muted"}`} />
-                        <span className={request.takerCompletedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Helper Completed</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-2 w-2 rounded-full ${request.completedAt ? "bg-green-500" : "bg-muted"}`} />
-                        <span className={request.completedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Owner Verified</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-2 w-2 rounded-full ${request.feeSettledAt ? "bg-green-500" : "bg-muted"}`} />
-                        <span className={request.feeSettledAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Dispatched</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-2 w-2 rounded-full ${request.feeReceivedAt ? "bg-green-500" : "bg-muted"}`} />
-                        <span className={request.feeReceivedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Receipts Locks</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-border/40 space-y-2">
-                      {isAssignedHelper && !request.takerCompletedAt && (
-                        <Button 
-                          onClick={async () => {
-                            try {
-                              const { error } = await supabase
-                                .from("requests")
-                                .update({ taker_completed_at: new Date().toISOString() })
-                                .eq("id", request.id);
-                              if (error) throw error;
-                              toast.success("Task marked as completed! Waiting for owner verification.");
-                              void fetchRequestDetails();
-                            } catch (err: any) {
-                              toast.error(err.message || "Failed to update task state.");
-                            }
-                          }} 
-                          className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-accent hover:bg-accent/90 text-white h-8"
-                        >
-                          Mark Task as Completed
-                        </Button>
-                      )}
+                {/* ✅ FIXED ACCESS LAYER: Enforce visibility constraint on Workflow Block and Service Evaluation to Owner and Assigned Helper Only */}
+                {(isOwner || isAssignedHelper) && (
+                  <div className="w-full md:w-[220px] space-y-4">
+                    <div className="bg-muted/30 border border-border/40 rounded-2xl p-4 space-y-3">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workflow Progress Block</h4>
                       
-                      {isOwner && request.takerCompletedAt && !request.completedAt && (
-                        <Button onClick={() => { void handleVerifyCompletion(); }} disabled={verifyingCompletion} className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-green-600 hover:bg-green-700 text-white h-8">
-                          {verifyingCompletion ? "Processing..." : "Verify Task Completion"}
-                        </Button>
-                      )}
-
-                      {isOwner && request.completedAt && !request.feeSettledAt && (
-                        <Button onClick={() => { void handleConfirmPaid(); }} disabled={settlingFee} className="w-full rounded-xl text-xs font-semibold gap-1.5 h-8">
-                          {settlingFee ? "Processing..." : "Confirm Remittance Paid"}
-                        </Button>
-                      )}
-
-                      {isAssignedHelper && request.feeSettledAt && !request.feeReceivedAt && (
-                        <Button onClick={() => { void handleConfirmReceipt(); }} disabled={receivingFee} className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-purple-600 hover:bg-purple-700 text-white h-8">
-                          {receivingFee ? "Processing..." : "Confirm Clear Receipt"}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {request.completedAt && (
-                    <div className="bg-accent/5 border border-accent/20 rounded-2xl p-4 space-y-4">
-                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-accent flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-accent" /> Mutual Service Evaluation
-                      </h4>
-
-                      {/* ✅ CHANGED DISPLAY LAYOUT: Map and display both comments / rows side by side if existing */}
-                      {reviews.length > 0 && (
-                        <div className="space-y-3">
-                          {reviews.map((rev) => {
-                            const isRequesterReview = rev.requester_id === request.userId;
-                            const labelName = isRequesterReview 
-                              ? (request.isSecret ? "Requester (Anonymous)" : ownerProfile?.display_name || "Requester")
-                              : (bids.find(b => b.helper_id === request.takenBy)?.helper_name || "Helper");
-
-                            return (
-                              <div key={rev.id} className="text-xs bg-background p-3 rounded-xl border border-border/60 space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-bold text-[10px] uppercase text-muted-foreground">
-                                    Review from {labelName}:
-                                  </span>
-                                  <StarRating rating={rev.stars} />
-                                </div>
-                                {rev.comment ? (
-                                  <p className="text-foreground italic mt-1">"{rev.comment}"</p>
-                                ) : (
-                                  <p className="text-[11px] text-muted-foreground/50 italic">No text comment left.</p>
-                                )}
-                              </div>
-                            );
-                          })}
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-2 w-2 rounded-full bg-green-500" />
+                          <span className="text-muted-foreground">Task Assigned</span>
                         </div>
-                      )}
+                        <div className="flex items-center gap-1.5">
+                          <div className={`h-2 w-2 rounded-full ${request.takerCompletedAt ? "bg-green-500" : "bg-muted"}`} />
+                          <span className={request.takerCompletedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Helper Completed</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className={`h-2 w-2 rounded-full ${request.completedAt ? "bg-green-500" : "bg-muted"}`} />
+                          <span className={request.completedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Owner Verified</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className={`h-2 w-2 rounded-full ${request.feeSettledAt ? "bg-green-500" : "bg-muted"}`} />
+                          <span className={request.feeSettledAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Dispatched</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className={`h-2 w-2 rounded-full ${request.feeReceivedAt ? "bg-green-500" : "bg-muted"}`} />
+                          <span className={request.feeReceivedAt ? "text-muted-foreground" : "text-muted-foreground/40"}>Funds Receipts Locks</span>
+                        </div>
+                      </div>
 
-                      {/* Render input form logic only if current user's rating row hasn't recorded into data array */}
-                      {!mySubmittedReview && (
-                        <form onSubmit={handleSubmitReview} className="space-y-3 pt-2 border-t border-dashed border-border/60">
-                          <p className="text-[10px] font-bold uppercase text-accent">Write Your Evaluation</p>
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Star Count</label>
-                            <div className="flex gap-1">
-                              {[1, 2, 3, 4, 5].map((num) => (
-                                <button 
-                                  key={num} 
-                                  type="button" 
-                                  onClick={() => setRatingInput(num)}
-                                  className="p-0.5 border-none bg-transparent cursor-pointer"
-                                >
-                                  <Star className={`h-4 w-4 ${num <= ratingInput ? "fill-accent text-accent" : "text-muted-foreground/30"}`} />
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Feedback Text</label>
-                            <Textarea 
-                              placeholder="Describe your collaborative session indicators..."
-                              value={commentInput}
-                              onChange={(e) => setCommentInput(e.target.value)}
-                              className="text-xs rounded-xl min-h-[60px]"
-                            />
-                          </div>
-
-                          <Button type="submit" disabled={submittingReview} className="w-full rounded-xl text-xs h-8">
-                            {submittingReview ? "Saving evaluation..." : "Submit Ratings Registry"}
+                      <div className="pt-2 border-t border-border/40 space-y-2">
+                        {isAssignedHelper && !request.takerCompletedAt && (
+                          <Button 
+                            onClick={async () => {
+                              try {
+                                const { error } = await supabase
+                                  .from("requests")
+                                  .update({ taker_completed_at: new Date().toISOString() })
+                                  .eq("id", request.id);
+                                if (error) throw error;
+                                toast.success("Task marked as completed! Waiting for owner verification.");
+                                void fetchRequestDetails();
+                              } catch (err: any) {
+                                toast.error(err.message || "Failed to update task state.");
+                              }
+                            }} 
+                            className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-accent hover:bg-accent/90 text-white h-8"
+                          >
+                            Mark Task as Completed
                           </Button>
-                        </form>
-                      )}
+                        )}
+                        
+                        {isOwner && request.takerCompletedAt && !request.completedAt && (
+                          <Button onClick={() => { void handleVerifyCompletion(); }} disabled={verifyingCompletion} className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-green-600 hover:bg-green-700 text-white h-8">
+                            {verifyingCompletion ? "Processing..." : "Verify Task Completion"}
+                          </Button>
+                        )}
+
+                        {isOwner && request.completedAt && !request.feeSettledAt && (
+                          <Button onClick={() => { void handleConfirmPaid(); }} disabled={settlingFee} className="w-full rounded-xl text-xs font-semibold gap-1.5 h-8">
+                            {settlingFee ? "Processing..." : "Confirm Remittance Paid"}
+                          </Button>
+                        )}
+
+                        {isAssignedHelper && request.feeSettledAt && !request.feeReceivedAt && (
+                          <Button onClick={() => { void handleConfirmReceipt(); }} disabled={receivingFee} className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-purple-600 hover:bg-purple-700 text-white h-8">
+                            {receivingFee ? "Processing..." : "Confirm Clear Receipt"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {request.completedAt && (
+                      <div className="bg-accent/5 border border-accent/20 rounded-2xl p-4 space-y-4">
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-accent flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-accent" /> Mutual Service Evaluation
+                        </h4>
+
+                        {reviews.length > 0 && (
+                          <div className="space-y-3">
+                            {reviews.map((rev) => {
+                              const isRequesterReview = rev.requester_id === request.userId;
+                              const labelName = isRequesterReview 
+                                ? (request.isSecret ? "Requester (Anonymous)" : ownerProfile?.display_name || "Requester")
+                                : (bids.find(b => b.helper_id === request.takenBy)?.helper_name || "Helper");
+
+                              return (
+                                <div key={rev.id} className="text-xs bg-background p-3 rounded-xl border border-border/60 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-[10px] uppercase text-muted-foreground">
+                                      Review from {labelName}:
+                                    </span>
+                                    <StarRating rating={rev.stars} />
+                                  </div>
+                                  {rev.comment ? (
+                                    <p className="text-foreground italic mt-1">"{rev.comment}"</p>
+                                  ) : (
+                                    <p className="text-[11px] text-muted-foreground/50 italic">No text comment left.</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {!mySubmittedReview && (
+                          <form onSubmit={handleSubmitReview} className="space-y-3 pt-2 border-t border-dashed border-border/60">
+                            <p className="text-[10px] font-bold uppercase text-accent">Write Your Evaluation</p>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Star Count</label>
+                              <div className="flex gap-1">
+                                {[1, 2, 3, 4, 5].map((num) => (
+                                  <button 
+                                    key={num} 
+                                    type="button" 
+                                    onClick={() => setRatingInput(num)}
+                                    className="p-0.5 border-none bg-transparent cursor-pointer"
+                                  >
+                                    <Star className={`h-4 w-4 ${num <= ratingInput ? "fill-accent text-accent" : "text-muted-foreground/30"}`} />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Feedback Text</label>
+                              <Textarea 
+                                placeholder="Describe your collaborative session indicators..."
+                                value={commentInput}
+                                onChange={(e) => setCommentInput(e.target.value)}
+                                className="text-xs rounded-xl min-h-[60px]"
+                              />
+                            </div>
+
+                            <Button type="submit" disabled={submittingReview} className="w-full rounded-xl text-xs h-8">
+                              {submittingReview ? "Saving evaluation..." : "Submit Ratings Registry"}
+                            </Button>
+                          </form>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
