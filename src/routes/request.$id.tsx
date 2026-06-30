@@ -1166,7 +1166,7 @@ function RequestDetailPage() {
 
                 {isOwner && bids.length > 1 && (
                   <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border">
-                    <label className="text-[10px] uppercase font-bold text-muted-foreground px-2">Chat with Bidders:</label>
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground px-2">Chat with Helpers:</label>
                     <select 
                       value={selectedBidId || ""} 
                       onChange={(e) => setSelectedBidId(e.target.value)}
