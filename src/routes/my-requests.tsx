@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPin, MessageSquare, Clock, ArrowRight, Gift } from "lucide-react";
 
 interface ExtendedStoredRequest extends StoredRequest {
+  id: string;
   createdAt?: string;
   created_at?: string;
   reward?: number;
@@ -48,9 +49,17 @@ function MyRequestsPage() {
           return;
         }
 
-        const requestIds = baseData.map(r => r.id);
+        // Safe extraction fallback for both raw backend array items and structural variations
+        const requestIds = baseData
+          .map((r: any) => r?.id || r?.request_id || r?._id)
+          .filter(Boolean);
 
-        // 2. Corrected query filtering against 'request_id' mapping array references
+        if (requestIds.length === 0) {
+          setRequests(baseData as ExtendedStoredRequest[]);
+          return;
+        }
+
+        // 2. Query request_ratings matching the safely resolved IDs
         const { data: ratingsData, error: ratingsError } = await supabase
           .from("request_ratings")
           .select("request_id")
@@ -58,16 +67,20 @@ function MyRequestsPage() {
           .eq("requester_id", user.id);
 
         if (ratingsError) {
-          console.error("Supabase ratings fetch error:", ratingsError);
+          console.error("Supabase ratings query error:", ratingsError);
         }
 
         const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
 
-        // 3. Map review statuses onto data array objects securely
-        const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => ({
-          ...r,
-          hasMyReview: reviewedRequestIds.has(r.id)
-        }));
+        // 3. Map status onto your frontend view accurately
+        const enrichedRequests: ExtendedStoredRequest[] = baseData.map((r: any) => {
+          const currentId = r?.id || r?.request_id || r?._id;
+          return {
+            ...r,
+            id: currentId, // Force normalize the identifier property
+            hasMyReview: reviewedRequestIds.has(currentId)
+          };
+        });
 
         setRequests(enrichedRequests);
       } catch (err) {
@@ -87,7 +100,7 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests: Finalized items move down to the bottom section cleanly
+  // Sort requests: Finalized items move cleanly to the bottom
   const sortedRequests = [...requests].sort((a, b) => {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
@@ -121,7 +134,6 @@ function MyRequestsPage() {
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
 
-              // Support both snake_case / camelCase database variants seamlessly
               const takenBy = r.takenBy || r.taken_by;
               const reward = r.reward;
               const freshFeeReceived = r.feeReceivedAt || r.fee_received_at;
@@ -130,10 +142,8 @@ function MyRequestsPage() {
               const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
               const freshCreatedAt = r.createdAt || r.created_at;
 
-              // Cross out condition: Helper confirmed receipt + you submitted review
               const isFinalized = !!(freshFeeReceived && r.hasMyReview);
 
-              // Step workflow status badges
               let statusBadge = (
                 <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
                   Open Board
@@ -150,7 +160,7 @@ function MyRequestsPage() {
                 } else if (freshFeeSettled) {
                   statusBadge = (
                     <Badge className="bg-blue-500/10 text-blue-600 border-none rounded-full text-[11px]">
-                      Paid
+                      Fee Settlement Done
                     </Badge>
                   );
                 } else if (freshCompleted) {
@@ -230,7 +240,6 @@ function MyRequestsPage() {
                     </div>
                   </div>
 
-                  {/* Chat dropdown dashboard overlay template */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
                       <TaskThread
