@@ -583,6 +583,13 @@ function RequestDetailPage() {
   async function handleUpdateRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!request || updatingRequest) return;
+
+    // Validation Guard: Prevent empty strings from triggering structural table CHECK constraints
+    if (!editTitle.trim() || !editDesc.trim() || !editLocationLabel.trim()) {
+      toast.error("Title, Description, and Address cannot be empty strings.");
+      return;
+    }
+
     setUpdatingRequest(true);
 
     try {
@@ -607,7 +614,22 @@ function RequestDetailPage() {
         }
       }
 
-      // ✅ FIXED: Chaining .eq("user_id", user?.id) targets the owner explicitly, solving the "Origin Only" RLS trigger block.
+      // Explicitly pull a fresh single match check directly from database before applying updates
+      const { data: freshRecord, error: fetchError } = await supabase
+        .from("requests")
+        .select("taken_by")
+        .eq("id", request.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Safe-guard condition mapping matching your database's strict flow constraint
+      if (freshRecord && freshRecord.taken_by !== null) {
+        toast.error("This request has already been assigned and can no longer be modified.");
+        setIsEditingRequest(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("requests")
         .update({
@@ -619,7 +641,8 @@ function RequestDetailPage() {
           photo_urls: finalPhotoUrls
         })
         .eq("id", request.id)
-        .eq("user_id", user?.id);
+        .eq("user_id", user?.id)
+        .is("taken_by", null); // Guarantees execution alignment with the 'Origin Only' database trigger
 
       if (error) throw error;
       toast.success("Request modifications saved.");
