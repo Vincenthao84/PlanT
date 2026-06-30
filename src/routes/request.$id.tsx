@@ -1083,7 +1083,7 @@ async function handleUpdateRequest(e: React.FormEvent) {
                 {request.reward && (
                   <div className="bg-accent/10 text-accent px-4 py-2 rounded-2xl flex items-center gap-1.5 font-semibold text-sm">
                     <Gift className="h-4 w-4" />
-                    {request.reward}
+                    ${request.reward}
                   </div>
                 )}
               </div>
