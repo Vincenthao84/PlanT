@@ -48,22 +48,23 @@ interface BidWithRequestContext {
   } | null;
 }
 
+// Restored to your original category definitions
 function getCategoryIcon(typeSlug?: string) {
   switch (typeSlug?.toLowerCase()) {
     case "snap":
       return Camera;
-    case "study":
+    case "knowledge":
       return Brain;
-    case "lend":
+    case "action":
       return Hand;
-    case "delivery":
+    case "object":
       return Package;
-    case "queue":
+    case "rental":
       return Key;
-    case "other":
+    case "anything":
       return MoreHorizontal;
     default:
-      return HelpCircle;
+      return HelpCircle; 
   }
 }
 
@@ -78,7 +79,6 @@ function MyBidsPage() {
 
     async function loadBids() {
       try {
-        // Querying only 'is_secret' to prevent Supabase from throwing a 400 bad request error
         const { data, error } = await supabase
           .from("request_bids")
           .select(`
@@ -128,7 +128,7 @@ function MyBidsPage() {
           created_at: b.created_at,
           requests: b.requests ? {
             ...b.requests,
-            isSecret: b.requests.is_secret // fallback assignment for interface compliance
+            isSecret: b.requests.is_secret
           } : null,
           requestorProfile: b.requests?.user_id ? profilesMap.get(b.requests.user_id) : null,
         }));
@@ -177,8 +177,6 @@ function MyBidsPage() {
 
               const isChatOpen = activeChatId === b.id;
               const IconComponent = getCategoryIcon(req.type);
-              
-              // Safely evaluate secret property state
               const isSecretRequest = !!(req.is_secret || req.isSecret);
 
               let statusColor = "bg-amber-500/10 text-amber-600 border-none";
