@@ -7,6 +7,7 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { fetchMyRequests, type StoredRequest, getRequestType } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { MapPin, MessageSquare, Clock, ArrowRight, Gift } from "lucide-react";
 
 interface ExtendedStoredRequest extends StoredRequest {
@@ -16,8 +17,7 @@ interface ExtendedStoredRequest extends StoredRequest {
   completedAt?: string | null;
   feeSettledAt?: string | null;
   feeReceivedAt?: string | null;
-  rating?: number | null;
-  comment?: string | null;
+  hasOwnerReview?: boolean; // Tracking if the owner gave their rating
 }
 
 export const Route = createFileRoute("/my-requests")({
@@ -35,8 +35,33 @@ function MyRequestsPage() {
     
     async function loadData() {
       try {
-        const data = await fetchMyRequests(user.id);
-        setRequests(data);
+        // 1. Fetch base requests created by this user
+        const baseData = await fetchMyRequests(user.id);
+        
+        if (baseData.length === 0) {
+          setRequests([]);
+          return;
+        }
+
+        const requestIds = baseData.map(r => r.id);
+
+        // 2. Direct Query to look up existing ratings left by this Request owner
+        const { data: ratingsData } = await supabase
+          .from("request_ratings")
+          .select("request_id, requester_id")
+          .in("request_id", requestIds)
+          .eq("requester_id", user.id);
+
+        // Map request IDs that have been reviewed by the owner
+        const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
+
+        // 3. Merge rating flag context into state records directly
+        const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => ({
+          ...r,
+          hasOwnerReview: reviewedRequestIds.has(r.id)
+        }));
+
+        setRequests(enrichedRequests);
       } catch (err) {
         console.error("Failed to load user records:", err);
       } finally {
@@ -54,10 +79,10 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests so that fully closed/finalized items are placed at the bottom
+  // Sort requests so that finalized items (Fee receipt cleared + Owner reviewed) drop to the bottom
   const sortedRequests = [...requests].sort((a, b) => {
-    const aFinalized = !!(a.feeReceivedAt && a.rating && a.comment);
-    const bFinalized = !!(b.feeReceivedAt && b.rating && b.comment);
+    const aFinalized = !!(a.feeReceivedAt && a.hasOwnerReview);
+    const bFinalized = !!(b.feeReceivedAt && b.hasOwnerReview);
     
     if (aFinalized && !bFinalized) return 1;
     if (!aFinalized && bFinalized) return -1;
@@ -85,10 +110,10 @@ function MyRequestsPage() {
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
               
-              // Check if the item meets all completion parameters to be crossed out
-              const isFinalized = !!(r.feeReceivedAt && r.rating && r.comment);
+              // Item is fully complete when money is received and owner review is tracked
+              const isFinalized = !!(r.feeReceivedAt && r.hasOwnerReview);
 
-              // Compute the correct active status flag dynamically based on running phases
+              // Compute the status badge label dynamically
               let statusBadge = (
                 <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
                   Open Board
@@ -130,7 +155,7 @@ function MyRequestsPage() {
               }
 
               return (
-                <Card key={r.id} className={`p-5 transition-shadow hover:shadow-md ${isFinalized ? "opacity-75" : ""}`}>
+                <Card key={r.id} className={`p-5 transition-all ${isFinalized ? "opacity-60 bg-muted/20 border-muted" : ""}`}>
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex gap-3">
                       <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
@@ -148,7 +173,7 @@ function MyRequestsPage() {
                             </Badge>
                           )}
                         </div>
-                        <h3 className={`font-semibold text-base mt-1 tracking-tight ${isFinalized ? "line-through text-muted-foreground/70" : ""}`}>
+                        <h3 className={`font-semibold text-base mt-1 tracking-tight transition-all ${isFinalized ? "line-through text-muted-foreground/50" : ""}`}>
                           {r.title}
                         </h3>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
