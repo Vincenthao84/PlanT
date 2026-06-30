@@ -12,12 +12,17 @@ import { MapPin, MessageSquare, Clock, ArrowRight, Gift } from "lucide-react";
 
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string;
+  created_at?: string;
   reward?: number;
   takerCompletedAt?: string | null;
+  taker_completed_at?: string | null;
   completedAt?: string | null;
+  completed_at?: string | null;
   feeSettledAt?: string | null;
+  fee_settled_at?: string | null;
   feeReceivedAt?: string | null;
-  hasOwnerReview?: boolean; // Tracking if the owner gave their rating
+  fee_received_at?: string | null;
+  hasOwnerReview?: boolean;
 }
 
 export const Route = createFileRoute("/my-requests")({
@@ -35,7 +40,7 @@ function MyRequestsPage() {
     
     async function loadData() {
       try {
-        // 1. Fetch base requests created by this user
+        // 1. Fetch requests created by the user
         const baseData = await fetchMyRequests(user.id);
         
         if (baseData.length === 0) {
@@ -45,17 +50,16 @@ function MyRequestsPage() {
 
         const requestIds = baseData.map(r => r.id);
 
-        // 2. Direct Query to look up existing ratings left by this Request owner
+        // 2. Query to look up reviews left by this Request owner
         const { data: ratingsData } = await supabase
           .from("request_ratings")
-          .select("request_id, requester_id")
+          .select("request_id")
           .in("request_id", requestIds)
           .eq("requester_id", user.id);
 
-        // Map request IDs that have been reviewed by the owner
         const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
 
-        // 3. Merge rating flag context into state records directly
+        // 3. Merge flags, adapting to both camelCase and snake_case API mappings
         const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => ({
           ...r,
           hasOwnerReview: reviewedRequestIds.has(r.id)
@@ -79,10 +83,13 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests so that finalized items (Fee receipt cleared + Owner reviewed) drop to the bottom
+  // Sort requests: true finalized items drop to the bottom
   const sortedRequests = [...requests].sort((a, b) => {
-    const aFinalized = !!(a.feeReceivedAt && a.hasOwnerReview);
-    const bFinalized = !!(b.feeReceivedAt && b.hasOwnerReview);
+    const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
+    const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
+    
+    const aFinalized = aHasFee && !!a.hasOwnerReview;
+    const bFinalized = bHasFee && !!b.hasOwnerReview;
     
     if (aFinalized && !bFinalized) return 1;
     if (!aFinalized && bFinalized) return -1;
@@ -99,7 +106,7 @@ function MyRequestsPage() {
         {sortedRequests.length === 0 ? (
           <Card className="p-8 text-center space-y-4 border-dashed">
             <p className="text-muted-foreground text-sm">You haven't posted any help requests yet.</p>
-            <Button asChild rounded-full>
+            <Button asChild className="rounded-full">
               <Link to="/">Create Your First Request</Link>
             </Button>
           </Card>
@@ -110,36 +117,43 @@ function MyRequestsPage() {
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
               
-              // Item is fully complete when money is received and owner review is tracked
-              const isFinalized = !!(r.feeReceivedAt && r.hasOwnerReview);
+              // Resolve status flags supporting safe fallbacks for either snake or camel naming structures
+              const freshFeeReceived = r.feeReceivedAt || r.fee_received_at;
+              const freshFeeSettled = r.feeSettledAt || r.fee_settled_at;
+              const freshCompleted = r.completedAt || r.completed_at;
+              const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
+              const freshCreatedAt = r.createdAt || r.created_at;
 
-              // Compute the status badge label dynamically
+              // Combined Finalization Rule: Receipt Confirmed + Evaluated by Owner
+              const isFinalized = !!(freshFeeReceived && r.hasOwnerReview);
+
+              // Compute the correct active status flag dynamically based on running phases
               let statusBadge = (
                 <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
                   Open Board
                 </Badge>
               );
 
-              if (r.takenBy) {
-                if (r.feeReceivedAt) {
+              if (r.takenBy || r.taken_by) {
+                if (freshFeeReceived) {
                   statusBadge = (
                     <Badge className="bg-teal-500/10 text-teal-600 border-none rounded-full text-[11px] font-medium">
                       Fee Settlement Done
                     </Badge>
                   );
-                } else if (r.feeSettledAt) {
+                } else if (freshFeeSettled) {
                   statusBadge = (
                     <Badge className="bg-blue-500/10 text-blue-600 border-none rounded-full text-[11px]">
                       Paid
                     </Badge>
                   );
-                } else if (r.completedAt) {
+                } else if (freshCompleted) {
                   statusBadge = (
                     <Badge className="bg-green-500/10 text-green-600 border-none rounded-full text-[11px]">
                       Verified Complete
                     </Badge>
                   );
-                } else if (r.takerCompletedAt) {
+                } else if (freshTakerCompleted) {
                   statusBadge = (
                     <Badge className="bg-amber-500/10 text-amber-600 border-none rounded-full text-[11px]">
                       Helper Completed
@@ -155,7 +169,7 @@ function MyRequestsPage() {
               }
 
               return (
-                <Card key={r.id} className={`p-5 transition-all ${isFinalized ? "opacity-60 bg-muted/20 border-muted" : ""}`}>
+                <Card key={r.id} className={`p-5 transition-all ${isFinalized ? "opacity-60 bg-muted/20 border-muted/60 shadow-none" : ""}`}>
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex gap-3">
                       <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
@@ -173,17 +187,17 @@ function MyRequestsPage() {
                             </Badge>
                           )}
                         </div>
-                        <h3 className={`font-semibold text-base mt-1 tracking-tight transition-all ${isFinalized ? "line-through text-muted-foreground/50" : ""}`}>
+                        <h3 className={`font-semibold text-base mt-1 tracking-tight transition-all ${isFinalized ? "line-through text-muted-foreground/50 select-none" : ""}`}>
                           {r.title}
                         </h3>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
                           <p className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-accent shrink-0" /> {r.locationLabel}
+                            <MapPin className="h-3 w-3 text-accent shrink-0" /> {r.locationLabel || r.location_label}
                           </p>
-                          {r.createdAt && (
+                          {freshCreatedAt && (
                             <p className="flex items-center gap-1">
                               <Clock className="h-3 w-3 text-muted-foreground shrink-0" /> 
-                              {new Date(r.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                              {new Date(freshCreatedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                             </p>
                           )}
                         </div>
@@ -191,7 +205,7 @@ function MyRequestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-                      {r.takenBy && (
+                      {(r.takenBy || r.taken_by) && (
                         <Button
                           variant={isChatOpen ? "secondary" : "outline"}
                           size="sm"
@@ -216,7 +230,7 @@ function MyRequestsPage() {
                       <TaskThread
                         requestId={r.id}
                         currentUserId={user!.id}
-                        requestOwnerId={r.userId}
+                        requestOwnerId={r.userId || r.user_id}
                       />
                     </div>
                   )}
