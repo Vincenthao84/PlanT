@@ -40,7 +40,6 @@ interface BidWithRequestContext {
     user_id: string;
     type?: string; 
     is_secret?: boolean;
-    isSecret?: boolean;
   };
   requestorProfile?: {
     display_name: string | null;
@@ -48,7 +47,6 @@ interface BidWithRequestContext {
   } | null;
 }
 
-// Restored to your original category definitions
 function getCategoryIcon(typeSlug?: string) {
   switch (typeSlug?.toLowerCase()) {
     case "snap":
@@ -64,7 +62,7 @@ function getCategoryIcon(typeSlug?: string) {
     case "anything":
       return MoreHorizontal;
     default:
-      return HelpCircle; 
+      return HelpCircle;
   }
 }
 
@@ -126,10 +124,7 @@ function MyBidsPage() {
           note: b.note,
           status: b.status,
           created_at: b.created_at,
-          requests: b.requests ? {
-            ...b.requests,
-            isSecret: b.requests.is_secret
-          } : null,
+          requests: b.requests,
           requestorProfile: b.requests?.user_id ? profilesMap.get(b.requests.user_id) : null,
         }));
 
@@ -177,7 +172,9 @@ function MyBidsPage() {
 
               const isChatOpen = activeChatId === b.id;
               const IconComponent = getCategoryIcon(req.type);
-              const isSecretRequest = !!(req.is_secret || req.isSecret);
+              
+              // Verify if the request is secret
+              const isSecretRequest = !!req.is_secret;
 
               let statusColor = "bg-amber-500/10 text-amber-600 border-none";
               if (b.status === "rejected") statusColor = "bg-destructive/10 text-destructive border-none";
@@ -185,13 +182,13 @@ function MyBidsPage() {
 
               return (
                 <Card key={b.id} className="p-5 transition-all">
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="flex gap-3 min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex gap-3">
                       <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
                         <IconComponent className="h-5 w-5" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="secondary" className="text-[11px] rounded-full uppercase tracking-wider">
                             Bid: ${b.amount}
                           </Badge>
@@ -200,12 +197,12 @@ function MyBidsPage() {
                           </Badge>
                         </div>
 
-                        <h3 className="font-semibold text-base tracking-tight truncate text-foreground">
+                        <h3 className="font-semibold text-base mt-1 tracking-tight">
                           {req.title}
                         </h3>
 
                         {b.requestorProfile && (
-                          <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground bg-muted/40 py-0.5 px-2 rounded w-fit">
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground bg-muted/40 py-0.5 px-2 rounded w-fit">
                             <span>
                               Requestor:{" "}
                               <strong className="text-foreground">
@@ -222,14 +219,14 @@ function MyBidsPage() {
                         )}
 
                         {b.note && (
-                          <p className="text-xs text-muted-foreground mt-2 bg-muted/20 p-2 rounded-lg italic line-clamp-2">
+                          <p className="text-xs text-muted-foreground mt-2 bg-muted/20 p-2 rounded-lg italic">
                             "{b.note}"
                           </p>
                         )}
 
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-3 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-4 mt-3 text-[11px] text-muted-foreground">
                           <p className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-accent shrink-0" /> {req.location_label || "Pinned Location"}
+                            <MapPin className="h-3 w-3 text-accent shrink-0" /> {req.location_label}
                           </p>
                           <p className="flex items-center gap-1">
                             <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -239,7 +236,7 @@ function MyBidsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button
                         variant={isChatOpen ? "secondary" : "outline"}
                         size="sm"
@@ -247,12 +244,11 @@ function MyBidsPage() {
                         onClick={() => setActiveChatId(isChatOpen ? null : b.id)}
                       >
                         <MessageSquare className="h-4 w-4 mr-1.5" />
-                        {isChatOpen ? "Close Chat" : "Chat Requestor"}
+                        Chat
                       </Button>
-                      
                       <Button asChild size="sm" variant="ghost" className="rounded-xl h-9">
                         <Link to="/request/$id" params={{ id: req.id }}>
-                          View Post <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                          Details <ExternalLink className="h-3.5 w-3.5 ml-1" />
                         </Link>
                       </Button>
                     </div>
