@@ -262,7 +262,7 @@ function RequestDetailPage() {
       }
     } catch (err) {
       console.error("Error loading requests baseline:", err);
-    } finaly {
+    } finally {
       setLoading(false);
     }
   }
