@@ -14,7 +14,6 @@ interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string;
   created_at?: string;
   reward?: number;
-  status?: string;
   takerCompletedAt?: string | null;
   taker_completed_at?: string | null;
   completedAt?: string | null;
@@ -51,7 +50,7 @@ function MyRequestsPage() {
 
         const requestIds = baseData.map(r => r.id);
 
-        // 2. Query request_ratings table safely where requester_id matches you
+        // 2. Corrected query filtering against 'request_id' mapping array references
         const { data: ratingsData, error: ratingsError } = await supabase
           .from("request_ratings")
           .select("request_id")
@@ -64,7 +63,7 @@ function MyRequestsPage() {
 
         const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
 
-        // 3. Map status flags directly onto your request array
+        // 3. Map review statuses onto data array objects securely
         const enrichedRequests: ExtendedStoredRequest[] = baseData.map(r => ({
           ...r,
           hasMyReview: reviewedRequestIds.has(r.id)
@@ -88,14 +87,13 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests: Finalized items move cleanly to the bottom of the list
+  // Sort requests: Finalized items move down to the bottom section cleanly
   const sortedRequests = [...requests].sort((a, b) => {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
     
-    // An item is finalized if fee is received AND either (you reviewed it OR status is explicitly 'completed')
-    const aFinalized = aHasFee && (!!a.hasMyReview || a.status === "completed");
-    const bFinalized = bHasFee && (!!b.hasMyReview || b.status === "completed");
+    const aFinalized = aHasFee && !!a.hasMyReview;
+    const bFinalized = bHasFee && !!b.hasMyReview;
     
     if (aFinalized && !bFinalized) return 1;
     if (!aFinalized && bFinalized) return -1;
@@ -123,7 +121,7 @@ function MyRequestsPage() {
               const Icon = typeMeta?.icon || MapPin;
               const isChatOpen = activeChatId === r.id;
 
-              // Support variable database snake_case or frontend camelCase outputs
+              // Support both snake_case / camelCase database variants seamlessly
               const takenBy = r.takenBy || r.taken_by;
               const reward = r.reward;
               const freshFeeReceived = r.feeReceivedAt || r.fee_received_at;
@@ -132,10 +130,10 @@ function MyRequestsPage() {
               const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
               const freshCreatedAt = r.createdAt || r.created_at;
 
-              // Cross out / Finalized validation check
-              const isFinalized = !!freshFeeReceived && (!!r.hasMyReview || r.status === "completed");
+              // Cross out condition: Helper confirmed receipt + you submitted review
+              const isFinalized = !!(freshFeeReceived && r.hasMyReview);
 
-              // Status badges rendering logic
+              // Step workflow status badges
               let statusBadge = (
                 <Badge variant="outline" className="rounded-full text-[11px] text-muted-foreground">
                   Open Board
@@ -232,7 +230,7 @@ function MyRequestsPage() {
                     </div>
                   </div>
 
-                  {/* Chat drop layer block */}
+                  {/* Chat dropdown dashboard overlay template */}
                   {isChatOpen && (
                     <div className="mt-4 pt-4 border-t border-border/60 animate-in fade-in-50 slide-in-from-top-2 duration-150">
                       <TaskThread
