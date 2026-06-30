@@ -181,6 +181,7 @@ function NewRequestPage() {
       }
 
       // Passes the output arrays to your input interface rules
+      // ✅ CHANGED: Named the parameter key 'photoUrls' instead of 'images' to match NewRequestInput schema mapping requirements
       const created = await createRequest({
         type: type.slug,
         title: title.trim(),
@@ -190,7 +191,7 @@ function NewRequestPage() {
         lng,
         reward: reward.trim(),
         isSecret,
-        images: uploadedUrls, 
+        photoUrls: uploadedUrls, 
       });
       
       void navigate({ to: "/request/$id", params: { id: created.id } });
