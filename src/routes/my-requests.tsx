@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/my-requests")({
 
 function MyRequestsPage() {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState<ExtendedStoredRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -41,7 +42,6 @@ function MyRequestsPage() {
     
     async function loadData() {
       try {
-        // 1. Fetch base requests where you are the creator
         const baseData = await fetchMyRequests(user.id);
         
         if (!baseData || baseData.length === 0) {
@@ -58,7 +58,6 @@ function MyRequestsPage() {
           return;
         }
 
-        // 2. Query request_ratings matching your target IDs where you are the author
         const { data: ratingsData, error: ratingsError } = await supabase
           .from("request_ratings")
           .select("request_id")
@@ -69,7 +68,6 @@ function MyRequestsPage() {
           console.error("Supabase ratings fetch error:", ratingsError);
         }
 
-        // 3. FIX: Fetch accepted bids for these requests to sync up the bid ID with TaskThread
         const { data: bidsData, error: bidsError } = await supabase
           .from("request_bids")
           .select("id, request_id")
@@ -82,7 +80,6 @@ function MyRequestsPage() {
 
         const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
         
-        // Map request_id -> accepted bid_id
         const bidMap = new Map<string, string>();
         if (bidsData) {
           bidsData.forEach((b) => {
@@ -90,7 +87,6 @@ function MyRequestsPage() {
           });
         }
 
-        // 4. Enrich payload mapping arrays accurately with the synchronized bid ID
         const enrichedRequests: ExtendedStoredRequest[] = baseData.map((r: any) => {
           const currentId = r.id || r.request_id;
           return {
@@ -119,7 +115,6 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests: Finalized items fall cleanly to the bottom
   const sortedRequests = [...requests].sort((a, b) => {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
@@ -161,7 +156,6 @@ function MyRequestsPage() {
               const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
               const freshCreatedAt = r.createdAt || r.created_at;
 
-              // Finalized display condition
               const isFinalized = !!(freshFeeReceived && r.hasMyReview);
 
               let statusBadge = (
@@ -205,13 +199,19 @@ function MyRequestsPage() {
               }
 
               return (
-                <Card key={r.id} className={`p-5 transition-all ${isFinalized ? "opacity-60 bg-muted/20 border-muted/60 shadow-none" : ""}`}>
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="flex gap-3">
+                <Card 
+                  key={r.id} 
+                  className={`p-5 transition-all select-none cursor-pointer sm:cursor-default ${isFinalized ? "opacity-60 bg-muted/20 border-muted/60 shadow-none" : ""}`}
+                  onDoubleClick={() => {
+                    void navigate({ to: "/request/$id", params: { id: r.id } });
+                  }}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="flex gap-3 min-w-0 flex-1">
                       <div className="h-10 w-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center shrink-0">
                         <Icon className="h-5 w-5" />
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="secondary" className="text-[11px] rounded-full">
                             {typeMeta?.label || "Request"}
@@ -223,7 +223,7 @@ function MyRequestsPage() {
                             </Badge>
                           )}
                         </div>
-                        <h3 className={`font-semibold text-base mt-1 tracking-tight transition-all ${isFinalized ? "line-through text-muted-foreground/50 select-none" : ""}`}>
+                        <h3 className={`font-semibold text-base mt-1 tracking-tight transition-all ${isFinalized ? "line-through text-muted-foreground/50" : ""}`}>
                           {r.title}
                         </h3>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
@@ -240,20 +240,23 @@ function MyRequestsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+                    <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto shrink-0 pt-3 sm:pt-0 border-t sm:border-0 border-border/40">
                       {takenBy && (
                         <Button
                           variant={isChatOpen ? "secondary" : "outline"}
                           size="sm"
-                          className="rounded-xl h-9"
-                          onClick={() => setActiveChatId(isChatOpen ? null : r.id)}
+                          className="rounded-xl h-9 flex-1 sm:flex-none text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveChatId(isChatOpen ? null : r.id);
+                          }}
                         >
                           <MessageSquare className="h-4 w-4 mr-1.5" />
                           Chat
                         </Button>
                       )}
-                      <Button asChild size="sm" variant="ghost" className="rounded-xl h-9">
-                        <Link to="/request/$id" params={{ id: r.id }}>
+                      <Button asChild size="sm" variant="ghost" className="rounded-xl h-9 flex-1 sm:flex-none text-xs">
+                        <Link to="/request/$id" params={{ id: r.id }} onClick={(e) => e.stopPropagation()}>
                           Details <ArrowRight className="h-3.5 w-3.5 ml-1" />
                         </Link>
                       </Button>
