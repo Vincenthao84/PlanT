@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle, CreditCard, Star, User } from "lucide-react";
+import { MapPin, Gift, Clock, ArrowLeft, Image as ImageIcon, Send, Camera, X, Loader2, MessageSquare, Edit2, Trash2, CheckCircle, CreditCard, Star, User, Map } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
 import { StarRating } from "@/components/StarRating";
@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -108,6 +109,13 @@ function RequestDetailPage() {
   const [settlingFee, setSettlingFee] = useState(false);
   const [receivingFee, setReceivingFee] = useState(false);
 
+  // 🗺️ Added Location & Multi-Image Editing States
+  const [editLocationLabel, setEditLocationLabel] = useState("");
+  const [editCoords, setEditCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [searchingMap, setSearchingMap] = useState(false);
+  const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
+  const [selectedNewFiles, setSelectedNewFiles] = useState<File[]>([]);
+
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [newMsgText, setNewMsgText] = useState("");
@@ -174,6 +182,11 @@ function RequestDetailPage() {
         setRequest(mappedRequest);
         setEditTitle(data.title || "");
         setEditDesc(data.description || "");
+        
+        // Hydrate location inputs & image fields for edit workflows
+        setEditLocationLabel(mappedRequest.locationLabel);
+        setEditCoords({ lat: data.lat, lng: data.lng });
+        setExistingPhotos(mappedRequest.photo_urls || []);
 
         const realUID = data.user_id || data.userId;
 
@@ -381,6 +394,43 @@ function RequestDetailPage() {
     };
   }, [request, user, selectedBidId]);
 
+  // 🗺️ Live lookup handler for editing location coordinates via text geocoding
+  const handleShowMapLookup = async () => {
+    if (!editLocationLabel.trim()) {
+      toast.error("Please enter an address or location name first.");
+      return;
+    }
+    setSearchingMap(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(editLocationLabel)}`,
+        { headers: { "Accept-Language": "en", "User-Agent": "PlanT-Notice-Board-App" } }
+      );
+      const data = (await res.json()) as Array<{ lat: string; lon: string }>;
+      if (data && data[0]) {
+        setEditCoords({
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon),
+        });
+        toast.success("Location updated on the preview map window.");
+      } else {
+        toast.error("Could not trace valid coordinates for this destination text.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred during geo map verification lookup.");
+    } finally {
+      setSearchingMap(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setSelectedNewFiles((prev) => [...prev, ...filesArray]);
+    }
+  };
+
   async function handleChatPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -533,23 +583,52 @@ function RequestDetailPage() {
     }
   }
 
+  // 💾 Enhanced request updater to cleanly commit map inputs and append photo arrays
   async function handleUpdateRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!request || updatingRequest) return;
     setUpdatingRequest(true);
 
     try {
+      const finalPhotoUrls = [...existingPhotos];
+
+      // Upload newly attached file streams if any are appended to state arrays
+      if (selectedNewFiles.length > 0) {
+        for (const file of selectedNewFiles) {
+          const fileExt = file.name.split(".").pop();
+          const uniquePath = `request-attachments/${user?.id || "anonymous"}/${crypto.randomUUID()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from("task-photos")
+            .upload(uniquePath, file);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from("task-photos")
+            .getPublicUrl(uniquePath);
+
+          finalPhotoUrls.push(publicUrl);
+        }
+      }
+
+      // Sync parameters cleanly to targeted row
       const { error } = await supabase
         .from("requests")
         .update({
           title: editTitle.trim(),
           description: editDesc.trim(),
+          location_label: editLocationLabel.trim(),
+          lat: editCoords?.lat ?? request.lat,
+          lng: editCoords?.lng ?? request.lng,
+          photo_urls: finalPhotoUrls,
         })
         .eq("id", request.id);
 
       if (error) throw error;
       toast.success("Request modifications saved.");
       setIsEditingRequest(false);
+      setSelectedNewFiles([]);
       void fetchRequestDetails();
     } catch (err: any) {
       toast.error(err.message || "Failed to update listing configuration.");
@@ -752,9 +831,12 @@ function RequestDetailPage() {
     }
   });
 
-  const mapEmbedUrl = request.lat && request.lng
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
-    : null;
+  // Reactive verification iframe logic mapping current form data
+  const mapEmbedUrl = editCoords
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${editCoords.lng - 0.005}%2C${editCoords.lat - 0.003}%2C${editCoords.lng + 0.005}%2C${editCoords.lat + 0.003}&layer=mapnik&marker=${editCoords.lat}%2C${editCoords.lng}`
+    : request.lat && request.lng
+      ? `https://www.openstreetmap.org/export/embed.html?bbox=${request.lng - 0.005}%2C${request.lat - 0.003}%2C${request.lng + 0.005}%2C${request.lat + 0.003}&layer=mapnik&marker=${request.lat}%2C${request.lng}`
+      : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -773,7 +855,15 @@ function RequestDetailPage() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => setIsEditingRequest(!isEditingRequest)} 
+                onClick={() => {
+                  setIsEditingRequest(!isEditingRequest);
+                  if (!isEditingRequest && request) {
+                    setEditLocationLabel(request.locationLabel);
+                    setEditCoords({ lat: request.lat, lng: request.lng });
+                    setExistingPhotos(request.photo_urls || []);
+                    setSelectedNewFiles([]);
+                  }
+                }} 
                 className="rounded-xl h-8 text-xs gap-1"
               >
                 <Edit2 className="h-3 w-3" />
@@ -796,14 +886,120 @@ function RequestDetailPage() {
             <form onSubmit={handleUpdateRequest} className="space-y-4 pt-2">
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Modify Request Information</h3>
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Title</label>
+                <Label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Title</Label>
                 <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required className="rounded-xl" />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</label>
+                <Label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</Label>
                 <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} required className="rounded-xl min-h-[100px]" />
               </div>
-              <div className="flex justify-end gap-2">
+
+              {/* 🗺️ LOCATION AND GEO MAP EDIT SPLIT DESIGN BLOCK */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start pt-2 border-t border-dashed">
+                <div className="space-y-1.5">
+                  <Label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Edit Address Label</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={editLocationLabel}
+                      onChange={(e) => setEditLocationLabel(e.target.value)}
+                      placeholder="e.g. London Central Station"
+                      className="rounded-xl flex-1 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="shrink-0 gap-1 rounded-xl text-xs h-10 px-3"
+                      onClick={handleShowMapLookup}
+                      disabled={searchingMap}
+                    >
+                      {searchingMap ? <Loader2 className="h-3 w-3 animate-spin" /> : <Map className="h-3.5 w-3.5" />}
+                      Show Map
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Lookup coordinates through spatial tracking nodes before syncing changes.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Preview Coordinates Area</Label>
+                  <div className="aspect-video w-full rounded-xl border bg-muted/30 overflow-hidden relative min-h-[110px]">
+                    {mapEmbedUrl ? (
+                      <iframe
+                        title="Live Position Verification Mapping"
+                        width="100%"
+                        height="100%"
+                        className="border-none absolute inset-0"
+                        src={mapEmbedUrl}
+                      />
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground text-center p-4">No coordinates chosen.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 📸 IMAGE ATTACHMENTS RE-QUEUE MANAGER DESIGN BLOCK */}
+              <div className="space-y-2 border-t border-dashed pt-3">
+                <Label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Manage Request Imagery</Label>
+                <div className="flex flex-wrap gap-3 items-center">
+                  
+                  {/* File Upload Selector Action Grid Node */}
+                  <label className="flex flex-col items-center justify-center w-24 h-16 border border-dashed rounded-xl cursor-pointer hover:bg-muted/40 transition-colors border-muted-foreground/30 text-muted-foreground">
+                    <ImageIcon className="h-4 w-4 mb-0.5" />
+                    <span className="text-[9px] font-semibold">Add Photo</span>
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
+                  </label>
+
+                  {/* Render Existing Database Photos with Delete Option */}
+                  {existingPhotos.map((url, index) => (
+                    <div key={`exist-${index}`} className="relative w-24 h-16 rounded-xl overflow-hidden border bg-muted group shadow-sm">
+                      <img src={url} alt="Reference Attachment" className="object-cover w-full h-full" />
+                      <button
+                        type="button"
+                        onClick={() => setExistingPhotos(prev => prev.filter((_, idx) => idx !== index))}
+                        className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white rounded-full p-1 cursor-pointer transition-colors shadow-md"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Render Appended New Files Cached locally */}
+                  {selectedNewFiles.map((file, index) => (
+                    <div key={`new-file-${index}`} className="relative w-24 h-16 rounded-xl overflow-hidden border border-primary/40 bg-muted/60 animate-pulse group">
+                      <img src={URL.createObjectURL(file)} alt="Appended cache" className="object-cover w-full h-full" />
+                      <button
+                        type="button"
+                        onClick={() => setSelectedNewFiles(prev => prev.filter((_, idx) => idx !== index))}
+                        className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white rounded-full p-1 cursor-pointer transition-colors shadow-md"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className="rounded-full" 
+                  disabled={updatingRequest}
+                  onClick={() => {
+                    setIsEditingRequest(false);
+                    setSelectedNewFiles([]);
+                    if (request) {
+                      setEditLocationLabel(request.locationLabel);
+                      setEditCoords({ lat: request.lat, lng: request.lng });
+                      setExistingPhotos(request.photo_urls || []);
+                    }
+                  }}
+                >
+                  Cancel
+                </Button>
                 <Button type="submit" size="sm" disabled={updatingRequest} className="rounded-full px-4 text-xs">
                   {updatingRequest ? "Saving changes..." : "Save Modifications"}
                 </Button>
@@ -865,7 +1061,7 @@ function RequestDetailPage() {
           )}
 
           {/* Top attached photos list synced to database */}
-          {hasPhotos && (
+          {!isEditingRequest && hasPhotos && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                 <ImageIcon className="h-3.5 w-3.5" /> Attached Imagery / Context
@@ -887,24 +1083,26 @@ function RequestDetailPage() {
           )}
 
           {/* Dynamic Map Pin Box Section */}
-          <div className="space-y-2 pt-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" /> Fulfill Location Details
-            </h4>
-            <p className="text-sm font-medium text-foreground px-1">{request.locationLabel}</p>
-            
-            {mapEmbedUrl && (
-              <Card className="p-0 rounded-2xl border bg-muted/20 overflow-hidden relative aspect-[21/9] w-full min-h-[180px]">
-                <iframe
-                  title="Dynamic Request Location Grid"
-                  width="100%"
-                  height="100%"
-                  className="border-none absolute inset-0"
-                  src={mapEmbedUrl}
-                />
-              </Card>
-            )}
-          </div>
+          {!isEditingRequest && (
+            <div className="space-y-2 pt-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" /> Fulfill Location Details
+              </h4>
+              <p className="text-sm font-medium text-foreground px-1">{request.locationLabel}</p>
+              
+              {mapEmbedUrl && (
+                <Card className="p-0 rounded-2xl border bg-muted/20 overflow-hidden relative aspect-[21/9] w-full min-h-[180px]">
+                  <iframe
+                    title="Dynamic Request Location Grid"
+                    width="100%"
+                    height="100%"
+                    className="border-none absolute inset-0"
+                    src={mapEmbedUrl}
+                  />
+                </Card>
+              )}
+            </div>
+          )}
 
          {user && (isOwner || isAssignedHelper || (hasAlreadyBid && selectedBidId)) && (
             <div className="border-t border-border/60 pt-6 space-y-4">
