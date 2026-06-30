@@ -256,7 +256,7 @@ function RequestDetailPage() {
           const { data: reviewData } = await supabase
             .from("request_ratings")
             .select("id, request_id, requester_id, taker_id, stars, comment")
-            .eq("id", data.id);
+            .eq("request_id", data.id);
           if (reviewData) setReviews(reviewData);
         } catch (e) {
           console.warn("Could not load mutual records:", e);
@@ -853,13 +853,9 @@ function RequestDetailPage() {
     ? "Secret Request" 
     : (ownerProfile?.display_name || `User_${request.userId?.slice(0, 5)}`);
 
-  const mySubmittedReview = reviews.find(r => {
-    if (isOwner) {
-      return r.requester_id === request.userId && r.taker_id === request.takenBy;
-    } else {
-      return r.requester_id === request.takenBy && r.taker_id === request.userId;
-    }
-  });
+  // Separate current user's review and the partner's review seamlessly
+  const myReview = reviews.find(r => r.requester_id === user?.id);
+  const partnerReview = reviews.find(r => r.requester_id !== user?.id && r.id !== undefined);
 
   const mapEmbedUrl = editCoords
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${editCoords.lng - 0.005}%2C${editCoords.lat - 0.003}%2C${editCoords.lng + 0.005}%2C${editCoords.lat + 0.003}&layer=mapnik&marker=${editCoords.lat}%2C${editCoords.lng}`
@@ -881,7 +877,6 @@ function RequestDetailPage() {
     completedAt: request?.completedAt
   });
 
-  
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
@@ -1341,18 +1336,31 @@ function RequestDetailPage() {
                   </div>
 
                   {request.completedAt && (
-                    <div className="bg-accent/5 border border-accent/20 rounded-2xl p-4 space-y-3">
+                    <div className="bg-accent/5 border border-accent/20 rounded-2xl p-4 space-y-4">
                       <h4 className="text-[10px] font-bold uppercase tracking-wider text-accent flex items-center gap-1">
                         <Star className="h-3 w-3 fill-accent" /> Mutual Service Evaluation
                       </h4>
 
-                      {mySubmittedReview ? (
+                      {/* Display the assessment provided by the opposite party if it exists */}
+                      {partnerReview && (
+                        <div className="space-y-1.5 text-xs border-b border-border/40 pb-3">
+                          <p className="text-[10px] font-bold text-accent uppercase tracking-wider">Feedback Received:</p>
+                          <StarRating rating={partnerReview.stars} />
+                          {partnerReview.comment && (
+                            <p className="text-muted-foreground italic bg-background/50 p-2 rounded-xl border border-dashed">
+                              "{partnerReview.comment}"
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {myReview ? (
                         <div className="space-y-1.5 text-xs">
                           <p className="text-[10px] font-bold text-muted-foreground/80 uppercase">Your scores submitted:</p>
-                          <StarRating rating={mySubmittedReview.stars} />
-                          {mySubmittedReview.comment && (
+                          <StarRating rating={myReview.stars} />
+                          {myReview.comment && (
                             <p className="text-muted-foreground italic bg-background/50 p-2 rounded-xl border border-dashed">
-                              "{mySubmittedReview.comment}"
+                              "{myReview.comment}"
                             </p>
                           )}
                         </div>
