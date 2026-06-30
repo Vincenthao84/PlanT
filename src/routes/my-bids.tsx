@@ -78,6 +78,7 @@ function MyBidsPage() {
 
     async function loadBids() {
       try {
+        // Querying only 'is_secret' to prevent Supabase from throwing a 400 bad request error
         const { data, error } = await supabase
           .from("request_bids")
           .select(`
@@ -92,8 +93,7 @@ function MyBidsPage() {
               location_label,
               user_id,
               type,
-              is_secret,
-              isSecret
+              is_secret
             )
           `)
           .eq("helper_id", user.id)
@@ -126,7 +126,10 @@ function MyBidsPage() {
           note: b.note,
           status: b.status,
           created_at: b.created_at,
-          requests: b.requests,
+          requests: b.requests ? {
+            ...b.requests,
+            isSecret: b.requests.is_secret // fallback assignment for interface compliance
+          } : null,
           requestorProfile: b.requests?.user_id ? profilesMap.get(b.requests.user_id) : null,
         }));
 
@@ -175,8 +178,8 @@ function MyBidsPage() {
               const isChatOpen = activeChatId === b.id;
               const IconComponent = getCategoryIcon(req.type);
               
-              // Determine if the parent request is marked confidential/secret
-              const isSecretRequest = req.is_secret || req.isSecret;
+              // Safely evaluate secret property state
+              const isSecretRequest = !!(req.is_secret || req.isSecret);
 
               let statusColor = "bg-amber-500/10 text-amber-600 border-none";
               if (b.status === "rejected") statusColor = "bg-destructive/10 text-destructive border-none";
@@ -203,7 +206,6 @@ function MyBidsPage() {
                           {req.title}
                         </h3>
 
-                        {/* Mask name and score securely if it is a Secret Request */}
                         {b.requestorProfile && (
                           <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground bg-muted/40 py-0.5 px-2 rounded w-fit">
                             <span>
