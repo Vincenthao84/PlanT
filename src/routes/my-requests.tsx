@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPin, MessageSquare, Clock, ArrowRight, Gift } from "lucide-react";
 
 interface ExtendedStoredRequest extends StoredRequest {
-  id: string;
   createdAt?: string;
   created_at?: string;
   reward?: number;
@@ -41,7 +40,7 @@ function MyRequestsPage() {
     
     async function loadData() {
       try {
-        // 1. Fetch base requests created by this user
+        // 1. Fetch base requests where you are the creator
         const baseData = await fetchMyRequests(user.id);
         
         if (!baseData || baseData.length === 0) {
@@ -49,9 +48,9 @@ function MyRequestsPage() {
           return;
         }
 
-        // Safe extraction fallback for both raw backend array items and structural variations
+        // Handle both camelCase and snake_case object formats safely
         const requestIds = baseData
-          .map((r: any) => r?.id || r?.request_id || r?._id)
+          .map((r: any) => r.id || r.request_id)
           .filter(Boolean);
 
         if (requestIds.length === 0) {
@@ -59,7 +58,7 @@ function MyRequestsPage() {
           return;
         }
 
-        // 2. Query request_ratings matching the safely resolved IDs
+        // 2. Query request_ratings matching your target IDs where you are the author
         const { data: ratingsData, error: ratingsError } = await supabase
           .from("request_ratings")
           .select("request_id")
@@ -67,17 +66,17 @@ function MyRequestsPage() {
           .eq("requester_id", user.id);
 
         if (ratingsError) {
-          console.error("Supabase ratings query error:", ratingsError);
+          console.error("Supabase ratings fetch error:", ratingsError);
         }
 
         const reviewedRequestIds = new Set(ratingsData?.map(r => r.request_id) || []);
 
-        // 3. Map status onto your frontend view accurately
+        // 3. Enrich payload mapping arrays accurately
         const enrichedRequests: ExtendedStoredRequest[] = baseData.map((r: any) => {
-          const currentId = r?.id || r?.request_id || r?._id;
+          const currentId = r.id || r.request_id;
           return {
             ...r,
-            id: currentId, // Force normalize the identifier property
+            id: currentId,
             hasMyReview: reviewedRequestIds.has(currentId)
           };
         });
@@ -100,7 +99,7 @@ function MyRequestsPage() {
     );
   }
 
-  // Sort requests: Finalized items move cleanly to the bottom
+  // Sort requests: Finalized items fall cleanly to the bottom
   const sortedRequests = [...requests].sort((a, b) => {
     const aHasFee = !!(a.feeReceivedAt || a.fee_received_at);
     const bHasFee = !!(b.feeReceivedAt || b.fee_received_at);
@@ -142,6 +141,7 @@ function MyRequestsPage() {
               const freshTakerCompleted = r.takerCompletedAt || r.taker_completed_at;
               const freshCreatedAt = r.createdAt || r.created_at;
 
+              // Finalized display condition
               const isFinalized = !!(freshFeeReceived && r.hasMyReview);
 
               let statusBadge = (
@@ -160,7 +160,7 @@ function MyRequestsPage() {
                 } else if (freshFeeSettled) {
                   statusBadge = (
                     <Badge className="bg-blue-500/10 text-blue-600 border-none rounded-full text-[11px]">
-                      Fee Settlement Done
+                      Paid
                     </Badge>
                   );
                 } else if (freshCompleted) {
