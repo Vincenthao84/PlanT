@@ -1288,6 +1288,29 @@ function RequestDetailPage() {
                     </div>
 
                     <div className="pt-2 border-t border-border/40 space-y-2">
+
+                    {/* 1. New Button: Allows you (the helper) to signal that you finished the work */}
+                      {isAssignedHelper && !request.takerCompletedAt && (
+                        <Button 
+                          onClick={async () => {
+                            try {
+                              const { error } = await supabase
+                                .from("requests")
+                                .update({ taker_completed_at: new Date().toISOString() })
+                                .eq("id", request.id);
+                              if (error) throw error;
+                              toast.success("Task marked as completed! Waiting for owner verification.");
+                              void fetchRequestDetails();
+                            } catch (err: any) {
+                              toast.error(err.message || "Failed to update task state.");
+                            }
+                          }} 
+                          className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-accent hover:bg-accent/90 text-white h-8"
+                        >
+                          Mark Task as Completed
+                        </Button>
+                      )}
+                      
                       {isOwner && request.takerCompletedAt && !request.completedAt && (
                         <Button onClick={() => { void handleVerifyCompletion(); }} disabled={verifyingCompletion} className="w-full rounded-xl text-xs font-semibold gap-1.5 bg-green-600 hover:bg-green-700 text-white h-8">
                           {verifyingCompletion ? "Processing..." : "Verify Task Completion"}
