@@ -585,7 +585,7 @@ function RequestDetailPage() {
     }
   }
 
-  async function handleUpdateRequest(e: React.FormEvent) {
+ async function handleUpdateRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!request || updatingRequest) return;
 
@@ -618,6 +618,7 @@ function RequestDetailPage() {
         }
       }
 
+      // Check current task status inline
       const { data: freshRecord, error: fetchError } = await supabase
         .from("requests")
         .select("taken_by")
@@ -635,29 +636,26 @@ function RequestDetailPage() {
       const targetLat = editCoords?.lat ?? request.lat ?? 48.8566;
       const targetLng = editCoords?.lng ?? request.lng ?? 2.3522;
       
-      // 🛠️ SAFE PARSING PRIMITIVE BOOLEAN FALLBACK
-      // Forces evaluated boolean type so the update payload satisfies Postgres NOT NULL constraints.
-      const safeSecretFlag = request.is_secret ?? request.isSecret ?? false;
+      // Explicitly convert value to strict boolean primitive to prevent constraint blocks
+      const safeSecretFlag = Boolean(request.is_secret || request.isSecret);
 
+      // Cleaned update payload matching Postgres columns explicitly
       const { error } = await supabase
         .from("requests")
         .update({
           title: editTitle.trim(),
           description: editDesc.trim(),
           location_label: editLocationLabel.trim(),
-          locationLabel: editLocationLabel.trim(),
           lat: targetLat,
           lng: targetLng,
           photo_urls: finalPhotoUrls,
-          photoUrls: finalPhotoUrls,
-          is_secret: safeSecretFlag,
-          isSecret: safeSecretFlag
+          is_secret: safeSecretFlag
         })
         .eq("id", request.id)
-        .eq("user_id", user?.id)
-        .is("taken_by", null); 
+        .eq("user_id", user?.id);
 
       if (error) throw error;
+      
       toast.success("Request modifications saved.");
       setIsEditingRequest(false);
       setSelectedNewFiles([]);
