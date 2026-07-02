@@ -101,7 +101,6 @@ function LoginPage() {
     }
   };
 
-  // Dedicated handler to request password resets from the bottom link
   const handleForgotPassword = async () => {
     if (!email) {
       toast.error("Please enter your email address in the form field above first.");
@@ -246,7 +245,6 @@ function LoginPage() {
             </Button>
           </form>
 
-          {/* Combined Navigation Footer Section */}
           <div className="mt-6 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
             <p>
               {mode === "signin" ? "New to PLAN T?" : "Already have an account?"}{" "}
@@ -270,6 +268,14 @@ function LoginPage() {
                 Forgot password?
               </button>
             )}
+
+            <nav className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground border-t border-border/50 pt-4">
+              <Link to="/how-it-works" className="hover:text-primary hover:underline">How it works</Link>
+              <Link to="/use-cases" className="hover:text-primary hover:underline">Use cases</Link>
+              <Link to="/about" className="hover:text-primary hover:underline">About</Link>
+              <Link to="/terms" className="hover:text-primary hover:underline">Terms</Link>
+              <Link to="/privacy" className="hover:text-primary hover:underline">Privacy</Link>
+            </nav>
           </div>
         </Card>
       </div>
