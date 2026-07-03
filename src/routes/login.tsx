@@ -269,15 +269,16 @@ function LoginPage() {
               </button>
             )}
 
-            <nav className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground border-t border-border/50 pt-4">
-              <Link to="/how-it-works" className="hover:text-primary hover:underline">How it works</Link>
-              <Link to="/use-cases" className="hover:text-primary hover:underline">Use cases</Link>
-              <Link to="/about" className="hover:text-primary hover:underline">About us</Link>
-              <Link to="/terms" className="hover:text-primary hover:underline">Terms & Conditions</Link>
-              <Link to="/privacy" className="hover:text-primary hover:underline">Privacy Policy</Link>
+            <nav className="mt-4 flex flex-col items-center gap-y-2 text-xs text-muted-foreground border-t border-border/50 pt-4">
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
+                <Link to="/how-it-works" className="hover:text-primary hover:underline">How it works</Link>
+                <Link to="/use-cases" className="hover:text-primary hover:underline">Use cases</Link>
+                <Link to="/about" className="hover:text-primary hover:underline">About us</Link>
+                <Link to="/terms" className="hover:text-primary hover:underline">Terms & Conditions</Link>
+                <Link to="/privacy" className="hover:text-primary hover:underline">Privacy Policy</Link>
               </div>
               <Link to="/notice-board" className="hover:text-primary hover:underline font-medium">
-              What's Hot in Request Notice Board
+                What's Hot in Request Notice Board
               </Link>
             </nav>
           </div>
