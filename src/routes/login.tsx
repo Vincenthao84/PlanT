@@ -154,7 +154,7 @@ function LoginPage() {
           </div>
 
           <div className="mb-6 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs leading-relaxed text-foreground/80">
-            The Platform is now <span className="font-semibold">free to try </span>.  Each free user can post up to <span className="font-semibold">20 requests</span> and take <span className="font-semibold">15 orders</span> per month only. Please subscribe at the rate of <span className="font-semibold"> US$3 for usage of 3 months onwards </span> to enjoy unlimited usage and other VIP functions.
+            The Platform is now <span className="font-semibold">free to try </span>.  Each free user can post up to <span className="font-semibold">20 requests</span> and take <span className="font-semibold">15 orders</span> per month only. Please subscribe at the rate of <span className="font-semibold"> US$3 for usage of 3 months onwards </span> to enjoy unlimited usage and other VIP functions (e.g. secret request (now open for trying)).
           </div>
 
           <Button
@@ -272,9 +272,13 @@ function LoginPage() {
             <nav className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground border-t border-border/50 pt-4">
               <Link to="/how-it-works" className="hover:text-primary hover:underline">How it works</Link>
               <Link to="/use-cases" className="hover:text-primary hover:underline">Use cases</Link>
-              <Link to="/about" className="hover:text-primary hover:underline">About</Link>
-              <Link to="/terms" className="hover:text-primary hover:underline">Terms</Link>
-              <Link to="/privacy" className="hover:text-primary hover:underline">Privacy</Link>
+              <Link to="/about" className="hover:text-primary hover:underline">About us</Link>
+              <Link to="/terms" className="hover:text-primary hover:underline">Terms & Conditions</Link>
+              <Link to="/privacy" className="hover:text-primary hover:underline">Privacy Policy</Link>
+              </div>
+              <Link to="/notice-board" className="hover:text-primary hover:underline font-medium">
+              What's Hot in Request Notice Board
+              </Link>
             </nav>
           </div>
         </Card>
