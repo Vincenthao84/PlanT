@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -390,6 +390,8 @@ function NoticeBoardPage() {
               </div>
             </div>
 
+            <AdBanner />
+            
             {viewMode === "all" ? (
               <div className="space-y-3 max-w-4xl">
                 {filteredAndSortedRequests.map((r, idx) => renderRequestCard(r, idx))}
