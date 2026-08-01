@@ -13,6 +13,7 @@ import { getRequestType, createRequest } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AdBanner } from "@/components/AdBanner";
 
 function exampleTitle(slug: string): string {
   switch (slug) {
@@ -419,6 +420,8 @@ function NewRequestPage() {
             </div>
           </form>
         </Card>
+        {/* 📢 Ad banner inserted below the new request creation card */}
+        <AdBanner />
       </section>
       <SiteFooter />
     </div>
