@@ -1,4 +1,6 @@
-function AdBanner() {
+import { useEffect, useRef } from "react";
+
+export function AdBanner() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
