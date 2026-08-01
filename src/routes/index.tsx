@@ -7,6 +7,7 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { requestTypes } from "@/lib/request-types";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
+import { AdBanner } from "@/components/AdBanner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -173,6 +174,8 @@ function Landing() {
             </Link>
           </div>
         </div>
+        {/* 📢 Ad Banner Displayed Below All Request Types */}
+        <AdBanner />
       </section>
 
       <SiteFooter />
