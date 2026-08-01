@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { AdBanner } from "@/components/AdBanner";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -283,6 +284,9 @@ function LoginPage() {
                 </nav>
           </div>
         </Card>
+
+        {/* 📢 Ad banner inserted below the new request creation card */}
+        <AdBanner />
       </div>
     </div>
   );
