@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { BidDialog } from "@/components/BidDialog";
 import { StarRating } from "@/components/StarRating";
+import { AdBanner } from "@/components/AdBanner";
 import {
   getRequestType,
   fetchAllRequests,
