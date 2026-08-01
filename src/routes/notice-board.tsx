@@ -462,7 +462,7 @@ function NoticeBoardPage() {
           </>
         )}
       </section>
-      <AdBanner />
+      
       <SiteFooter />
     </div>
   );
