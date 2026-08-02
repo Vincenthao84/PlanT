@@ -9,6 +9,7 @@ import { fetchMyRequests, type StoredRequest, getRequestType } from "@/lib/reque
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin, MessageSquare, Clock, ArrowRight, Gift } from "lucide-react";
+import { AdBanner } from "@/components/AdBanner";
 
 interface ExtendedStoredRequest extends StoredRequest {
   createdAt?: string;
@@ -281,7 +282,8 @@ function MyRequestsPage() {
     
         )}
 
-
+        {/* 📢 Ad Banner added at the bottom of the page content */}
+        <AdBanner />
         
       </main>
 
