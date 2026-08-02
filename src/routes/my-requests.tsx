@@ -279,6 +279,8 @@ function MyRequestsPage() {
           </div>
         )}
       </main>
+              {/* 📢 Ad banner inserted below the new request creation card */}
+        <AdBanner />
       <SiteFooter />
     </div>
   );
