@@ -4,22 +4,19 @@ export function AdBanner() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 1. Prevent duplicate script insertion
     if (!containerRef.current) return;
+    
+    // Clear previous scripts to avoid duplicates on re-render
     containerRef.current.innerHTML = "";
 
-    // 2. Create the ad container element required by the provider
-    const adContainer = document.createElement("div");
-    adContainer.id = "container-96cb238e2a51c4f8743d8be3ed10db58";
-
-    // 3. Create and configure the script tag dynamically
     const script = document.createElement("script");
+    script.src = "//unfoldedtrade.com/bzXtVTs-d.Gilk0tYpWFcr/ye/mV9RuHZuUllyk/P/T/csy/NuzAk/zbN_jWkhtANTzHIr3yOGT/MM3ZMuwE";
     script.async = true;
-    script.setAttribute("data-cfasync", "false");
-    script.src = "https://pl30619969.effectivecpmnetwork.com/96cb238e2a51c4f8743d8be3ed10db58/invoke.js";
+    script.referrerPolicy = "no-referrer-when-downgrade";
 
-    // 4. Append both elements to our React ref container
-    containerRef.current.appendChild(adContainer);
+    // Attach script settings property expected by the third-party script
+    (script as any).settings = {};
+
     containerRef.current.appendChild(script);
   }, []);
 
