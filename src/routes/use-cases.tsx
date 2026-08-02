@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, MapPin } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { AdBanner } from "@/components/AdBanner";
 
 const useCases = [
   "Check the length of a queue right now",
@@ -99,6 +100,10 @@ function UseCasesPage() {
             </Card>
           </div>
         </div>
+
+{/* 📢 Ad Banner added at the bottom of the page content */}
+        <AdBanner />
+        
       </section>
 
       <SiteFooter />
