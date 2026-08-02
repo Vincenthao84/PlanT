@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Shield, Users, Quote } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { AdBanner } from "@/components/AdBanner";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -64,6 +65,10 @@ function AboutPage() {
             </div>
           </div>
         </Card>
+
+{/* 📢 Ad Banner added at the bottom of the page content */}
+        <AdBanner />
+        
       </section>
 
       <SiteFooter />
