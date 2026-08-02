@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { AdBanner } from "@/components/AdBanner";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -141,7 +142,12 @@ function PrivacyPage() {
             .
           </p>
         </article>
+
+      {/* 📢 Ad Banner added at the bottom of the page content */}
+        <AdBanner />
+        
       </main>
+     
       <SiteFooter />
     </div>
   );
