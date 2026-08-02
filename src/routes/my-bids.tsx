@@ -7,6 +7,8 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { AdBanner } from "@/components/AdBanner";
+
 import { 
   MapPin, 
   MessageSquare, 
@@ -278,6 +280,10 @@ function MyBidsPage() {
             })}
           </div>
         )}
+
+        {/* 📢 Ad Banner added at the bottom of the page content */}
+        <AdBanner />
+        
       </main>
       <SiteFooter />
     </div>
