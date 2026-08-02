@@ -278,9 +278,12 @@ function MyRequestsPage() {
             })}
           </div>
         )}
-      </main>
-              {/* 📢 Ad banner inserted below the new request creation card */}
+
+        {/* 📢 Ad banner inserted below the new request creation card */}
         <AdBanner />
+        
+      </main>
+
       <SiteFooter />
     </div>
   );
