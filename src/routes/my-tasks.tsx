@@ -7,6 +7,8 @@ import { MapPin, Gift, Clock, Inbox, CheckCircle2, ClipboardList, Check, RotateC
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { TaskThread } from "@/components/TaskThread";
 import { PaymentQRUpload } from "@/components/PaymentQRUpload";
+import { AdBanner } from "@/components/AdBanner";
+
 import {
   getRequestType,
   takerCompleteRequest,
@@ -416,6 +418,10 @@ export function MyTasksPage() {
             })}
           </div>
         )}
+
+        {/* 📢 Ad Banner added at the bottom of the page content */}
+        <AdBanner />
+        
       </section>
       <SiteFooter />
     </div>
