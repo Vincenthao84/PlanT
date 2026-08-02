@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Search, MapPin, MessageSquare, Award } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { AdBanner } from "@/components/AdBanner";
 
 const flowSteps = [
   { n: "01", title: "Post a request", desc: "Set a location, boundary, reward and a short description. Keep it public or secret." },
@@ -103,6 +104,10 @@ function HowItWorksPage() {
             ))}
           </ul>
         </div>
+
+        {/* 📢 Ad Banner added at the bottom of the page content */}
+        <AdBanner />
+        
       </section>
 
       <SiteFooter />
