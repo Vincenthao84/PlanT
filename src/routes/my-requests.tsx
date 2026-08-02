@@ -274,14 +274,15 @@ function MyRequestsPage() {
                     </div>
                   )}
                 </Card>
+              
+              );
+            })}
+          </div>
 
         {/* 📢 Ad banner inserted below the new request creation card */}
         <AdBanner />
 
-                
-              );
-            })}
-          </div>
+      
         )}
 
 
