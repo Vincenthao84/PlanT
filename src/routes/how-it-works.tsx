@@ -95,7 +95,7 @@ function HowItWorksPage() {
           </div>
           <ul className="space-y-3">
             {[
-              "Deal history searchable on every profile",
+              "Rating of each user can be seen",
             ].map((p) => (
               <li key={p} className="flex items-start gap-3">
                 <Award className="h-5 w-5 text-accent shrink-0 mt-0.5" />
