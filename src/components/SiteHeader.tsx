@@ -1,3 +1,6 @@
+Here is the full updated code for **`SiteHeader.tsx`**. The layout, styling, and all original elements of both `SiteHeader` and `SiteFooter` have been preserved, with the **Rate us on Google Play** button placed cleanly in the footer.
+
+```tsx
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,10 +11,20 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import { Sparkles, LogOut, Menu, User } from "lucide-react"; 
+import { Sparkles, LogOut, Menu, User, Star } from "lucide-react"; 
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+
+declare global {
+  interface Window {
+    median?: {
+      appstore?: {
+        rate: () => void;
+      };
+    };
+  }
+}
 
 const publicNav = [
   { to: "/", label: "Make Requests" },
@@ -199,13 +212,48 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
+  const playStorePackageName = "co.median.android.abxznna"; // ⚠️ Replace with your actual Android package ID
+
+  const handleRateApp = () => {
+    if (window.median?.appstore) {
+      window.median.appstore.rate();
+      return;
+    }
+
+    const isAndroid = /android/i.test(navigator.userAgent);
+    if (isAndroid) {
+      window.location.href = `market://details?id=${playStorePackageName}`;
+    } else {
+      window.open(
+        `https://play.google.com/store/apps/details?id=${playStorePackageName}`,
+        "_blank",
+        "noopener,noreferrer"
+      );
+    }
+  };
+
   return (
     <footer className="border-t border-border py-10">
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
-          <img src="/plant-logo.png" alt="PlanT Logo" className="h-6 w-6 rounded-md object-cover" />
-          PLAN T
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
+            <img src="/plant-logo.png" alt="PlanT Logo" className="h-6 w-6 rounded-md object-cover" />
+            PLAN T
+          </Link>
+
+          {/* Added Rate Us Button while preserving original footer alignment */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRateApp}
+            className="rounded-full gap-1.5 text-xs h-8 px-3 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+          >
+            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+            Rate us
+          </Button>
+        </div>
+
         <div className="text-center md:text-right">
           <p>© {new Date().getFullYear()} PLAN T. A platform for offering & asking for help.</p>
           <p className="mt-1 text-xs">Copyright and ideas owned by Zero Point One International Company, Hong Kong.</p>
