@@ -1,6 +1,3 @@
-Here is the full updated code for **`SiteHeader.tsx`**. The layout, styling, and all original elements of both `SiteHeader` and `SiteFooter` have been preserved, with the **Rate us on Google Play** button placed cleanly in the footer.
-
-```tsx
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
