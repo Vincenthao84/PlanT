@@ -16,6 +16,9 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "Snap, Knowledge, Action, Object, Rental or Anything — pick the type of help you need and let nearby helpers bid on your request." },
       { property: "og:title", content: "PLAN T — Small Price, Big Help from Community. Endless things to get done." },
       { property: "og:description", content: "Six request types, one location-aware help marketplace." },
+    
+      // 🔒 Referrer policy meta tag added below:
+      { name: "referrer", content: "no-referrer-when-downgrade" },
     ],
   }),
   component: Landing,
